@@ -4,17 +4,25 @@ from .models import Candidate, ResolvedSource
 
 
 def scan(source: ResolvedSource) -> list[Candidate]:
-    candidates = [
-        Candidate(
-            source=source,
-            path=path,
-            relative_path=path.relative_to(source.root),
-            priority=_priority(path),
-        )
-        for path in _files(source.root)
-        if _selected(path.relative_to(source.root), source)
-    ]
-    return sorted(candidates, key=lambda c: (c.priority, c.relative_path.as_posix()))
+    candidates: dict[Path, Candidate] = {}
+    for selection in source.selections:
+        for path in _files(source.root / selection.relative_root):
+            relative_path = path.relative_to(source.root)
+            if selection.extensions is not None and (
+                path.suffix.casefold() not in selection.extensions
+            ):
+                continue
+            if not _selected(relative_path, source):
+                continue
+            candidates[relative_path] = Candidate(
+                source=source,
+                path=path,
+                relative_path=relative_path,
+                priority=_priority(path),
+            )
+    return sorted(
+        candidates.values(), key=lambda c: (c.priority, c.relative_path.as_posix())
+    )
 
 
 def _files(directory: Path) -> list[Path]:
