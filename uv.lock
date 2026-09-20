@@ -1,0 +1,12 @@
+version = 1
+revision = 3
+requires-python = ">=3.14"
+
+[options]
+exclude-newer = "2026-09-13T10:27:45.439053Z"
+exclude-newer-span = "P1W"
+
+[[package]]
+name = "baccy"
+version = "0.1.0"
+source = { editable = "." }
