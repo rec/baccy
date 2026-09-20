@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import plistlib
 import subprocess
 from collections.abc import Callable
