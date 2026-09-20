@@ -1,4 +1,4 @@
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -55,12 +55,29 @@ class NetworkSource(BaseModel, frozen=True):
 Source = PathSource | VolumeSource | NetworkSource
 
 
+class ProjectUpload(BaseModel, frozen=True):
+    ssh_url: str
+    minimum_seconds: float = Field(default=60.0, ge=0)
+    tracks: list[str] | None = None
+
+    @field_validator('ssh_url')
+    @classmethod
+    def validate_ssh_url(cls, value: str) -> str:
+        host, separator, path = value.partition(':')
+        if not host or not separator or not path or ' ' in value:
+            raise ValueError('SSH URL must be HOST:PATH without spaces')
+        if PurePosixPath(path).is_absolute() is False:
+            raise ValueError('SSH URL path must be absolute')
+        return value
+
+
 class Settings(BaseModel, frozen=True):
     backup_root: Path
     sources: list[Source] = Field(default_factory=list)
     discover_removable: bool = True
     poll_seconds: float = Field(default=60.0, gt=0)
     stability_seconds: float = Field(default=60.0, ge=0)
+    projects: dict[str, ProjectUpload] = Field(default_factory=dict)
 
     @model_validator(mode='after')
     def validate_source_names(self) -> Settings:
@@ -108,7 +125,9 @@ class FileResult(BaseModel, frozen=True):
 class BackupSummary(BaseModel, frozen=True):
     discovered: int = 0
     would_copy: int = 0
+    would_upload: int = 0
     copied: int = 0
+    uploaded: int = 0
     unchanged: int = 0
     deferred: int = 0
     unavailable: int = 0

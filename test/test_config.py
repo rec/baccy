@@ -30,6 +30,22 @@ def test_load_reads_sources(tmp_path: Path) -> None:
     assert settings.stability_seconds == 30
 
 
+def test_load_reads_project_upload_rules(tmp_path: Path) -> None:
+    path = tmp_path / 'baccy.toml'
+    path.write_text(
+        'backup_root = "/backup"\n'
+        '[projects.concert]\n'
+        'ssh_url = "user@example.org:/srv/recs"\n'
+        'minimum_seconds = 90\n'
+        'tracks = ["main"]\n'
+    )
+
+    settings = load(path)
+
+    assert settings.projects['concert'].minimum_seconds == 90
+    assert settings.projects['concert'].tracks == ['main']
+
+
 def test_default_config_path_uses_application_support(tmp_path: Path) -> None:
     assert default_config_path(tmp_path) == (
         tmp_path / 'Library' / 'Application Support' / 'baccy' / 'config.toml'

@@ -16,6 +16,7 @@ from .models import (
 )
 from .network import NetworkDiscovery, NetworkRecsSource, backup_network_source
 from .scan import scan
+from .upload import publish_sessions
 
 
 def run_backup(
@@ -104,6 +105,10 @@ def _run_candidates(
             )
         )
     for result in network_results:
+        summary = summary.with_result(result)
+    for result in publish_sessions(
+        resolved, settings.projects, settings.backup_root, dry_run
+    ):
         summary = summary.with_result(result)
     return summary.model_copy(
         update={

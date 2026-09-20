@@ -47,6 +47,14 @@ discover_removable = true
 poll_seconds = 60
 stability_seconds = 60
 
+[projects.concert]
+ssh_url = "user@example.org:/srv/recs"
+minimum_seconds = 60
+
+[projects.interview]
+ssh_url = "user@example.org:/srv/recs"
+tracks = ["host", "guest"]
+
 [[sources]]
 kind = "path"
 name = "recs"
@@ -93,6 +101,19 @@ the volume containing `backup_root` are ignored. Set
 `include` and `exclude` are optional lists of path-match patterns. Sources use
 `include = ["**"]` and no exclusions by default. Source names must be unique,
 and neither a source nor the backup root may contain the other.
+
+## Project publication
+
+Projects are the first directory below a configured recs source. A project with
+an `ssh_url` publishes selected files with `ssh` and `scp` to
+`SSH_URL/<project-relative-session-path>`. The remote base must use the form
+`HOST:/absolute/path`; baccy uses the existing SSH configuration and keys.
+
+By default baccy uploads the session journal, finalized `recording.toml`, and
+the last two channels from the device with the most channels. Audio shorter
+than `minimum_seconds`, which defaults to 60 seconds, is omitted. Set `tracks`
+to select named recs tracks instead. Upload state is recorded under
+`.baccy/uploads.jsonl`, so unchanged selected files are not sent again.
 
 ## Run once
 

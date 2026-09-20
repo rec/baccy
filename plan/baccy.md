@@ -32,12 +32,15 @@ Version one supports:
 - ordinary files such as audio and photos once they are stable;
 - durable records of completed copies and failures.
 
-Version one does not connect, authenticate, or mount remote machines itself.
-A remote machine is a source only when its share is visible as a filesystem
-path. It also does not publish files to a public server. Network connection and
-public publishing need separate destination, authentication, selection, and
-retention requirements, so they remain later milestones rather than partially
-implemented paths.
+Version one does not mount remote machines or manage credentials. It can publish
+selected recs sessions with the user's existing SSH configuration. Each project
+supplies an SCP-style `HOST:/absolute/path` base, a minimum audio duration, and
+optionally named tracks. Upload session-relative files below that base, creating
+the corresponding remote directories. By default publish the journal and
+finalized recording document plus the final two channels of the source device
+with the most channels, excluding audio shorter than one minute. Record local
+upload size and modification-time state so unchanged selected files are not
+uploaded again.
 
 ## macOS service behavior
 

@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 class Catalog:
-    def __init__(self, root: Path) -> None:
-        self.path = root / '.baccy' / 'catalog.jsonl'
+    def __init__(self, root: Path, name: str = 'catalog.jsonl') -> None:
+        self.path = root / '.baccy' / name
         self._latest = self._load_latest()
 
     def latest(self, source: str, relative_path: Path) -> dict[str, object] | None:
