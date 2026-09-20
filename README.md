@@ -60,11 +60,18 @@ diskutil info -plist /Volumes/CAMERA
 
 With `discover_removable = true`, the default, baccy also examines newly
 mounted removable or ejectable volumes that are not already configured. It
-automatically backs up the entire volume only when either:
+selects content only when either:
 
 - the volume root contains a `DCIM` directory, identifying a camera card; or
 - any directory contains a valid recs `recording.toml` or
   `session-record.jsonl`, identifying recs sessions.
+
+For a camera volume, only recognized photo files below `DCIM` are backed up;
+videos, sidecars, manuals, and unrelated files are ignored. Supported photo
+families include JPEG, HEIC/HEIF, PNG, TIFF, DNG, and common camera RAW formats.
+For a recs volume, every file inside each detected session directory is backed
+up, preserving the portable session; unrelated files elsewhere on the volume
+are ignored.
 
 Other unconfigured removable drives are ignored. Automatically discovered
 volumes use their filesystem UUID as part of the backup source identity, so a

@@ -61,9 +61,24 @@ class Settings(BaseModel, frozen=True):
         return self
 
 
+class SourceSelection(BaseModel, frozen=True):
+    relative_root: Path = Path('.')
+    extensions: list[str] | None = None
+
+    @field_validator('relative_root')
+    @classmethod
+    def validate_relative_root(cls, value: Path) -> Path:
+        if value.is_absolute() or '..' in value.parts:
+            raise ValueError('source selection root must be relative')
+        return value
+
+
 class ResolvedSource(BaseModel, frozen=True):
     source: Source
     root: Path
+    selections: list[SourceSelection] = Field(
+        default_factory=lambda: [SourceSelection()]
+    )
 
 
 class Candidate(BaseModel, frozen=True):

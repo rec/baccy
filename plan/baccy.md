@@ -120,11 +120,14 @@ Support two explicit source forms:
 By default, also inspect unconfigured removable or ejectable volumes. Admit an
 automatic volume only when its root contains a case-insensitive `DCIM`
 directory or its directory tree contains a valid recs `recording.toml` or
-`session-record.jsonl`. Back up the whole admitted volume under the stable
-source name `removable-VOLUME_UUID`. Ignore ordinary unconfigured volumes,
-unrelated files that merely use those names, volumes without a UUID, explicitly
-configured roots, and the volume containing the backup root. Configuration can
-disable automatic removable discovery.
+`session-record.jsonl`. For camera volumes, select only recognized photo files
+below `DCIM`. For recs volumes, select complete detected session directories.
+Never select unrelated files elsewhere on an automatically discovered volume.
+Store selections under the stable source name `removable-VOLUME_UUID`. Ignore
+ordinary unconfigured volumes, unrelated files that merely use the recs marker
+names, volumes without a UUID, explicitly configured roots, and the volume
+containing the backup root. Configuration can disable automatic removable
+discovery.
 
 Discover candidate volumes under `/Volumes` and obtain their identifiers from
 `diskutil info -plist`. Never treat a matching display name alone as a durable
@@ -309,6 +312,8 @@ Version one is complete when:
 - an inserted configured volume is discovered by UUID and backed up;
 - an unconfigured removable camera or recs volume is backed up, while an
   ordinary unconfigured removable volume is ignored;
+- automatic camera backups contain only photo files below `DCIM`, and automatic
+  recs backups contain only complete session directories;
 - a configured mounted network share is backed up when present and merely
   reported unavailable when absent;
 - recs TOML and complete JSONL prefixes are committed before stable media;

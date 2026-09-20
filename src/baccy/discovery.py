@@ -5,7 +5,13 @@ import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
-from .models import PathSource, ResolvedSource, Source, VolumeSource
+from .models import (
+    PathSource,
+    ResolvedSource,
+    Source,
+    SourceSelection,
+    VolumeSource,
+)
 
 _RECS_MARKERS = {'recording.toml', 'session-record.jsonl'}
 
@@ -71,7 +77,8 @@ def discover_removable_sources(
         normalized_uuid = uuid.casefold()
         if normalized_uuid in seen_uuids:
             continue
-        if not (_is_camera_volume(mount) or _contains_recs_session(mount)):
+        selections = _automatic_selections(mount)
+        if not selections:
             continue
         volume_name = data.get('VolumeName')
         source = VolumeSource(
@@ -80,7 +87,7 @@ def discover_removable_sources(
             uuid=uuid,
             expected_name=volume_name if isinstance(volume_name, str) else mount.name,
         )
-        sources.append(ResolvedSource(source=source, root=mount))
+        sources.append(ResolvedSource(source=source, root=mount, selections=selections))
         seen_uuids.add(normalized_uuid)
     return sources
 
@@ -127,29 +134,56 @@ def _is_removable(data: dict[str, object]) -> bool:
     )
 
 
-def _is_camera_volume(root: Path) -> bool:
+def _automatic_selections(root: Path) -> list[SourceSelection]:
+    selections = [
+        SourceSelection(
+            relative_root=directory.relative_to(root),
+            extensions=_PHOTO_EXTENSIONS,
+        )
+        for directory in _camera_directories(root)
+    ]
+    selections.extend(
+        SourceSelection(relative_root=directory.relative_to(root))
+        for directory in _recs_session_directories(root)
+    )
+    return selections
+
+
+def _camera_directories(root: Path) -> list[Path]:
     try:
-        return any(p.name.casefold() == 'dcim' and p.is_dir() for p in root.iterdir())
+        return [
+            p
+            for p in root.iterdir()
+            if p.name.casefold() == 'dcim' and not p.is_symlink() and p.is_dir()
+        ]
     except FileNotFoundError, PermissionError:
-        return False
+        return []
 
 
-def _contains_recs_session(root: Path) -> bool:
+def _recs_session_directories(root: Path) -> list[Path]:
     pending = [root]
+    sessions: list[Path] = []
     while pending:
         directory = pending.pop()
         try:
             children = sorted(directory.iterdir(), key=lambda p: p.name)
         except FileNotFoundError, PermissionError:
             continue
+        if any(
+            not path.is_symlink()
+            and path.name in _RECS_MARKERS
+            and path.is_file()
+            and _is_recs_marker(path)
+            for path in children
+        ):
+            sessions.append(directory)
+            continue
         for path in children:
             if path.is_symlink():
                 continue
-            if path.name in _RECS_MARKERS and path.is_file() and _is_recs_marker(path):
-                return True
             if path.is_dir():
                 pending.append(path)
-    return False
+    return sessions
 
 
 def _is_recs_marker(path: Path) -> bool:
@@ -166,3 +200,40 @@ def _is_recs_marker(path: Path) -> bool:
     except OSError, UnicodeDecodeError, json.JSONDecodeError:
         return False
     return isinstance(value, dict) and value.get('type') == 'header'
+
+
+_PHOTO_EXTENSIONS = [
+    '.3fr',
+    '.arw',
+    '.cr2',
+    '.cr3',
+    '.crw',
+    '.dng',
+    '.erf',
+    '.fff',
+    '.gpr',
+    '.heic',
+    '.heif',
+    '.iiq',
+    '.jpeg',
+    '.jpg',
+    '.kdc',
+    '.mef',
+    '.mos',
+    '.mrw',
+    '.nef',
+    '.nrw',
+    '.orf',
+    '.pef',
+    '.png',
+    '.raf',
+    '.raw',
+    '.rwl',
+    '.rw2',
+    '.sr2',
+    '.srw',
+    '.srf',
+    '.tif',
+    '.tiff',
+    '.x3f',
+]

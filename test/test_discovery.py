@@ -5,6 +5,7 @@ from pathlib import Path
 
 from baccy.discovery import discover_removable_sources, resolve_sources
 from baccy.models import PathSource, ResolvedSource, VolumeSource
+from baccy.scan import scan
 
 
 def test_resolve_sources_finds_path_source(tmp_path: Path) -> None:
@@ -49,7 +50,11 @@ def test_resolve_sources_reports_missing_path(tmp_path: Path) -> None:
 def test_discover_removable_sources_finds_camera_volume(tmp_path: Path) -> None:
     volumes = tmp_path / 'Volumes'
     camera = volumes / 'CAMERA'
-    (camera / 'DCIM').mkdir(parents=True)
+    images = camera / 'DCIM' / '100CANON'
+    images.mkdir(parents=True)
+    (images / 'photo.JPG').write_bytes(b'photo')
+    (images / 'clip.MOV').write_bytes(b'video')
+    (camera / 'manual.pdf').write_bytes(b'manual')
 
     sources = discover_removable_sources(
         tmp_path / 'backup', [], volumes, _diskutil(camera='camera-uuid')
@@ -57,6 +62,9 @@ def test_discover_removable_sources_finds_camera_volume(tmp_path: Path) -> None:
 
     assert [s.root for s in sources] == [camera]
     assert sources[0].source.name == 'removable-camera-uuid'
+    assert [c.relative_path for c in scan(sources[0])] == [
+        Path('DCIM/100CANON/photo.JPG')
+    ]
 
 
 def test_discover_removable_sources_finds_nested_recs_session(tmp_path: Path) -> None:
@@ -65,12 +73,18 @@ def test_discover_removable_sources_finds_nested_recs_session(tmp_path: Path) ->
     session = recordings / 'recs' / '2026-09-20 12-00-00'
     session.mkdir(parents=True)
     (session / 'session-record.jsonl').write_text('{"type":"header"}\n')
+    (session / 'audio.wav').write_bytes(b'audio')
+    (recordings / 'unrelated.txt').write_text('private')
 
     sources = discover_removable_sources(
         tmp_path / 'backup', [], volumes, _diskutil(recordings='recs-uuid')
     )
 
     assert [s.root for s in sources] == [recordings]
+    assert [c.relative_path for c in scan(sources[0])] == [
+        Path('recs/2026-09-20 12-00-00/session-record.jsonl'),
+        Path('recs/2026-09-20 12-00-00/audio.wav'),
+    ]
 
 
 def test_discover_removable_sources_ignores_unrecognized_volume(tmp_path: Path) -> None:
