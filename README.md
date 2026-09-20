@@ -141,6 +141,11 @@ MAC address is attempted once per process run; failures and hosts without a
 directories are copied as network sources, with the catalog skipping files
 whose remote size and modification time have not changed.
 
+When running as the installed service, baccy sends a macOS notification for a
+new copy failure. It does not notify for unavailable configured sources,
+unplugged removable media, or rejected network hosts. Repeated identical
+failures are reported once until they recover or change.
+
 ## Start automatically after login
 
 Install the per-user LaunchAgent:
