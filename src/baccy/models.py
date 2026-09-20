@@ -48,7 +48,8 @@ Source = PathSource | VolumeSource
 
 class Settings(BaseModel, frozen=True):
     backup_root: Path
-    sources: list[Source]
+    sources: list[Source] = Field(default_factory=list)
+    discover_removable: bool = True
     poll_seconds: float = Field(default=60.0, gt=0)
     stability_seconds: float = Field(default=60.0, ge=0)
 
@@ -57,8 +58,6 @@ class Settings(BaseModel, frozen=True):
         names = [s.name for s in self.sources]
         if len(names) != len(set(names)):
             raise ValueError('source names must be unique')
-        if not names:
-            raise ValueError('at least one source is required')
         return self
 
 

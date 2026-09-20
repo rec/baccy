@@ -4,9 +4,9 @@
 
 Build `baccy` as a macOS-first Python backup library and command-line
 application. It discovers configured local, removable, and mounted network
-sources, copies their files into one central backup root without propagating
-source deletions, and can either run one backup pass from a terminal or stay
-running under `launchd`.
+sources, plus unconfigured removable camera and recs volumes, copies their files
+into one central backup root without propagating source deletions, and can
+either run one backup pass from a terminal or stay running under `launchd`.
 
 The first version must work particularly well for recs session directories.
 It backs up every supported file byte-for-byte, prioritizing `.toml` and
@@ -21,6 +21,8 @@ Version one supports:
 - macOS only;
 - explicitly configured local directories;
 - removable volumes and network shares after macOS has mounted them;
+- automatic discovery of removable camera volumes and volumes containing recs
+  sessions;
 - one configured central backup directory;
 - one-shot command-line backups;
 - a foreground polling mode with the same behavior as the background service;
@@ -73,6 +75,7 @@ select a different file. The model contains:
 - the central backup root;
 - a list of sources, each with a unique stable name and either a fixed path or
   a mounted-volume match;
+- whether qualifying removable volumes are discovered automatically;
 - include and exclude patterns;
 - the polling interval;
 - the interval for which an ordinary file must remain unchanged before it is
@@ -113,6 +116,15 @@ Support two explicit source forms:
 1. A fixed path for local directories and already-mounted network shares.
 2. A mounted volume identified by its macOS volume UUID, with an optional
    expected volume name for readable diagnostics.
+
+By default, also inspect unconfigured removable or ejectable volumes. Admit an
+automatic volume only when its root contains a case-insensitive `DCIM`
+directory or its directory tree contains a valid recs `recording.toml` or
+`session-record.jsonl`. Back up the whole admitted volume under the stable
+source name `removable-VOLUME_UUID`. Ignore ordinary unconfigured volumes,
+unrelated files that merely use those names, volumes without a UUID, explicitly
+configured roots, and the volume containing the backup root. Configuration can
+disable automatic removable discovery.
 
 Discover candidate volumes under `/Volumes` and obtain their identifiers from
 `diskutil info -plist`. Never treat a matching display name alone as a durable
@@ -243,7 +255,8 @@ baccy owns backup progress and backup-specific errors.
 
 ### 2. Discovery and deterministic scanning
 
-- Implement fixed-path discovery and macOS volume UUID discovery.
+- Implement fixed-path discovery, configured macOS volume UUID discovery, and
+  qualified automatic removable-volume discovery.
 - Implement safe traversal, include/exclude matching, source/destination
   containment checks, and metadata-first ordering.
 - Test missing and disappearing sources, symlinks, overlapping roots, and recs
@@ -294,6 +307,8 @@ Version one is complete when:
 - `baccy watch` runs the same engine repeatedly in the foreground;
 - the LaunchAgent starts after login, stays alive, and returns after a reboot;
 - an inserted configured volume is discovered by UUID and backed up;
+- an unconfigured removable camera or recs volume is backed up, while an
+  ordinary unconfigured removable volume is ignored;
 - a configured mounted network share is backed up when present and merely
   reported unavailable when absent;
 - recs TOML and complete JSONL prefixes are committed before stable media;
