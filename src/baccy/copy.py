@@ -50,6 +50,34 @@ def copy_candidate(
             temporary.unlink()
 
 
+def preview_candidate(
+    candidate: Candidate,
+    backup_root: Path,
+    catalog: Catalog,
+    stability_seconds: float,
+    now_ns: int | None = None,
+) -> FileResult:
+    now = time.time_ns() if now_ns is None else now_ns
+    source = candidate.path
+    before = source.stat(follow_symlinks=False)
+    if not _is_regular_file(before):
+        return _result(candidate, 'deferred', 'source is no longer a regular file')
+    if _matches_catalog(candidate, before, backup_root, catalog):
+        return _result(candidate, 'unchanged')
+    if (
+        source.suffix != '.jsonl'
+        and now - before.st_mtime_ns < stability_seconds * 1_000_000_000
+    ):
+        return _result(
+            candidate, 'deferred', 'source is still within the stability interval'
+        )
+    if source.suffix == '.jsonl' and not _has_complete_final_line(
+        source, before.st_size
+    ):
+        return _result(candidate, 'deferred', 'JSONL source has a partial final line')
+    return _result(candidate, 'would_copy')
+
+
 def _snapshot(
     source: Path, before: os.stat_result, directory: Path
 ) -> tuple[Path | None, str]:
@@ -116,6 +144,18 @@ def _snapshot_jsonl(
 
 def _open_source(path: Path) -> int:
     return os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+
+
+def _has_complete_final_line(path: Path, size: int) -> bool:
+    if not size:
+        return True
+    descriptor = _open_source(path)
+    try:
+        with os.fdopen(descriptor, 'rb', closefd=False) as file:
+            file.seek(-1, os.SEEK_END)
+            return file.read(1) == b'\n'
+    finally:
+        os.close(descriptor)
 
 
 def _write_stream(

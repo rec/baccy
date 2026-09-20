@@ -97,6 +97,7 @@ class FileResult(BaseModel, frozen=True):
 
 class BackupSummary(BaseModel, frozen=True):
     discovered: int = 0
+    would_copy: int = 0
     copied: int = 0
     unchanged: int = 0
     deferred: int = 0

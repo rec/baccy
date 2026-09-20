@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import pytest
 from pytest import CaptureFixture, MonkeyPatch
 
 from baccy.cli import main
@@ -28,6 +29,32 @@ def test_backup_command_runs_one_pass(
     output = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert output['copied'] == 1
+
+
+@pytest.mark.parametrize('flag', ['-d', '--dry-run'])
+def test_backup_command_dry_run_does_not_write(
+    tmp_path: Path, capsys: CaptureFixture[str], flag: str
+) -> None:
+    source = tmp_path / 'source'
+    source.mkdir()
+    (source / 'recording.toml').write_text('format = "recs"\n')
+    destination = tmp_path / 'backup'
+    config = tmp_path / 'baccy.toml'
+    config.write_text(
+        f'backup_root = "{destination}"\n'
+        'stability_seconds = 0\n'
+        '[[sources]]\n'
+        'kind = "path"\n'
+        'name = "source"\n'
+        f'path = "{source}"\n'
+    )
+
+    exit_code = main(['backup', flag, '--config', str(config)])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 0
+    assert output['would_copy'] == 1
+    assert not destination.exists()
 
 
 def test_backup_command_without_configuration_uses_main_drive(

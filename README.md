@@ -101,6 +101,7 @@ Run one complete scan and exit:
 ```sh
 uv run baccy backup
 uv run baccy backup --config /path/to/baccy.toml
+uv run baccy backup --dry-run
 ```
 
 The first form needs no configuration file. It discovers qualifying removable
@@ -110,6 +111,10 @@ media and stores selected photo files or recs sessions on the main drive under
 The command prints a JSON summary. It exits nonzero when a configured source is
 unavailable or a copy fails. A missing removable card or mounted share does not
 delete or alter prior backups.
+
+Use `-d` or `--dry-run` to print the same summary with `would_copy` results
+without creating the backup root, lock, catalog, temporary files, or versions.
+`baccy watch -d` repeatedly performs the same non-writing preview.
 
 ## Watch in the foreground
 
