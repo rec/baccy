@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from .application import Application
 from .backup import run_backup
-from .config import default_config_path, load
+from .config import default_config_path, load_or_default
 from .models import BackupSummary
 from .watch import watch
 
@@ -52,13 +52,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _backup(command: BackupCommand) -> int:
-    summary = run_backup(load(command.config))
+    summary = run_backup(load_or_default(command.config))
     _print_summary(summary)
     return 1 if summary.failed or summary.unavailable else 0
 
 
 def _watch(command: WatchCommand) -> int:
-    settings = load(command.config)
+    settings = load_or_default(command.config)
     if os.environ.get('BACCY_DAEMON') == '1':
         application = Application()
         application.start()

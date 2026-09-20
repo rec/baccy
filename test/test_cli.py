@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
 
-from pytest import CaptureFixture
+from pytest import CaptureFixture, MonkeyPatch
 
 from baccy.cli import main
+from baccy.models import ResolvedSource, SourceSelection, VolumeSource
 
 
 def test_backup_command_runs_one_pass(
@@ -27,3 +28,40 @@ def test_backup_command_runs_one_pass(
     output = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert output['copied'] == 1
+
+
+def test_backup_command_without_configuration_uses_main_drive(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+) -> None:
+    session = tmp_path / 'card' / 'recs-session'
+    session.mkdir(parents=True)
+    (session / 'session-record.jsonl').write_text('{"type":"header"}\n')
+    source = VolumeSource(kind='volume', name='removable-test-uuid', uuid='test-uuid')
+    resolved = ResolvedSource(
+        source=source,
+        root=tmp_path / 'card',
+        selections=[SourceSelection(relative_root=Path('recs-session'))],
+    )
+    monkeypatch.setenv('HOME', str(tmp_path))
+    monkeypatch.setattr(
+        'baccy.backup.discover_removable_sources',
+        lambda backup_root, configured: [resolved],
+    )
+
+    exit_code = main(['backup'])
+
+    output = json.loads(capsys.readouterr().out)
+    destination = (
+        tmp_path
+        / 'Backups'
+        / 'baccy'
+        / 'sources'
+        / 'removable-test-uuid'
+        / 'recs-session'
+        / 'session-record.jsonl'
+    )
+    assert exit_code == 0
+    assert output['copied'] == 1
+    assert destination.read_text() == '{"type":"header"}\n'

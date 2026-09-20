@@ -21,11 +21,22 @@ The `baccy` command is then available through `uv run baccy`.
 
 ## Configuration
 
-By default baccy reads:
+By default baccy looks for:
 
 ```text
 ~/Library/Application Support/baccy/config.toml
 ```
+
+If that file does not exist, baccy still runs with automatic removable-drive
+discovery enabled and writes selected backups to:
+
+```text
+~/Backups/baccy
+```
+
+This makes `baccy backup`, `baccy watch`, and a normally installed service
+useful without creating a configuration file. A missing path supplied
+explicitly with `--config` remains an error.
 
 Pass `--config PATH` to any backup, watch, or service-install command to use a
 different file.
@@ -91,6 +102,10 @@ Run one complete scan and exit:
 uv run baccy backup
 uv run baccy backup --config /path/to/baccy.toml
 ```
+
+The first form needs no configuration file. It discovers qualifying removable
+media and stores selected photo files or recs sessions on the main drive under
+`~/Backups/baccy`.
 
 The command prints a JSON summary. It exits nonzero when a configured source is
 unavailable or a copy fails. A missing removable card or mounted share does not

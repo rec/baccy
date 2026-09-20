@@ -3,7 +3,12 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from baccy.config import default_config_path, load
+from baccy.config import (
+    default_backup_root,
+    default_config_path,
+    load,
+    load_or_default,
+)
 from baccy.models import Settings
 
 
@@ -29,6 +34,25 @@ def test_default_config_path_uses_application_support(tmp_path: Path) -> None:
     assert default_config_path(tmp_path) == (
         tmp_path / 'Library' / 'Application Support' / 'baccy' / 'config.toml'
     )
+
+
+def test_default_backup_root_uses_main_drive_home(tmp_path: Path) -> None:
+    assert default_backup_root(tmp_path) == tmp_path / 'Backups' / 'baccy'
+
+
+def test_load_or_default_uses_defaults_when_standard_file_is_missing(
+    tmp_path: Path,
+) -> None:
+    settings = load_or_default(default_config_path(tmp_path), tmp_path)
+
+    assert settings.backup_root == tmp_path / 'Backups' / 'baccy'
+    assert settings.sources == []
+    assert settings.discover_removable is True
+
+
+def test_load_or_default_rejects_missing_explicit_file(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError):
+        load_or_default(tmp_path / 'missing.toml', tmp_path)
 
 
 def test_settings_reject_duplicate_source_names() -> None:
