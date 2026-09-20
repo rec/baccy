@@ -24,6 +24,10 @@ def copy_candidate(
     before = source.stat(follow_symlinks=False)
     if not _is_regular_file(before):
         return _result(candidate, 'deferred', 'source is no longer a regular file')
+    if candidate.active:
+        return _result(candidate, 'deferred', 'recs audio file is still being written')
+    if source.suffix == '.jsonl':
+        return _copy_jsonl_candidate(candidate, before, backup_root, catalog)
     if _matches_catalog(candidate, before, backup_root, catalog):
         return _result(candidate, 'unchanged')
     if (
@@ -62,6 +66,8 @@ def preview_candidate(
     before = source.stat(follow_symlinks=False)
     if not _is_regular_file(before):
         return _result(candidate, 'deferred', 'source is no longer a regular file')
+    if candidate.active:
+        return _result(candidate, 'deferred', 'recs audio file is still being written')
     if _matches_catalog(candidate, before, backup_root, catalog):
         return _result(candidate, 'unchanged')
     if (
@@ -76,6 +82,109 @@ def preview_candidate(
     ):
         return _result(candidate, 'deferred', 'JSONL source has a partial final line')
     return _result(candidate, 'would_copy')
+
+
+def _copy_jsonl_candidate(
+    candidate: Candidate,
+    before: os.stat_result,
+    backup_root: Path,
+    catalog: Catalog,
+) -> FileResult:
+    destination = (
+        backup_root / 'sources' / candidate.source.source.name / candidate.relative_path
+    )
+    if record := catalog.latest(candidate.source.source.name, candidate.relative_path):
+        size = record.get('size')
+        digest = record.get('sha256')
+        if isinstance(size, int) and isinstance(digest, str):
+            if before.st_size == size and _matches_catalog(
+                candidate, before, backup_root, catalog
+            ):
+                return _result(candidate, 'unchanged')
+            if (
+                before.st_size > size
+                and destination.is_file()
+                and destination.stat().st_size == size
+                and sha256(destination) == digest
+                and _sha256_prefix(candidate.path, size) == digest
+            ):
+                return _append_jsonl(
+                    candidate, before, destination, backup_root, catalog, size
+                )
+    if not _has_complete_final_line(candidate.path, before.st_size):
+        return _result(candidate, 'deferred', 'JSONL source has a partial final line')
+    ensure_destination_parent(backup_root, destination.parent)
+    descriptor, name = tempfile.mkstemp(
+        prefix='.baccy-', suffix='.tmp', dir=destination.parent
+    )
+    temporary = Path(name)
+    temporary, digest = _snapshot_jsonl(
+        candidate.path,
+        before,
+        descriptor,
+        temporary,
+    )
+    try:
+        if temporary is None:
+            return _result(candidate, 'deferred', digest)
+        return commit_snapshot(
+            candidate, before, temporary, digest, destination, backup_root, catalog
+        )
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
+
+
+def _append_jsonl(
+    candidate: Candidate,
+    before: os.stat_result,
+    destination: Path,
+    backup_root: Path,
+    catalog: Catalog,
+    offset: int,
+) -> FileResult:
+    descriptor, name = tempfile.mkstemp(
+        prefix='.baccy-', suffix='.tmp', dir=destination.parent
+    )
+    temporary = Path(name)
+    try:
+        with candidate.path.open('rb') as input_file:
+            input_file.seek(offset)
+            with os.fdopen(descriptor, 'wb') as output_file:
+                _, last = _write_stream(
+                    input_file, output_file, before.st_size - offset
+                )
+                output_file.flush()
+                os.fsync(output_file.fileno())
+        if last != b'\n' or not _same_identity(
+            before, candidate.path.stat(follow_symlinks=False)
+        ):
+            return _result(candidate, 'deferred', 'JSONL source changed while copying')
+        with destination.open('ab') as output_file, temporary.open('rb') as input_file:
+            while chunk := input_file.read(_CHUNK_SIZE):
+                output_file.write(chunk)
+            output_file.flush()
+            os.fsync(output_file.fileno())
+        digest = sha256(destination)
+        if _sha256_prefix(candidate.path, before.st_size) != digest:
+            return _result(candidate, 'deferred', 'JSONL source changed while copying')
+        os.utime(destination, ns=(before.st_atime_ns, before.st_mtime_ns))
+        catalog.append(
+            {
+                'source': candidate.source.source.name,
+                'relative_path': candidate.relative_path.as_posix(),
+                'size': before.st_size,
+                'mtime_ns': before.st_mtime_ns,
+                'sha256': digest,
+                'destination': destination.relative_to(backup_root).as_posix(),
+                'copied_at_ns': time.time_ns(),
+                'result': 'copied',
+            }
+        )
+        return _result(candidate, 'copied')
+    finally:
+        if temporary.exists():
+            temporary.unlink()
 
 
 def _snapshot(

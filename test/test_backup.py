@@ -84,6 +84,46 @@ def test_backup_defers_jsonl_with_partial_final_line(tmp_path: Path) -> None:
     assert result.copied == 0
 
 
+def test_backup_appends_jsonl_without_retaining_a_full_version(tmp_path: Path) -> None:
+    source = tmp_path / 'source'
+    source.mkdir()
+    journal = source / 'session-record.jsonl'
+    journal.write_text('{"type":"header"}\n')
+    destination = tmp_path / 'backup'
+    settings = _settings(source, destination)
+    run_backup(settings)
+    journal.write_text('{"type":"header"}\n{"type":"event"}\n')
+
+    result = run_backup(settings)
+
+    assert result.copied == 1
+    assert (
+        destination / 'sources' / 'source' / 'session-record.jsonl'
+    ).read_text() == '{"type":"header"}\n{"type":"event"}\n'
+    assert not (destination / '.baccy' / 'versions').exists()
+
+
+def test_backup_defers_active_recs_audio_until_finished(tmp_path: Path) -> None:
+    source = tmp_path / 'source'
+    source.mkdir()
+    journal = source / 'session-record.jsonl'
+    journal.write_text('{"type":"file_started","stream_id":"mic","path":"audio.wav"}\n')
+    (source / 'audio.wav').write_bytes(b'audio')
+    destination = tmp_path / 'backup'
+    settings = _settings(source, destination)
+
+    active = run_backup(settings)
+    journal.write_text(
+        '{"type":"file_started","stream_id":"mic","path":"audio.wav"}\n'
+        '{"type":"file_finished","stream_id":"mic","path":"audio.wav"}\n'
+    )
+    finished = run_backup(settings)
+
+    assert active.deferred == 1
+    assert finished.copied == 2
+    assert (destination / 'sources' / 'source' / 'audio.wav').read_bytes() == b'audio'
+
+
 def test_backup_retains_replaced_destination_version(tmp_path: Path) -> None:
     source = tmp_path / 'source'
     source.mkdir()

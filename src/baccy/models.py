@@ -95,6 +95,7 @@ class Candidate(BaseModel, frozen=True):
     path: Path
     relative_path: Path
     priority: int
+    active: bool = False
 
 
 class FileResult(BaseModel, frozen=True):

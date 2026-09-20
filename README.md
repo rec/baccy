@@ -112,6 +112,11 @@ The command prints a JSON summary. It exits nonzero when a configured source is
 unavailable or a copy fails. A missing removable card or mounted share does not
 delete or alter prior backups.
 
+For recs sessions, baccy appends only newly completed lines from
+`session-record.jsonl` after verifying its already backed-up prefix. WAV and
+FLAC files named by an unfinished `file_started` record are deferred. They are
+copied atomically once recs writes a matching `file_finished` record.
+
 Use `-d` or `--dry-run` to print the same summary with `would_copy` results
 without creating the backup root, lock, catalog, temporary files, or versions.
 `baccy watch -d` repeatedly performs the same non-writing preview.
