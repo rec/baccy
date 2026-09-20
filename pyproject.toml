@@ -12,8 +12,23 @@ authors = [
     { name = "Tom Ritchford", email = "tom@swirly.com" },
 ]
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "pydantic>=2.13.5",
+    "reccy",
+    "tyro>=1.0.16",
+]
 
 [project.urls]
 Repository = "https://github.com/rec/baccy"
+
+[tool.uv.sources]
+reccy = { path = "../reccy", editable = true }
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pyupgrade>=3.21.2",
+    "ruff>=0.16.7",
+    "ty>=0.0.80",
+]
 
