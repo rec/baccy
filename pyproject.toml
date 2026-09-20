@@ -21,6 +21,9 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/rec/baccy"
 
+[project.scripts]
+baccy = "baccy.__main__:main"
+
 [tool.uv.sources]
 reccy = { path = "../reccy", editable = true }
 
@@ -32,3 +35,14 @@ dev = [
     "ty>=0.0.80",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["test"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I"]
