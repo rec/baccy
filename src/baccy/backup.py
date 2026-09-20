@@ -14,25 +14,38 @@ from .models import (
     Settings,
     Source,
 )
+from .network import NetworkDiscovery, NetworkRecsSource, backup_network_source
 from .scan import scan
 
 
-def run_backup(settings: Settings, dry_run: bool = False) -> BackupSummary:
+def run_backup(
+    settings: Settings,
+    dry_run: bool = False,
+    network: NetworkDiscovery | None = None,
+) -> BackupSummary:
     _validate_config_roots(settings)
     resolved, unavailable = resolve_sources(settings.sources)
     if settings.discover_removable:
         resolved.extend(discover_removable_sources(settings.backup_root, resolved))
     _validate_roots(settings.backup_root, resolved)
+    discovery = NetworkDiscovery() if network is None else network
+    network_sources = discovery.discover()
     if dry_run:
-        return _run_candidates(settings, resolved, unavailable, dry_run=True)
+        return _run_candidates(
+            settings, resolved, unavailable, network_sources, discovery, dry_run=True
+        )
     with BackupLock(settings.backup_root):
-        return _run_candidates(settings, resolved, unavailable, dry_run=False)
+        return _run_candidates(
+            settings, resolved, unavailable, network_sources, discovery, dry_run=False
+        )
 
 
 def _run_candidates(
     settings: Settings,
     resolved: list[ResolvedSource],
     unavailable: list[Source],
+    network_sources: list[NetworkRecsSource],
+    network: NetworkDiscovery,
     dry_run: bool,
 ) -> BackupSummary:
     summary = BackupSummary()
@@ -83,7 +96,22 @@ def _run_candidates(
                 break
         else:
             summary = summary.with_result(result)
-    return summary
+    network_results: list[FileResult] = []
+    for source in network_sources:
+        network_results.extend(
+            backup_network_source(
+                source, settings.backup_root, catalog, dry_run, network.run
+            )
+        )
+    for result in network_results:
+        summary = summary.with_result(result)
+    return summary.model_copy(
+        update={
+            'discovered': summary.discovered
+            + sum(result.relative_path is not None for result in network_results),
+            'results': summary.results,
+        }
+    )
 
 
 class BackupLock:

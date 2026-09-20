@@ -43,7 +43,16 @@ class VolumeSource(BaseModel, frozen=True):
         return value
 
 
-Source = PathSource | VolumeSource
+class NetworkSource(BaseModel, frozen=True):
+    kind: Literal['network']
+    name: str
+    mac: str
+    host: str
+    include: list[str] = Field(default_factory=lambda: ['**'])
+    exclude: list[str] = Field(default_factory=list)
+
+
+Source = PathSource | VolumeSource | NetworkSource
 
 
 class Settings(BaseModel, frozen=True):

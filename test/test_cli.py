@@ -8,6 +8,16 @@ from baccy.cli import main
 from baccy.models import ResolvedSource, SourceSelection, VolumeSource
 
 
+class NoNetworkDiscovery:
+    def discover(self) -> list[object]:
+        return []
+
+
+@pytest.fixture(autouse=True)
+def disable_network_discovery(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr('baccy.backup.NetworkDiscovery', NoNetworkDiscovery)
+
+
 def test_backup_command_runs_one_pass(
     tmp_path: Path, capsys: CaptureFixture[str]
 ) -> None:

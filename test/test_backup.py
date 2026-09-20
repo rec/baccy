@@ -6,6 +6,16 @@ from baccy.backup import run_backup
 from baccy.models import PathSource, Settings
 
 
+class NoNetworkDiscovery:
+    def discover(self) -> list[object]:
+        return []
+
+
+@pytest.fixture(autouse=True)
+def disable_network_discovery(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr('baccy.backup.NetworkDiscovery', NoNetworkDiscovery)
+
+
 def _settings(
     source: Path, destination: Path, stability_seconds: float = 0
 ) -> Settings:
