@@ -37,12 +37,12 @@ def copy_candidate(
     destination = (
         backup_root / 'sources' / candidate.source.source.name / candidate.relative_path
     )
-    _ensure_destination_parent(backup_root, destination.parent)
+    ensure_destination_parent(backup_root, destination.parent)
     temporary, digest = _snapshot(source, before, destination.parent)
     try:
         if temporary is None:
             return _result(candidate, 'deferred', digest)
-        return _commit(
+        return commit_snapshot(
             candidate, before, temporary, digest, destination, backup_root, catalog
         )
     finally:
@@ -177,7 +177,7 @@ def _write_stream(
     return digest.hexdigest(), last
 
 
-def _commit(
+def commit_snapshot(
     candidate: Candidate,
     before: os.stat_result,
     temporary: Path,
@@ -189,7 +189,7 @@ def _commit(
     if destination.exists():
         if destination.is_symlink() or not destination.is_file():
             raise OSError(f'destination is not a regular file: {destination}')
-        existing_digest = _sha256(destination)
+        existing_digest = sha256(destination)
         if existing_digest == digest:
             return _result(candidate, 'unchanged')
         _retain(destination, candidate, existing_digest, backup_root)
@@ -242,7 +242,7 @@ def _matches_catalog(
     return destination.is_file() and destination.stat().st_size == source.st_size
 
 
-def _ensure_destination_parent(backup_root: Path, parent: Path) -> None:
+def ensure_destination_parent(backup_root: Path, parent: Path) -> None:
     _ensure_directory(backup_root, parent)
 
 
@@ -261,7 +261,7 @@ def _ensure_directory(backup_root: Path, directory: Path) -> None:
             current.mkdir()
 
 
-def _sha256(path: Path) -> str:
+def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open('rb') as file:
         for chunk in iter(lambda: file.read(_CHUNK_SIZE), b''):

@@ -6,6 +6,8 @@ from typing import cast
 from .backup import run_backup
 from .models import BackupSummary, Settings
 
+NETWORK_POLL_SECONDS = 10.0
+
 
 def watch(
     settings: Settings,
@@ -20,7 +22,7 @@ def watch(
             summary = action(settings)
             if report is not None:
                 report(summary)
-            stopping.wait(settings.poll_seconds)
+            stopping.wait(min(settings.poll_seconds, NETWORK_POLL_SECONDS))
     finally:
         _restore_signal_handlers(previous_handlers)
 

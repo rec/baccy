@@ -71,6 +71,12 @@ Both `backup` and `watch` call the same synchronous scan-and-copy engine.
 `watch` only adds polling, signal-aware shutdown, and repeated status updates.
 The service invokes `baccy watch`; there is no separate daemon implementation.
 
+Every ten seconds, watch inspects the local ARP table. A newly seen MAC address
+is tried once with batch-mode SSH and strict host-key checking. If its `~/recs`
+directory exists, its files become a network source; other files on the system
+are never considered. Failed SSH attempts and systems without that directory
+are remembered only until the process exits.
+
 Read settings from one TOML configuration file, with a command-line option to
 select a different file. When the standard configuration file is absent, use
 automatic removable discovery and `~/Backups/baccy` on the main drive. A

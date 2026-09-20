@@ -11,6 +11,7 @@ from .application import Application
 from .backup import run_backup
 from .config import default_config_path, load_or_default
 from .models import BackupSummary, Settings
+from .network import NetworkDiscovery
 from .watch import watch
 
 
@@ -63,9 +64,10 @@ def _backup(command: BackupCommand) -> int:
 
 def _watch(command: WatchCommand) -> int:
     settings = load_or_default(command.config)
+    network = NetworkDiscovery()
 
     def action(value: Settings) -> BackupSummary:
-        return run_backup(value, dry_run=command.dry_run)
+        return run_backup(value, dry_run=command.dry_run, network=network)
 
     if os.environ.get('BACCY_DAEMON') == '1':
         application = Application()

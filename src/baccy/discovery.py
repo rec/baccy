@@ -39,6 +39,8 @@ def resolve_source(
 ) -> Path | None:
     if isinstance(source, PathSource):
         return source.path if source.path.is_dir() else None
+    if not isinstance(source, VolumeSource):
+        return None
     return _resolve_volume(source, volumes_root, diskutil)
 
 
