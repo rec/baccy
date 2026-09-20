@@ -63,7 +63,7 @@ def _watch(command: WatchCommand) -> int:
         application = Application()
         application.start()
         try:
-            watch(settings, report=_print_summary)
+            watch(settings, report=lambda summary: _report(application, summary))
         finally:
             application.close()
     else:
@@ -109,6 +109,11 @@ def _parse_service_command(arguments: list[str], command: str) -> None:
 
 def _print_summary(summary: BackupSummary) -> None:
     print(json.dumps(summary.model_dump(mode='json'), sort_keys=True))
+
+
+def _report(application: Application, summary: BackupSummary) -> None:
+    _print_summary(summary)
+    application.record_summary(summary)
 
 
 def _usage() -> str:

@@ -6,11 +6,12 @@ from typing import TextIO
 from .catalog import Catalog
 from .copy import copy_candidate
 from .discovery import resolve_sources
-from .models import BackupSummary, FileResult, ResolvedSource, Settings
+from .models import BackupSummary, FileResult, PathSource, ResolvedSource, Settings
 from .scan import scan
 
 
 def run_backup(settings: Settings) -> BackupSummary:
+    _validate_config_roots(settings)
     with BackupLock(settings.backup_root):
         resolved, unavailable = resolve_sources(settings.sources)
         _validate_roots(settings.backup_root, resolved)
@@ -86,5 +87,17 @@ def _validate_roots(backup_root: Path, sources: list[ResolvedSource]) -> None:
         if destination.is_relative_to(root) or root.is_relative_to(destination):
             raise ValueError('backup root and source roots must not overlap')
     for index, root in enumerate(roots):
-        if any(root.is_relative_to(other) for other in roots[:index]):
+        if any(
+            root.is_relative_to(other) or other.is_relative_to(root)
+            for other in roots[:index]
+        ):
             raise ValueError('source roots must not overlap')
+
+
+def _validate_config_roots(settings: Settings) -> None:
+    sources = [
+        ResolvedSource(source=source, root=source.path)
+        for source in settings.sources
+        if isinstance(source, PathSource)
+    ]
+    _validate_roots(settings.backup_root, sources)

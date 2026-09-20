@@ -4,6 +4,7 @@ from pathlib import Path
 from reccy.services import models, renderers
 
 from baccy.application import BACCY_SERVICE, Application
+from baccy.models import BackupSummary
 
 
 def test_application_renders_launch_agent(tmp_path: Path) -> None:
@@ -20,3 +21,13 @@ def test_application_renders_launch_agent(tmp_path: Path) -> None:
     assert plist['RunAtLoad'] is True
     assert plist['KeepAlive'] is True
     assert plist['ProgramArguments'][-3:] == ['watch', '--config', '/tmp/baccy.toml']
+
+
+def test_application_persists_last_backup_summary(tmp_path: Path) -> None:
+    application = Application(home=tmp_path, platform=models.Platform.macos)
+    application.start()
+    try:
+        application.record_summary(BackupSummary(copied=3))
+        assert application.status_snapshot().summary == BackupSummary(copied=3)
+    finally:
+        application.close()

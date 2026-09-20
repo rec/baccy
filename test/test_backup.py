@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from baccy.backup import run_backup
 from baccy.models import PathSource, Settings
 
@@ -92,3 +94,16 @@ def test_backup_preserves_destination_when_source_disappears(tmp_path: Path) -> 
 
     assert result.unavailable == 1
     assert (destination / 'sources' / 'source' / 'recording.toml').exists()
+
+
+def test_backup_rejects_overlapping_source_and_destination_without_writing(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / 'source'
+    source.mkdir()
+    settings = _settings(source, source / 'backup')
+
+    with pytest.raises(ValueError, match='must not overlap'):
+        run_backup(settings)
+
+    assert not (source / 'backup').exists()
