@@ -49,6 +49,20 @@ def test_backup_defers_recent_ordinary_files(tmp_path: Path) -> None:
     assert result.copied == 0
 
 
+def test_backup_dry_run_does_not_write(tmp_path: Path) -> None:
+    source = tmp_path / 'source'
+    source.mkdir()
+    (source / 'recording.toml').write_text('format = "recs"\n')
+    destination = tmp_path / 'backup'
+
+    result = run_backup(_settings(source, destination), dry_run=True)
+
+    assert result.would_copy == 1
+    assert result.copied == 0
+    assert result.results[0].status == 'would_copy'
+    assert not destination.exists()
+
+
 def test_backup_defers_jsonl_with_partial_final_line(tmp_path: Path) -> None:
     source = tmp_path / 'source'
     source.mkdir()

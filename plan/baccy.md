@@ -61,6 +61,8 @@ Define Tyro commands as frozen Pydantic models and keep command routing thin:
 
 - `baccy backup`: perform one discovery and backup pass, report a summary, and
   exit nonzero if any requested source or copy failed;
+- `baccy backup -d` or `baccy backup --dry-run`: report files that would copy
+  without changing the backup root;
 - `baccy watch`: run the polling loop in the foreground until interrupted;
 - `baccy service install|status|start|stop|restart|uninstall`: manage the
   LaunchAgent through reccy.

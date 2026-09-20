@@ -4,44 +4,72 @@ from pathlib import Path
 from typing import TextIO
 
 from .catalog import Catalog
-from .copy import copy_candidate
+from .copy import copy_candidate, preview_candidate
 from .discovery import discover_removable_sources, resolve_sources
-from .models import BackupSummary, FileResult, PathSource, ResolvedSource, Settings
+from .models import (
+    BackupSummary,
+    FileResult,
+    PathSource,
+    ResolvedSource,
+    Settings,
+    Source,
+)
 from .scan import scan
 
 
-def run_backup(settings: Settings) -> BackupSummary:
+def run_backup(settings: Settings, dry_run: bool = False) -> BackupSummary:
     _validate_config_roots(settings)
     resolved, unavailable = resolve_sources(settings.sources)
     if settings.discover_removable:
         resolved.extend(discover_removable_sources(settings.backup_root, resolved))
     _validate_roots(settings.backup_root, resolved)
+    if dry_run:
+        return _run_candidates(settings, resolved, unavailable, dry_run=True)
     with BackupLock(settings.backup_root):
-        summary = BackupSummary()
-        for source in unavailable:
-            summary = summary.with_result(
-                FileResult(source=source.name, status='unavailable')
-            )
-        candidates = [candidate for source in resolved for candidate in scan(source)]
-        summary = summary.model_copy(
-            update={'discovered': len(candidates), 'results': summary.results}
+        return _run_candidates(settings, resolved, unavailable, dry_run=False)
+
+
+def _run_candidates(
+    settings: Settings,
+    resolved: list[ResolvedSource],
+    unavailable: list[Source],
+    dry_run: bool,
+) -> BackupSummary:
+    summary = BackupSummary()
+    for source in unavailable:
+        summary = summary.with_result(
+            FileResult(source=source.name, status='unavailable')
         )
-        catalog = Catalog(settings.backup_root)
-        for candidate in candidates:
-            try:
-                result = copy_candidate(
+    candidates = [candidate for source in resolved for candidate in scan(source)]
+    summary = summary.model_copy(
+        update={'discovered': len(candidates), 'results': summary.results}
+    )
+    catalog = Catalog(settings.backup_root)
+    for candidate in candidates:
+        try:
+            result = (
+                preview_candidate(
                     candidate,
                     settings.backup_root,
                     catalog,
                     settings.stability_seconds,
                 )
-            except OSError as error:
-                result = FileResult(
-                    source=candidate.source.source.name,
-                    relative_path=candidate.relative_path,
-                    status='failed',
-                    detail=str(error),
+                if dry_run
+                else copy_candidate(
+                    candidate,
+                    settings.backup_root,
+                    catalog,
+                    settings.stability_seconds,
                 )
+            )
+        except OSError as error:
+            result = FileResult(
+                source=candidate.source.source.name,
+                relative_path=candidate.relative_path,
+                status='failed',
+                detail=str(error),
+            )
+            if not dry_run:
                 catalog.append(
                     {
                         'source': candidate.source.source.name,
@@ -50,12 +78,12 @@ def run_backup(settings: Settings) -> BackupSummary:
                         'detail': str(error),
                     }
                 )
-                summary = summary.with_result(result)
-                if error.errno in {errno.ENOSPC, errno.EROFS}:
-                    break
-            else:
-                summary = summary.with_result(result)
-        return summary
+            summary = summary.with_result(result)
+            if error.errno in {errno.ENOSPC, errno.EROFS}:
+                break
+        else:
+            summary = summary.with_result(result)
+    return summary
 
 
 class BackupLock:
