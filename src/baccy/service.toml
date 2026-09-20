@@ -1,0 +1,6 @@
+name = "baccy"
+display_name = "baccy"
+description = "baccy permanent backup service"
+launchd_label = "com.swirly.baccy"
+daemon_env_var = "BACCY_DAEMON"
+windows_pipe = "\\\\.\\pipe\\baccy"
