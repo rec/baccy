@@ -5,7 +5,7 @@ from typing import TextIO
 
 from .catalog import Catalog
 from .copy import copy_candidate
-from .discovery import resolve_sources
+from .discovery import discover_removable_sources, resolve_sources
 from .models import BackupSummary, FileResult, PathSource, ResolvedSource, Settings
 from .scan import scan
 
@@ -13,6 +13,8 @@ from .scan import scan
 def run_backup(settings: Settings) -> BackupSummary:
     _validate_config_roots(settings)
     resolved, unavailable = resolve_sources(settings.sources)
+    if settings.discover_removable:
+        resolved.extend(discover_removable_sources(settings.backup_root, resolved))
     _validate_roots(settings.backup_root, resolved)
     with BackupLock(settings.backup_root):
         summary = BackupSummary()

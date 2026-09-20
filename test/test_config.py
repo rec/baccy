@@ -42,3 +42,10 @@ def test_settings_reject_duplicate_source_names() -> None:
                 ],
             }
         )
+
+
+def test_settings_allow_automatic_sources_only() -> None:
+    settings = Settings(backup_root=Path('/backup'))
+
+    assert settings.sources == []
+    assert settings.discover_removable is True

@@ -1,9 +1,13 @@
+import json
 import plistlib
 import subprocess
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
 from .models import PathSource, ResolvedSource, Source, VolumeSource
+
+_RECS_MARKERS = {'recording.toml', 'session-record.jsonl'}
 
 
 def resolve_sources(
@@ -32,6 +36,55 @@ def resolve_source(
     return _resolve_volume(source, volumes_root, diskutil)
 
 
+def discover_removable_sources(
+    backup_root: Path,
+    configured: list[ResolvedSource],
+    volumes_root: Path = Path('/Volumes'),
+    diskutil: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
+) -> list[ResolvedSource]:
+    try:
+        mounts = sorted(volumes_root.iterdir())
+    except FileNotFoundError:
+        return []
+    excluded_roots = [backup_root.resolve(), *(s.root.resolve() for s in configured)]
+    seen_uuids = {
+        s.source.uuid.casefold()
+        for s in configured
+        if isinstance(s.source, VolumeSource)
+    }
+    sources: list[ResolvedSource] = []
+    for mount in mounts:
+        if not mount.is_dir() or mount.is_symlink():
+            continue
+        root = mount.resolve()
+        if any(
+            root.is_relative_to(excluded) or excluded.is_relative_to(root)
+            for excluded in excluded_roots
+        ):
+            continue
+        data = _disk_info(mount, diskutil)
+        if data is None or not _is_removable(data):
+            continue
+        uuid = data.get('VolumeUUID')
+        if not isinstance(uuid, str) or not uuid:
+            continue
+        normalized_uuid = uuid.casefold()
+        if normalized_uuid in seen_uuids:
+            continue
+        if not (_is_camera_volume(mount) or _contains_recs_session(mount)):
+            continue
+        volume_name = data.get('VolumeName')
+        source = VolumeSource(
+            kind='volume',
+            name=f'removable-{normalized_uuid}',
+            uuid=uuid,
+            expected_name=volume_name if isinstance(volume_name, str) else mount.name,
+        )
+        sources.append(ResolvedSource(source=source, root=mount))
+        seen_uuids.add(normalized_uuid)
+    return sources
+
+
 def _resolve_volume(
     source: VolumeSource,
     volumes_root: Path,
@@ -44,16 +97,72 @@ def _resolve_volume(
     for mount in mounts:
         if not mount.is_dir() or mount.is_symlink():
             continue
-        result = diskutil(
-            ['diskutil', 'info', '-plist', str(mount)],
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
+        if (data := _disk_info(mount, diskutil)) is None:
             continue
-        data = plistlib.loads(result.stdout)
         if data.get('VolumeUUID') != source.uuid:
             continue
         root = mount / source.relative_path
         return root if root.is_dir() else None
     return None
+
+
+def _disk_info(
+    mount: Path,
+    diskutil: Callable[..., subprocess.CompletedProcess[bytes]],
+) -> dict[str, object] | None:
+    result = diskutil(
+        ['diskutil', 'info', '-plist', str(mount)],
+        capture_output=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        return None
+    value = plistlib.loads(result.stdout)
+    return value if isinstance(value, dict) else None
+
+
+def _is_removable(data: dict[str, object]) -> bool:
+    return data.get('Internal') is not True and (
+        data.get('RemovableMedia') is True or data.get('Ejectable') is True
+    )
+
+
+def _is_camera_volume(root: Path) -> bool:
+    try:
+        return any(p.name.casefold() == 'dcim' and p.is_dir() for p in root.iterdir())
+    except FileNotFoundError, PermissionError:
+        return False
+
+
+def _contains_recs_session(root: Path) -> bool:
+    pending = [root]
+    while pending:
+        directory = pending.pop()
+        try:
+            children = sorted(directory.iterdir(), key=lambda p: p.name)
+        except FileNotFoundError, PermissionError:
+            continue
+        for path in children:
+            if path.is_symlink():
+                continue
+            if path.name in _RECS_MARKERS and path.is_file() and _is_recs_marker(path):
+                return True
+            if path.is_dir():
+                pending.append(path)
+    return False
+
+
+def _is_recs_marker(path: Path) -> bool:
+    if path.name == 'recording.toml':
+        try:
+            with path.open('rb') as file:
+                value = tomllib.load(file)
+        except OSError, tomllib.TOMLDecodeError:
+            return False
+        return value.get('format') == 'recs' and value.get('kind') == 'recording'
+    try:
+        with path.open() as file:
+            value = json.loads(file.readline())
+    except OSError, UnicodeDecodeError, json.JSONDecodeError:
+        return False
+    return isinstance(value, dict) and value.get('type') == 'header'

@@ -32,6 +32,7 @@ different file.
 
 ```toml
 backup_root = "/Volumes/Backups/baccy"
+discover_removable = true
 poll_seconds = 60
 stability_seconds = 60
 
@@ -56,6 +57,20 @@ by their display names. Find the UUID for a mounted card with:
 ```sh
 diskutil info -plist /Volumes/CAMERA
 ```
+
+With `discover_removable = true`, the default, baccy also examines newly
+mounted removable or ejectable volumes that are not already configured. It
+automatically backs up the entire volume only when either:
+
+- the volume root contains a `DCIM` directory, identifying a camera card; or
+- any directory contains a valid recs `recording.toml` or
+  `session-record.jsonl`, identifying recs sessions.
+
+Other unconfigured removable drives are ignored. Automatically discovered
+volumes use their filesystem UUID as part of the backup source identity, so a
+renamed volume continues in the same destination. Volumes without a UUID and
+the volume containing `backup_root` are ignored. Set
+`discover_removable = false` to use configured sources only.
 
 `include` and `exclude` are optional lists of path-match patterns. Sources use
 `include = ["**"]` and no exclusions by default. Source names must be unique,

@@ -11,6 +11,7 @@ def _settings(
 ) -> Settings:
     return Settings(
         backup_root=destination,
+        discover_removable=False,
         stability_seconds=stability_seconds,
         sources=[PathSource(kind='path', name='source', path=source)],
     )
