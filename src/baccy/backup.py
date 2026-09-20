@@ -12,9 +12,9 @@ from .scan import scan
 
 def run_backup(settings: Settings) -> BackupSummary:
     _validate_config_roots(settings)
+    resolved, unavailable = resolve_sources(settings.sources)
+    _validate_roots(settings.backup_root, resolved)
     with BackupLock(settings.backup_root):
-        resolved, unavailable = resolve_sources(settings.sources)
-        _validate_roots(settings.backup_root, resolved)
         summary = BackupSummary()
         for source in unavailable:
             summary = summary.with_result(
