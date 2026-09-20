@@ -71,6 +71,12 @@ Both `backup` and `watch` call the same synchronous scan-and-copy engine.
 `watch` only adds polling, signal-aware shutdown, and repeated status updates.
 The service invokes `baccy watch`; there is no separate daemon implementation.
 
+For a recs session, append `session-record.jsonl` only after verifying the
+already backed-up prefix. Defer WAV and FLAC files while their lifecycle journal
+contains `file_started` without a corresponding terminal record. Copy them as
+ordinary atomic snapshots after `file_finished` or `file_discarded` closes that
+lifecycle entry.
+
 Every ten seconds, watch inspects the local ARP table. A newly seen MAC address
 is tried once with batch-mode SSH and strict host-key checking. If its `~/recs`
 directory exists, its files become a network source; other files on the system

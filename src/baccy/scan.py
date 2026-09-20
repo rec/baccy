@@ -1,6 +1,9 @@
+import json
+from collections.abc import Iterable
 from pathlib import Path, PurePosixPath
 
 from .models import Candidate, ResolvedSource
+from .recs import files_being_written
 
 
 def scan(source: ResolvedSource) -> list[Candidate]:
@@ -20,8 +23,13 @@ def scan(source: ResolvedSource) -> list[Candidate]:
                 relative_path=relative_path,
                 priority=_priority(path),
             )
+    active = _active_recs_audio(candidates.values())
     return sorted(
-        candidates.values(), key=lambda c: (c.priority, c.relative_path.as_posix())
+        [
+            candidate.model_copy(update={'active': candidate.path.resolve() in active})
+            for candidate in candidates.values()
+        ],
+        key=lambda c: (c.priority, c.relative_path.as_posix()),
     )
 
 
@@ -56,3 +64,21 @@ def _priority(path: Path) -> int:
     if path.suffix == '.jsonl':
         return 1
     return 2
+
+
+def _active_recs_audio(candidates: Iterable[Candidate]) -> set[Path]:
+    values = list(candidates)
+    active: set[Path] = set()
+    for candidate in values:
+        if candidate.path.name != 'session-record.jsonl':
+            continue
+        try:
+            active.update(files_being_written(candidate.path.parent))
+        except OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError:
+            active.update(
+                value.path.resolve()
+                for value in values
+                if value.path.is_relative_to(candidate.path.parent)
+                and value.path.suffix.casefold() in {'.wav', '.flac'}
+            )
+    return {path for path in active if path.suffix.casefold() in {'.wav', '.flac'}}
