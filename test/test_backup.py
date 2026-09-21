@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from baccy.backup import run_backup
+from baccy.backup import BackupLock, run_backup
 from baccy.models import PathSource, Settings
 
 
@@ -60,6 +60,12 @@ def test_backup_defers_recent_ordinary_files(tmp_path: Path) -> None:
 
     assert result.deferred == 1
     assert result.copied == 0
+
+
+def test_backup_lock_is_at_backup_root(tmp_path: Path) -> None:
+    with BackupLock(tmp_path) as lock:
+        assert lock.path == tmp_path / '.lock'
+        assert lock.path.exists()
 
 
 def test_backup_records_one_deferred_event_per_deferral_cycle(tmp_path: Path) -> None:
