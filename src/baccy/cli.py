@@ -38,6 +38,18 @@ class ServiceCommand(BaseModel, frozen=True):
     """Manage the per-user baccy LaunchAgent."""
 
 
+class SummaryReporter:
+    def __init__(self, verbose: bool) -> None:
+        self.verbose = verbose
+        self.previous: BackupSummary | None = None
+
+    def print(self, summary: BackupSummary) -> None:
+        value = _visible_summary(summary, self.verbose)
+        if value != self.previous:
+            _print_summary(value, verbose=True)
+            self.previous = value
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     if not arguments or arguments[0] in {'-h', '--help'}:
@@ -67,6 +79,7 @@ def _backup(command: BackupCommand) -> int:
 def _watch(command: WatchCommand) -> int:
     settings = load_or_default(command.config)
     network = NetworkDiscovery(verbose=settings.verbose)
+    reporter = SummaryReporter(settings.verbose)
 
     if os.environ.get('BACCY_DAEMON') == '1':
         application = Application()
@@ -86,7 +99,7 @@ def _watch(command: WatchCommand) -> int:
             watch(
                 settings,
                 action=action,
-                report=lambda summary: _report(application, summary, settings.verbose),
+                report=lambda summary: _report(application, reporter, summary),
             )
         finally:
             application.close()
@@ -98,7 +111,7 @@ def _watch(command: WatchCommand) -> int:
         watch(
             settings,
             action=action,
-            report=lambda summary: _print_summary(summary, settings.verbose),
+            report=reporter.print,
         )
     return 0
 
@@ -144,10 +157,11 @@ def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
     print(json.dumps(value.model_dump(mode='json'), sort_keys=True))
 
 
-def _report(application: Application, summary: BackupSummary, verbose: bool) -> None:
-    value = _visible_summary(summary, verbose)
-    _print_summary(value, verbose=True)
-    application.record_summary(value)
+def _report(
+    application: Application, reporter: SummaryReporter, summary: BackupSummary
+) -> None:
+    reporter.print(summary)
+    application.record_summary(_visible_summary(summary, reporter.verbose))
 
 
 def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
