@@ -5,7 +5,7 @@ import pytest
 from reccy.services import models, renderers
 
 from baccy.application import BACCY_SERVICE, Application
-from baccy.models import BackupSummary, FileResult
+from baccy.models import BackupSummary, FileResult, RecognizedSource
 
 
 def test_application_renders_launch_agent(tmp_path: Path) -> None:
@@ -51,3 +51,27 @@ def test_application_notifies_each_new_failure_once(
         application.close()
 
     assert notifications == [[failure], [failure]]
+
+
+def test_application_notifies_recognized_sources_and_completion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    notifications: list[str] = []
+    monkeypatch.setattr('baccy.application.notify', notifications.append)
+    application = Application(home=tmp_path, platform=models.Platform.macos)
+    source = RecognizedSource(
+        source='network-aabb', label='studio.local', kind='machine'
+    )
+    application.start()
+    try:
+        application.record_recognized_sources([source])
+        application.record_summary(BackupSummary())
+        application.record_recognized_sources([source])
+        application.record_summary(BackupSummary())
+    finally:
+        application.close()
+
+    assert notifications == [
+        'Recognized machine studio.local; starting backup.',
+        'Backup complete for machine studio.local.',
+    ]

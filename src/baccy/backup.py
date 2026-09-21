@@ -1,5 +1,6 @@
 import errno
 import fcntl
+from collections.abc import Callable
 from pathlib import Path
 from typing import TextIO
 
@@ -10,9 +11,11 @@ from .models import (
     BackupSummary,
     FileResult,
     PathSource,
+    RecognizedSource,
     ResolvedSource,
     Settings,
     Source,
+    VolumeSource,
 )
 from .network import NetworkDiscovery, NetworkRecsSource, backup_network_source
 from .scan import scan
@@ -23,14 +26,37 @@ def run_backup(
     settings: Settings,
     dry_run: bool = False,
     network: NetworkDiscovery | None = None,
+    recognize: Callable[[list[RecognizedSource]], None] | None = None,
 ) -> BackupSummary:
     _validate_config_roots(settings)
     resolved, unavailable = resolve_sources(settings.sources)
     if settings.discover_removable:
-        resolved.extend(discover_removable_sources(settings.backup_root, resolved))
+        removable = discover_removable_sources(settings.backup_root, resolved)
+        resolved.extend(removable)
+    else:
+        removable = []
     _validate_roots(settings.backup_root, resolved)
     discovery = NetworkDiscovery() if network is None else network
     network_sources = discovery.discover()
+    if recognize is not None:
+        recognize(
+            [
+                RecognizedSource(
+                    source=source.source.name,
+                    label=(
+                        source.source.expected_name or source.root.name
+                        if isinstance(source.source, VolumeSource)
+                        else source.root.name
+                    ),
+                    kind='disk',
+                )
+                for source in removable
+            ]
+            + [
+                RecognizedSource(source=source.name, label=source.host, kind='machine')
+                for source in network_sources
+            ]
+        )
     if dry_run:
         return _run_candidates(
             settings, resolved, unavailable, network_sources, discovery, dry_run=True

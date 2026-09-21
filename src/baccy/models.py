@@ -123,6 +123,12 @@ class FileResult(BaseModel, frozen=True):
     detail: str | None = None
 
 
+class RecognizedSource(BaseModel, frozen=True):
+    source: str
+    label: str
+    kind: Literal['disk', 'machine']
+
+
 class BackupSummary(BaseModel, frozen=True):
     discovered: int = 0
     would_copy: int = 0

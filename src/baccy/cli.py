@@ -67,11 +67,19 @@ def _watch(command: WatchCommand) -> int:
     settings = load_or_default(command.config)
     network = NetworkDiscovery()
 
-    def action(value: Settings) -> BackupSummary:
-        return run_backup(value, dry_run=command.dry_run, network=network)
-
     if os.environ.get('BACCY_DAEMON') == '1':
         application = Application()
+
+        def action(value: Settings) -> BackupSummary:
+            return run_backup(
+                value,
+                dry_run=command.dry_run,
+                network=network,
+                recognize=(
+                    application.record_recognized_sources if value.verbose else None
+                ),
+            )
+
         application.start()
         try:
             watch(
@@ -82,6 +90,10 @@ def _watch(command: WatchCommand) -> int:
         finally:
             application.close()
     else:
+
+        def action(value: Settings) -> BackupSummary:
+            return run_backup(value, dry_run=command.dry_run, network=network)
+
         watch(
             settings,
             action=action,

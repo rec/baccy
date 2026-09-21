@@ -8,8 +8,7 @@ _DISPLAY_NOTIFICATION = (
 )
 
 
-def notify_failures(results: list[FileResult]) -> None:
-    message = _failure_message(results)
+def notify(message: str) -> None:
     result = subprocess.run(
         ['osascript', '-e', _DISPLAY_NOTIFICATION, message],
         capture_output=True,
@@ -17,6 +16,10 @@ def notify_failures(results: list[FileResult]) -> None:
     )
     if result.returncode:
         print(result.stderr.decode(errors='replace').strip(), file=sys.stderr)
+
+
+def notify_failures(results: list[FileResult]) -> None:
+    notify(_failure_message(results))
 
 
 def _failure_message(results: list[FileResult]) -> str:
