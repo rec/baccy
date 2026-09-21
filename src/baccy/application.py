@@ -4,8 +4,8 @@ from pydantic import PrivateAttr
 from reccy.reccy import Reccy, ReccyStatus
 from reccy.services import spec
 
-from .models import BackupSummary
-from .notifications import notify_failures
+from .models import BackupSummary, RecognizedSource
+from .notifications import notify, notify_failures
 
 BACCY_SERVICE = spec.load(Path(__file__).with_name('service.toml'))
 
@@ -24,6 +24,16 @@ class Application(Reccy):
     _notified_failures: set[tuple[str, str | None, str | None]] = PrivateAttr(
         default_factory=set
     )
+    _recognized_sources: dict[str, RecognizedSource] = PrivateAttr(default_factory=dict)
+    _pending_completions: set[str] = PrivateAttr(default_factory=set)
+
+    def record_recognized_sources(self, sources: list[RecognizedSource]) -> None:
+        recognized = {source.source: source for source in sources}
+        for source in recognized.values():
+            if source.source not in self._recognized_sources:
+                notify(f'Recognized {source.kind} {source.label}; starting backup.')
+                self._pending_completions.add(source.source)
+        self._recognized_sources = recognized
 
     def record_summary(self, summary: BackupSummary) -> None:
         self._summary = summary
@@ -52,6 +62,10 @@ class Application(Reccy):
                 ]
             )
         self._notified_failures = fingerprints
+        for source in sorted(self._pending_completions):
+            if (recognized := self._recognized_sources.get(source)) is not None:
+                notify(f'Backup complete for {recognized.kind} {recognized.label}.')
+        self._pending_completions.difference_update(self._recognized_sources)
         self.publish_status()
 
     def status_snapshot(self) -> BaccyStatus:

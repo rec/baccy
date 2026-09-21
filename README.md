@@ -103,8 +103,11 @@ the volume containing `backup_root` are ignored. Set
 `include = ["**"]` and no exclusions by default. Source names must be unique,
 and neither a source nor the backup root may contain the other.
 
-Set `verbose = true` to include unchanged files in each JSON summary. The
-default omits those individual results while retaining the `unchanged` count.
+Set `verbose = true` to include unchanged files in each JSON summary. When the
+installed service is running, it also sends macOS notifications when it
+recognizes a backup disk or network machine and again when that backup pass
+finishes. The default omits unchanged individual results while retaining the
+`unchanged` count.
 
 ## Project publication
 
