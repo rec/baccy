@@ -66,7 +66,7 @@ def _backup(command: BackupCommand) -> int:
 
 def _watch(command: WatchCommand) -> int:
     settings = load_or_default(command.config)
-    network = NetworkDiscovery()
+    network = NetworkDiscovery(verbose=settings.verbose)
 
     if os.environ.get('BACCY_DAEMON') == '1':
         application = Application()
