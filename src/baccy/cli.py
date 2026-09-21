@@ -57,8 +57,9 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _backup(command: BackupCommand) -> int:
-    summary = run_backup(load_or_default(command.config), dry_run=command.dry_run)
-    _print_summary(summary)
+    settings = load_or_default(command.config)
+    summary = run_backup(settings, dry_run=command.dry_run)
+    _print_summary(summary, settings.verbose)
     return 1 if summary.failed or summary.unavailable else 0
 
 
@@ -76,12 +77,16 @@ def _watch(command: WatchCommand) -> int:
             watch(
                 settings,
                 action=action,
-                report=lambda summary: _report(application, summary),
+                report=lambda summary: _report(application, summary, settings.verbose),
             )
         finally:
             application.close()
     else:
-        watch(settings, action=action, report=_print_summary)
+        watch(
+            settings,
+            action=action,
+            report=lambda summary: _print_summary(summary, settings.verbose),
+        )
     return 0
 
 
@@ -121,13 +126,27 @@ def _parse_service_command(arguments: list[str], command: str) -> None:
     tyro.cli(ServiceCommand, args=arguments, prog=f'baccy service {command}')
 
 
-def _print_summary(summary: BackupSummary) -> None:
-    print(json.dumps(summary.model_dump(mode='json'), sort_keys=True))
+def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
+    value = _visible_summary(summary, verbose)
+    print(json.dumps(value.model_dump(mode='json'), sort_keys=True))
 
 
-def _report(application: Application, summary: BackupSummary) -> None:
-    _print_summary(summary)
-    application.record_summary(summary)
+def _report(application: Application, summary: BackupSummary, verbose: bool) -> None:
+    value = _visible_summary(summary, verbose)
+    _print_summary(value, verbose=True)
+    application.record_summary(value)
+
+
+def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
+    if verbose:
+        return summary
+    return summary.model_copy(
+        update={
+            'results': [
+                result for result in summary.results if result.status != 'unchanged'
+            ]
+        }
+    )
 
 
 def _usage() -> str:
