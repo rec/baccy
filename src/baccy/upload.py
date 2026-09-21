@@ -18,7 +18,7 @@ def publish_sessions(
     dry_run: bool,
     run: Command = subprocess.run,
 ) -> list[FileResult]:
-    catalog = Catalog(backup_root, 'uploads.jsonl')
+    catalog = Catalog(backup_root)
     results: list[FileResult] = []
     for source in sources:
         for journal in sorted(source.root.glob('**/session-record.jsonl')):
@@ -62,6 +62,18 @@ def _publish_session(
             paths.append(Path('recording.toml'))
         paths.extend(_selected_audio(records, project))
     except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
+        if not dry_run:
+            catalog.append(
+                {
+                    'operation': 'upload',
+                    'source': project_name,
+                    'relative_path': (
+                        Path(source) / relative_session / 'session-record.jsonl'
+                    ).as_posix(),
+                    'result': 'failed',
+                    'detail': str(error),
+                }
+            )
         return [FileResult(source=project_name, status='failed', detail=str(error))]
     results: list[FileResult] = []
     for relative_path in sorted(set(paths)):
@@ -89,6 +101,16 @@ def _publish_session(
         try:
             _upload(path, upload_path, project.ssh_url, run)
         except OSError as error:
+            if not dry_run:
+                catalog.append(
+                    {
+                        'operation': 'upload',
+                        'source': project_name,
+                        'relative_path': identity.as_posix(),
+                        'result': 'failed',
+                        'detail': str(error),
+                    }
+                )
             results.append(
                 FileResult(
                     source=project_name,
@@ -105,7 +127,8 @@ def _publish_session(
                 'relative_path': identity.as_posix(),
                 'size': stat.st_size,
                 'mtime_ns': stat.st_mtime_ns,
-                'result': 'copied',
+                'operation': 'upload',
+                'result': 'uploaded',
             }
         )
         results.append(
@@ -182,7 +205,7 @@ def _long_enough(record: dict[str, object], minimum_seconds: float) -> bool:
 
 
 def _matches_catalog(catalog: Catalog, project: str, path: Path, source: Path) -> bool:
-    if (record := catalog.latest(project, path)) is None:
+    if (record := catalog.latest(project, path, 'upload')) is None:
         return False
     stat = source.stat()
     return (

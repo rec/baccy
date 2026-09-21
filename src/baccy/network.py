@@ -91,6 +91,15 @@ def backup_network_source(
     try:
         files = _recs_files(run, source.host)
     except OSError as error:
+        if not dry_run:
+            catalog.append(
+                {
+                    'source': source.name,
+                    'relative_path': '.',
+                    'result': 'failed',
+                    'detail': str(error),
+                }
+            )
         return [FileResult(source=source.name, status='failed', detail=str(error))]
     results: list[FileResult] = []
     for file in files:

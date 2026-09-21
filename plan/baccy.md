@@ -122,7 +122,7 @@ src/baccy/
   models.py         source, candidate, result, and status models
   scan.py           deterministic traversal and recs-aware priority
   copy.py           safe snapshots and atomic destination writes
-  catalog.py        append-only copy records and lookup
+  catalog.py        append-only backup, upload, and failure event records
   backup.py         one-pass orchestration
   watch.py          foreground polling loop and shutdown
   application.py    reccy lifecycle and service integration
@@ -172,11 +172,12 @@ Store user-visible copies below:
 BACKUP_ROOT/sources/SOURCE_NAME/RELATIVE_PATH
 ```
 
-Reserve `BACKUP_ROOT/.baccy/` for internal data. Keep an append-only JSONL
-catalog containing one record for each committed version: source name,
-source-relative path, source size and modification time, SHA-256, destination,
-copy time, and result. Write catalog lines only after the destination commit
-succeeds and flush each complete line.
+Reserve `BACKUP_ROOT/.baccy/` for internal data. Keep an append-only
+`events.jsonl` containing backup and upload successes, failures, and deferred
+files. A backup success includes source name, source-relative path, source size
+and modification time, SHA-256, destination, copy time, and result. Write
+success lines only after the destination commit succeeds and flush each
+complete line.
 
 The normal destination path represents the newest successfully copied bytes.
 Before replacing different bytes at an existing path, hard-link the old
@@ -188,9 +189,9 @@ version unprotected. Never delete a destination merely because a source file
 or source volume disappears. This gives "permanent" a concrete version-one
 meaning: every successfully committed byte sequence remains recoverable.
 
-Use the catalog as an optimization, not the sole proof that a backup exists.
+Use the event log as an optimization, not the sole proof that a backup exists.
 Before skipping a candidate, confirm that the destination still exists and
-matches the recorded size. Hash it when metadata is inconsistent. Catalog
+matches the recorded size. Hash it when metadata is inconsistent. Event
 records are append-only so an interrupted write can be recovered by ignoring
 one incomplete final line.
 
