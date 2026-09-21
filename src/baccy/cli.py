@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 from typing import Annotated
 
+import tomlkit
 import tyro
 from pydantic import BaseModel, Field
 
@@ -130,7 +131,7 @@ def _service(arguments: list[str]) -> int:
         print(f'unknown service command: {command}', file=sys.stderr)
         print(_service_usage(), file=sys.stderr)
         return 2
-    print(result.model_dump_json())
+    sys.stdout.write(tomlkit.dumps(result.model_dump(mode='json', exclude_none=True)))
     return 0
 
 
