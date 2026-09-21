@@ -132,7 +132,11 @@ def _run_candidates(
     for source in network_sources:
         network_results.extend(
             backup_network_source(
-                source, settings.backup_root, catalog, dry_run, network.run
+                source,
+                settings.backup_root,
+                catalog,
+                dry_run,
+                network.run,
             )
         )
     for result in network_results:
