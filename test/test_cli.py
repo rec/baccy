@@ -1,8 +1,10 @@
 import json
+import tomllib
 from pathlib import Path
 
 import pytest
 from pytest import CaptureFixture, MonkeyPatch
+from reccy.services.models import StatusResult
 
 from baccy.cli import main
 from baccy.models import ResolvedSource, SourceSelection, VolumeSource
@@ -72,6 +74,25 @@ def test_backup_command_verbose_includes_unchanged_files(
     output = json.loads(capsys.readouterr().out)
     assert output['unchanged'] == 1
     assert output['results'][0]['status'] == 'unchanged'
+
+
+def test_service_commands_print_toml(
+    capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    class ServiceApplication:
+        def service_status(self) -> StatusResult:
+            return StatusResult(installed=True, running=True, details='ready')
+
+    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
+
+    exit_code = main(['service', 'status'])
+
+    assert exit_code == 0
+    assert tomllib.loads(capsys.readouterr().out) == {
+        'installed': True,
+        'running': True,
+        'details': 'ready',
+    }
 
 
 @pytest.mark.parametrize('flag', ['-d', '--dry-run'])
