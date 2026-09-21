@@ -180,3 +180,50 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
     assert (
         destination / 'sources' / 'network-aabbccddeeff' / 'session' / 'recording.toml'
     ).read_text() == 'format = "recs"\n'
+
+
+def test_network_discovery_ignores_multicast_and_broadcast_nodes() -> None:
+    calls: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        calls.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            (
+                b'? (239.0.0.250) at 01:00:5e:00:00:fa on en0\n'
+                b'? (192.168.1.255) at ff:ff:ff:ff:ff:ff on en0\n'
+            ),
+            b'',
+        )
+
+    assert NetworkDiscovery(run).discover() == []
+    assert calls == [['arp', '-an']]
+
+
+def test_network_discovery_disables_host_key_checking() -> None:
+    calls: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        calls.append(command)
+        if command[0] == 'arp':
+            return subprocess.CompletedProcess(
+                command, 0, b'? (pi.local) at aa:bb:cc:dd:ee:ff on en0\n', b''
+            )
+        return subprocess.CompletedProcess(command, 0, b'', b'')
+
+    NetworkDiscovery(run).discover()
+
+    assert calls[1] == [
+        'ssh',
+        '-o',
+        'BatchMode=yes',
+        '-o',
+        'ConnectTimeout=1',
+        '-o',
+        'StrictHostKeyChecking=no',
+        '-o',
+        'UserKnownHostsFile=/dev/null',
+        'pi.local',
+        'test -d "$HOME/recs"',
+    ]

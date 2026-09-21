@@ -85,12 +85,13 @@ contains `file_started` without a corresponding terminal record. Copy them as
 ordinary atomic snapshots after `file_finished` or `file_discarded` closes that
 lifecycle entry.
 
-Every ten seconds, watch inspects the local ARP table. A newly seen MAC address
-is tried with batch-mode SSH and strict host-key checking. Connection failures
-are retried after two and four seconds; authentication rejections and systems
-without `~/recs` are remembered until the process exits. If `~/recs` exists,
-its files become a network source; other files on the system are never
-considered.
+Every ten seconds, watch inspects the local ARP table. A newly seen unicast MAC
+address is tried with batch-mode SSH. Baccy does not record or verify host keys,
+then relies on certificate authentication to determine whether the system is
+eligible. Connection failures are retried after two and four seconds;
+authentication rejections and systems without `~/recs` are remembered until the
+process exits. If `~/recs` exists, its files become a network source; other
+files on the system are never considered.
 
 Read settings from one TOML configuration file, with a command-line option to
 select a different file. When the standard configuration file is absent, use

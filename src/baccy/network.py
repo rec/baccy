@@ -24,7 +24,9 @@ _SSH_OPTIONS = [
     '-o',
     'ConnectTimeout=1',
     '-o',
-    'StrictHostKeyChecking=yes',
+    'StrictHostKeyChecking=no',
+    '-o',
+    'UserKnownHostsFile=/dev/null',
 ]
 _LIST_RECS_FILES = (
     'cd "$HOME/recs" || exit\n'
@@ -180,6 +182,8 @@ def _network_nodes(
     nodes: dict[str, str] = {}
     for match in _ARP_NODE.finditer(result.stdout.decode(errors='replace')):
         mac = ':'.join(f'{int(part, 16):02x}' for part in match['mac'].split(':'))
+        if mac == 'ff:ff:ff:ff:ff:ff' or mac.startswith('01:00:5e:'):
+            continue
         nodes[mac] = match['host']
     return sorted(nodes.items())
 
@@ -251,7 +255,10 @@ def _backup_remote_file(
     try:
         with os.fdopen(descriptor, 'wb') as output:
             result = _ssh(
-                run, source.host, _read_command(file.relative_path), stdout=output
+                run,
+                source.host,
+                _read_command(file.relative_path),
+                stdout=output,
             )
         if result.returncode != 0:
             raise OSError(result.stderr.decode(errors='replace').strip())
