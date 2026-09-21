@@ -1,6 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
+from threading import Barrier
 from typing import BinaryIO, cast
 
 import pytest
@@ -227,3 +228,25 @@ def test_network_discovery_disables_host_key_checking() -> None:
         'pi.local',
         'test -d "$HOME/recs"',
     ]
+
+
+def test_network_discovery_probes_new_hosts_in_parallel() -> None:
+    barrier = Barrier(2)
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if command[0] == 'arp':
+            return subprocess.CompletedProcess(
+                command,
+                0,
+                (
+                    b'? (first.local) at aa:bb:cc:dd:ee:01 on en0\n'
+                    b'? (second.local) at aa:bb:cc:dd:ee:02 on en0\n'
+                ),
+                b'',
+            )
+        barrier.wait(timeout=1)
+        return subprocess.CompletedProcess(command, 0, b'', b'')
+
+    sources = NetworkDiscovery(run).discover()
+
+    assert [source.host for source in sources] == ['first.local', 'second.local']

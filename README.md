@@ -166,8 +166,9 @@ uses non-interactive SSH with host-key checking disabled. Baccy neither records
 nor verifies host keys, so a host may change its key without interrupting
 discovery, but it must still accept the user's existing SSH certificate before
 it can qualify.
-Each newly seen MAC address gets an immediate SSH attempt and, for connection
-failures, one retry after two seconds and another after four seconds.
+Each newly seen MAC address gets an immediate SSH attempt in parallel with the
+other newly seen hosts and, for connection failures, one retry after two
+seconds and another after four seconds.
 Authentication rejections and hosts without a `~/recs` directory are not
 retried until baccy restarts. Multicast and broadcast ARP entries are ignored.
 Qualifying `~/recs` directories are copied as network sources, with the catalog

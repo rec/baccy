@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -77,6 +78,7 @@ class NetworkDiscovery:
             return list(self.sources.values())
         self.last_scan = now
         active: list[NetworkRecsSource] = []
+        pending: list[tuple[str, str]] = []
         for mac, host in _network_nodes(self.run):
             if (source := self.sources.get(mac)) is not None:
                 active.append(source.model_copy(update={'host': host}))
@@ -86,25 +88,37 @@ class NetworkDiscovery:
                 continue
             self.seen.add(mac)
             self._log('network host %s (%s) discovered', host, mac)
-            result = self._probe_recs(host, mac)
-            if result.returncode == 0:
-                source = NetworkRecsSource(mac=mac, host=host)
-                self.sources[mac] = source
-                active.append(source)
-                self._log('network host %s (%s) has recs', host, mac)
-            elif _is_authentication_failure(result):
-                detail = result.stderr.decode(errors='replace').strip()
-                self._log(
-                    'network SSH authentication rejected for %s (%s): %s',
-                    host,
-                    mac,
-                    detail,
-                )
-            elif result.returncode == 255:
-                detail = result.stderr.decode(errors='replace').strip()
-                self._log('network SSH failed for %s (%s): %s', host, mac, detail)
-            else:
-                self._log('network host %s (%s) has no recs directory', host, mac)
+            pending.append((mac, host))
+        if pending:
+            with ThreadPoolExecutor(max_workers=len(pending)) as executor:
+                probes = [
+                    (mac, host, executor.submit(self._probe_recs, host, mac))
+                    for mac, host in pending
+                ]
+                for mac, host, probe in probes:
+                    result = probe.result()
+                    if result.returncode == 0:
+                        source = NetworkRecsSource(mac=mac, host=host)
+                        self.sources[mac] = source
+                        active.append(source)
+                        self._log('network host %s (%s) has recs', host, mac)
+                    elif _is_authentication_failure(result):
+                        detail = result.stderr.decode(errors='replace').strip()
+                        self._log(
+                            'network SSH authentication rejected for %s (%s): %s',
+                            host,
+                            mac,
+                            detail,
+                        )
+                    elif result.returncode == 255:
+                        detail = result.stderr.decode(errors='replace').strip()
+                        self._log(
+                            'network SSH failed for %s (%s): %s', host, mac, detail
+                        )
+                    else:
+                        self._log(
+                            'network host %s (%s) has no recs directory', host, mac
+                        )
         return active
 
     def _probe_recs(self, host: str, mac: str) -> subprocess.CompletedProcess[bytes]:
