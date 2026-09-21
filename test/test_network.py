@@ -28,6 +28,20 @@ def test_network_discovery_tries_each_new_node_once(tmp_path: Path) -> None:
     assert len([command for command in calls if command[0] == 'ssh']) == 1
 
 
+def test_network_discovery_normalizes_unpadded_mac_addresses() -> None:
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if command[0] == 'arp':
+            return subprocess.CompletedProcess(
+                command, 0, b'? (server.local) at 0:9:b0:4:72:df on en0\n', b''
+            )
+        return subprocess.CompletedProcess(command, 0, b'', b'')
+
+    sources = NetworkDiscovery(run).discover()
+
+    assert sources[0].mac == '00:09:b0:04:72:df'
+    assert sources[0].name == 'network-0009b00472df'
+
+
 def test_network_discovery_logs_verbose_host_results(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

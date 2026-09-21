@@ -14,7 +14,10 @@ from .catalog import Catalog
 from .copy import commit_snapshot, ensure_destination_parent, sha256
 from .models import Candidate, FileResult, NetworkSource, ResolvedSource
 
-_ARP_NODE = re.compile(r'\((?P<host>[^)]+)\) at (?P<mac>[0-9a-f:]{17}) ')
+_ARP_NODE = re.compile(
+    r'\((?P<host>[^)]+)\) at (?P<mac>(?:[0-9a-f]{1,2}:){5}[0-9a-f]{1,2}) ',
+    re.IGNORECASE,
+)
 _SSH_OPTIONS = [
     '-o',
     'BatchMode=yes',
@@ -176,7 +179,8 @@ def _network_nodes(
         return []
     nodes: dict[str, str] = {}
     for match in _ARP_NODE.finditer(result.stdout.decode(errors='replace')):
-        nodes[match['mac'].casefold()] = match['host']
+        mac = ':'.join(f'{int(part, 16):02x}' for part in match['mac'].split(':'))
+        nodes[mac] = match['host']
     return sorted(nodes.items())
 
 
