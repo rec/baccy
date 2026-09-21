@@ -53,7 +53,7 @@ def test_default_config_path_uses_application_support(tmp_path: Path) -> None:
 
 
 def test_default_backup_root_uses_main_drive_home(tmp_path: Path) -> None:
-    assert default_backup_root(tmp_path) == tmp_path / 'Backups' / 'baccy'
+    assert default_backup_root(tmp_path) == tmp_path / 'baccy'
 
 
 def test_load_or_default_uses_defaults_when_standard_file_is_missing(
@@ -61,7 +61,7 @@ def test_load_or_default_uses_defaults_when_standard_file_is_missing(
 ) -> None:
     settings = load_or_default(default_config_path(tmp_path), tmp_path)
 
-    assert settings.backup_root == tmp_path / 'Backups' / 'baccy'
+    assert settings.backup_root == tmp_path / 'baccy'
     assert settings.sources == []
     assert settings.discover_removable is True
     assert settings.verbose is True

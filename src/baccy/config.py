@@ -11,7 +11,7 @@ def default_config_path(home: Path | None = None) -> Path:
 
 def default_backup_root(home: Path | None = None) -> Path:
     root = Path.home() if home is None else home
-    return root / 'Backups' / 'baccy'
+    return root / 'baccy'
 
 
 def default_settings(home: Path | None = None) -> Settings:
