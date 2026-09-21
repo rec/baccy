@@ -57,9 +57,11 @@ class NetworkDiscovery:
         self,
         run: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
         verbose: bool = False,
+        sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.run = run
         self.verbose = verbose
+        self.sleep = sleep
         self.seen: set[str] = set()
         self.sources: dict[str, NetworkRecsSource] = {}
         self.last_scan: float | None = None
@@ -79,18 +81,41 @@ class NetworkDiscovery:
                 continue
             self.seen.add(mac)
             self._log('network host %s (%s) discovered', host, mac)
-            result = _ssh(self.run, host, 'test -d "$HOME/recs"')
+            result = self._probe_recs(host, mac)
             if result.returncode == 0:
                 source = NetworkRecsSource(mac=mac, host=host)
                 self.sources[mac] = source
                 active.append(source)
                 self._log('network host %s (%s) has recs', host, mac)
+            elif _is_authentication_failure(result):
+                detail = result.stderr.decode(errors='replace').strip()
+                self._log(
+                    'network SSH authentication rejected for %s (%s): %s',
+                    host,
+                    mac,
+                    detail,
+                )
             elif result.returncode == 255:
                 detail = result.stderr.decode(errors='replace').strip()
                 self._log('network SSH failed for %s (%s): %s', host, mac, detail)
             else:
                 self._log('network host %s (%s) has no recs directory', host, mac)
         return active
+
+    def _probe_recs(self, host: str, mac: str) -> subprocess.CompletedProcess[bytes]:
+        result = _ssh(self.run, host, 'test -d "$HOME/recs"')
+        for delay in (2.0, 4.0):
+            if not _is_connection_failure(result):
+                break
+            self._log(
+                'network SSH unavailable for %s (%s); retrying in %s seconds',
+                host,
+                mac,
+                int(delay),
+            )
+            self.sleep(delay)
+            result = _ssh(self.run, host, 'test -d "$HOME/recs"')
+        return result
 
     def _log(self, message: str, *values: object) -> None:
         if self.verbose:
@@ -153,6 +178,25 @@ def _network_nodes(
     for match in _ARP_NODE.finditer(result.stdout.decode(errors='replace')):
         nodes[match['mac'].casefold()] = match['host']
     return sorted(nodes.items())
+
+
+def _is_authentication_failure(result: subprocess.CompletedProcess[bytes]) -> bool:
+    return b'permission denied' in result.stderr.lower()
+
+
+def _is_connection_failure(result: subprocess.CompletedProcess[bytes]) -> bool:
+    detail = result.stderr.lower()
+    return any(
+        value in detail
+        for value in (
+            b'connection refused',
+            b'connection timed out',
+            b'connection reset by peer',
+            b'network is unreachable',
+            b'no route to host',
+            b'operation timed out',
+        )
+    )
 
 
 def _recs_files(
