@@ -51,7 +51,7 @@ def test_network_discovery_logs_verbose_host_results(
 
     caplog.set_level(logging.INFO, logger='baccy.network')
 
-    sources = NetworkDiscovery(run, verbose=True).discover()
+    sources = NetworkDiscovery(run, verbose=True, sleep=lambda delay: None).discover()
 
     assert [source.host for source in sources] == ['recs.local']
     assert 'network host recs.local (aa:bb:cc:dd:ee:ff) has recs' in caplog.text
@@ -63,6 +63,46 @@ def test_network_discovery_logs_verbose_host_results(
         'network SSH failed for offline.local (66:77:88:99:aa:bb): connection refused'
         in caplog.text
     )
+
+
+def test_network_discovery_retries_connection_failures() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        nonlocal calls
+        if command[0] == 'arp':
+            return subprocess.CompletedProcess(
+                command, 0, b'? (pi.local) at aa:bb:cc:dd:ee:ff on en0\n', b''
+            )
+        calls += 1
+        if calls < 3:
+            return subprocess.CompletedProcess(command, 255, b'', b'connection refused')
+        return subprocess.CompletedProcess(command, 0, b'', b'')
+
+    sources = NetworkDiscovery(run, sleep=delays.append).discover()
+
+    assert [source.host for source in sources] == ['pi.local']
+    assert calls == 3
+    assert delays == [2.0, 4.0]
+
+
+def test_network_discovery_does_not_retry_authentication_rejection() -> None:
+    calls = 0
+    delays: list[float] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        nonlocal calls
+        if command[0] == 'arp':
+            return subprocess.CompletedProcess(
+                command, 0, b'? (pi.local) at aa:bb:cc:dd:ee:ff on en0\n', b''
+            )
+        calls += 1
+        return subprocess.CompletedProcess(command, 255, b'', b'Permission denied')
+
+    assert NetworkDiscovery(run, sleep=delays.append).discover() == []
+    assert calls == 1
+    assert delays == []
 
 
 def test_network_recs_dry_run_does_not_write(tmp_path: Path) -> None:

@@ -86,10 +86,11 @@ ordinary atomic snapshots after `file_finished` or `file_discarded` closes that
 lifecycle entry.
 
 Every ten seconds, watch inspects the local ARP table. A newly seen MAC address
-is tried once with batch-mode SSH and strict host-key checking. If its `~/recs`
-directory exists, its files become a network source; other files on the system
-are never considered. Failed SSH attempts and systems without that directory
-are remembered only until the process exits.
+is tried with batch-mode SSH and strict host-key checking. Connection failures
+are retried after two and four seconds; authentication rejections and systems
+without `~/recs` are remembered until the process exits. If `~/recs` exists,
+its files become a network source; other files on the system are never
+considered.
 
 Read settings from one TOML configuration file, with a command-line option to
 select a different file. When the standard configuration file is absent, use
