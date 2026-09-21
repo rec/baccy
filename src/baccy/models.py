@@ -77,6 +77,7 @@ class Settings(BaseModel, frozen=True):
     discover_removable: bool = True
     poll_seconds: float = Field(default=60.0, gt=0)
     stability_seconds: float = Field(default=60.0, ge=0)
+    verbose: bool = False
     projects: dict[str, ProjectUpload] = Field(default_factory=dict)
 
     @model_validator(mode='after')
