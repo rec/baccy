@@ -7,7 +7,7 @@ from pytest import CaptureFixture, MonkeyPatch
 from reccy.services.models import StatusResult
 
 from baccy.cli import main
-from baccy.models import ResolvedSource, SourceSelection, VolumeSource
+from baccy.models import BackupSummary, ResolvedSource, SourceSelection, VolumeSource
 
 
 class NoNetworkDiscovery:
@@ -74,6 +74,29 @@ def test_backup_command_verbose_includes_unchanged_files(
     output = json.loads(capsys.readouterr().out)
     assert output['unchanged'] == 1
     assert output['results'][0]['status'] == 'unchanged'
+
+
+def test_watch_command_prints_only_changed_summaries(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
+
+    def run_watch(settings: object, **kwargs: object) -> None:
+        report = kwargs['report']
+        assert callable(report)
+        report(BackupSummary())
+        report(BackupSummary())
+        report(BackupSummary(copied=1))
+
+    monkeypatch.setattr('baccy.cli.watch', run_watch)
+
+    assert main(['watch', '--config', str(config)]) == 0
+
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        BackupSummary().model_dump(mode='json'),
+        BackupSummary(copied=1).model_dump(mode='json'),
+    ]
 
 
 def test_service_commands_print_toml(
