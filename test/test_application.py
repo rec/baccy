@@ -1,10 +1,11 @@
 import plistlib
+import subprocess
 from pathlib import Path
 
 import pytest
 from reccy.services import models, renderers
 
-from baccy.application import BACCY_SERVICE, Application
+from baccy.application import BACCY_SERVICE, Application, _install_service_release
 from baccy.models import BackupSummary, FileResult, RecognizedSource
 
 
@@ -22,6 +23,60 @@ def test_application_renders_launch_agent(tmp_path: Path) -> None:
     assert plist['RunAtLoad'] is True
     assert plist['KeepAlive'] is True
     assert plist['ProgramArguments'][-3:] == ['watch', '--config', '/tmp/baccy.toml']
+
+
+def test_application_renders_launch_agent_with_release_interpreter(
+    tmp_path: Path,
+) -> None:
+    application = Application(home=tmp_path, platform=models.Platform.macos)
+    executable = tmp_path / 'release' / 'venv' / 'bin' / 'python'
+    metadata = application.service_metadata(['watch'], executable)
+
+    definition = renderers.macos_launch_agent(
+        metadata, application.paths, BACCY_SERVICE
+    )
+    plist = plistlib.loads(definition.content.encode())
+
+    assert plist['ProgramArguments'][0] == str(executable)
+
+
+def test_install_service_release_builds_isolated_wheels(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        commands.append(command)
+        if command[1] == 'build':
+            wheels = Path(command[command.index('--out-dir') + 1])
+            wheels.mkdir(exist_ok=True)
+            name = 'reccy' if command[-1].endswith('/reccy') else 'baccy'
+            (wheels / f'{name}-0.1.0-py3-none-any.whl').touch()
+        elif command[1] == 'venv':
+            executable = Path(command[-1]) / 'bin' / 'python'
+            executable.parent.mkdir(parents=True)
+            executable.touch()
+        return subprocess.CompletedProcess(command, 0, b'', b'')
+
+    monkeypatch.setattr('baccy.application.subprocess.run', run)
+    monkeypatch.setattr('baccy.application.time.time_ns', lambda: 123)
+
+    executable = _install_service_release(tmp_path)
+
+    assert executable == (
+        tmp_path
+        / 'Library'
+        / 'Application Support'
+        / 'baccy'
+        / 'releases'
+        / '123'
+        / 'venv'
+        / 'bin'
+        / 'python'
+    )
+    assert [command[1] for command in commands] == ['build', 'build', 'venv', 'pip']
+    assert commands[-1][2] == 'install'
+    assert '--no-sources' in commands[-1]
 
 
 def test_application_persists_last_backup_summary(tmp_path: Path) -> None:

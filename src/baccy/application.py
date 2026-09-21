@@ -1,8 +1,12 @@
+import subprocess
+import sys
+import tempfile
+import time
 from pathlib import Path
 
 from pydantic import PrivateAttr
 from reccy.reccy import Reccy, ReccyStatus
-from reccy.services import spec
+from reccy.services import models, spec
 
 from .models import BackupSummary, RecognizedSource
 from .notifications import notify, notify_failures
@@ -26,6 +30,22 @@ class Application(Reccy):
     )
     _recognized_sources: dict[str, RecognizedSource] = PrivateAttr(default_factory=dict)
     _pending_completions: set[str] = PrivateAttr(default_factory=set)
+
+    def service_metadata(
+        self, daemon_argv: list[str], executable: Path | None = None
+    ) -> models.DaemonMetadata:
+        return (
+            super()
+            .service_metadata(daemon_argv)
+            .model_copy(update={'executable': executable})
+        )
+
+    def install_service(self, daemon_argv: list[str]) -> models.StatusResult:
+        executable = _install_service_release(self.paths.home)
+        controller = self.service_controller()
+        if controller.status().running:
+            controller.stop()
+        return controller.install(self.service_metadata(daemon_argv, executable))
 
     def record_recognized_sources(self, sources: list[RecognizedSource]) -> None:
         recognized = {source.source: source for source in sources}
@@ -74,3 +94,47 @@ class Application(Reccy):
             errors=self._errors.copy(),
             summary=self._summary,
         )
+
+
+def _install_service_release(home: Path) -> Path:
+    release_root = home / 'Library' / 'Application Support' / 'baccy' / 'releases'
+    release = release_root / str(time.time_ns())
+    environment = release / 'venv'
+    executable = environment / 'bin' / 'python'
+    project_root = Path(__file__).parents[2]
+    reccy_root = project_root.parent / 'reccy'
+    release_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory() as temporary_directory:
+        wheels = Path(temporary_directory)
+        subprocess.run(
+            ['uv', 'build', '--wheel', '--out-dir', str(wheels), str(reccy_root)],
+            check=True,
+        )
+        subprocess.run(
+            ['uv', 'build', '--wheel', '--out-dir', str(wheels), str(project_root)],
+            check=True,
+        )
+        subprocess.run(
+            [
+                'uv',
+                'venv',
+                '--no-project',
+                '--python',
+                sys.executable,
+                str(environment),
+            ],
+            check=True,
+        )
+        subprocess.run(
+            [
+                'uv',
+                'pip',
+                'install',
+                '--python',
+                str(executable),
+                '--no-sources',
+                *(str(path) for path in wheels.glob('*.whl')),
+            ],
+            check=True,
+        )
+    return executable
