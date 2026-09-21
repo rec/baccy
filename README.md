@@ -229,7 +229,8 @@ Internal data lives under `BACKUP_ROOT/.baccy/`:
 - `events.jsonl` records copied, uploaded, failed, and deferred files.
   A deferred file is recorded once until it is successfully copied.
 - `versions/` contains the previous bytes of files that were later replaced.
-- `lock` prevents concurrent backup passes against one backup root.
+
+`BACKUP_ROOT/.lock` prevents concurrent backup passes against one backup root.
 
 Each new file is copied to a temporary file beside its destination, flushed to
 disk, and atomically renamed only after the source has passed its snapshot

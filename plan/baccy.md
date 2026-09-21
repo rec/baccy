@@ -254,7 +254,7 @@ session whose large media remains unstable while metadata succeeds.
 
 ## Execution and failure model
 
-Use a filesystem lock under `.baccy/` so only one backup pass writes a backup
+Use a filesystem lock at `BACKUP_ROOT/.lock` so only one backup pass writes a backup
 root at a time. A second CLI invocation must fail clearly rather than race the
 service.
 

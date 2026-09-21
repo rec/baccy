@@ -157,7 +157,7 @@ def _run_candidates(
 
 class BackupLock:
     def __init__(self, backup_root: Path) -> None:
-        self.path = backup_root / '.baccy' / 'lock'
+        self.path = backup_root / '.lock'
         self.file: TextIO | None = None
 
     def __enter__(self) -> BackupLock:
