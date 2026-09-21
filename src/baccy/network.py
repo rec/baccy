@@ -1,4 +1,5 @@
 import base64
+import logging
 import os
 import re
 import subprocess
@@ -33,6 +34,7 @@ _LIST_RECS_FILES = (
     "' sh {} +"
 )
 NETWORK_SCAN_SECONDS = 10.0
+_LOGGER = logging.getLogger(__name__)
 
 
 class NetworkRecsSource(BaseModel, frozen=True):
@@ -54,8 +56,10 @@ class NetworkDiscovery:
     def __init__(
         self,
         run: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
+        verbose: bool = False,
     ) -> None:
         self.run = run
+        self.verbose = verbose
         self.seen: set[str] = set()
         self.sources: dict[str, NetworkRecsSource] = {}
         self.last_scan: float | None = None
@@ -74,11 +78,23 @@ class NetworkDiscovery:
             if mac in self.seen:
                 continue
             self.seen.add(mac)
-            if _has_recs(self.run, host):
+            self._log('network host %s (%s) discovered', host, mac)
+            result = _ssh(self.run, host, 'test -d "$HOME/recs"')
+            if result.returncode == 0:
                 source = NetworkRecsSource(mac=mac, host=host)
                 self.sources[mac] = source
                 active.append(source)
+                self._log('network host %s (%s) has recs', host, mac)
+            elif result.returncode == 255:
+                detail = result.stderr.decode(errors='replace').strip()
+                self._log('network SSH failed for %s (%s): %s', host, mac, detail)
+            else:
+                self._log('network host %s (%s) has no recs directory', host, mac)
         return active
+
+    def _log(self, message: str, *values: object) -> None:
+        if self.verbose:
+            _LOGGER.info(message, *values)
 
 
 def backup_network_source(
@@ -137,12 +153,6 @@ def _network_nodes(
     for match in _ARP_NODE.finditer(result.stdout.decode(errors='replace')):
         nodes[match['mac'].casefold()] = match['host']
     return sorted(nodes.items())
-
-
-def _has_recs(
-    run: Callable[..., subprocess.CompletedProcess[bytes]], host: str
-) -> bool:
-    return _ssh(run, host, 'test -d "$HOME/recs"').returncode == 0
 
 
 def _recs_files(

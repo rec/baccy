@@ -37,6 +37,7 @@ def run_backup(
         removable = []
     _validate_roots(settings.backup_root, resolved)
     discovery = NetworkDiscovery() if network is None else network
+    discovery.verbose = settings.verbose
     network_sources = discovery.discover()
     if recognize is not None:
         recognize(

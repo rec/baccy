@@ -1,3 +1,4 @@
+import logging
 import subprocess
 import sys
 import tempfile
@@ -12,6 +13,7 @@ from .models import BackupSummary, RecognizedSource
 from .notifications import notify, notify_failures
 
 BACCY_SERVICE = spec.load(Path(__file__).with_name('service.toml'))
+_LOGGER = logging.getLogger(__name__)
 
 
 class BaccyStatus(ReccyStatus):
@@ -52,6 +54,9 @@ class Application(Reccy):
         for source in recognized.values():
             if source.source not in self._recognized_sources:
                 notify(f'Recognized {source.kind} {source.label}; starting backup.')
+                _LOGGER.info(
+                    'recognized %s %s; starting backup', source.kind, source.label
+                )
                 self._pending_completions.add(source.source)
         self._recognized_sources = recognized
 
@@ -85,6 +90,9 @@ class Application(Reccy):
         for source in sorted(self._pending_completions):
             if (recognized := self._recognized_sources.get(source)) is not None:
                 notify(f'Backup complete for {recognized.kind} {recognized.label}.')
+                _LOGGER.info(
+                    'backup complete for %s %s', recognized.kind, recognized.label
+                )
         self._pending_completions.difference_update(self._recognized_sources)
         self.publish_status()
 
