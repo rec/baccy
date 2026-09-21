@@ -183,9 +183,11 @@ uv run baccy service install
 uv run baccy service status
 ```
 
-The agent uses `launchd` with `RunAtLoad` and `KeepAlive`. It starts after the
-user logs in after a restart and restarts after an unexpected exit. It has the
-same user access to mounted volumes and network shares as `baccy watch`.
+The agent uses `launchd` with `RunAtLoad` and `KeepAlive`. Installation builds
+an isolated release environment under `~/Library/Application Support/baccy/`,
+so the service does not run code from this checkout. It starts after the user
+logs in after a restart and restarts after an unexpected exit. It has the same
+user access to mounted volumes and network shares as `baccy watch`.
 
 ```sh
 uv run baccy service stop
@@ -193,6 +195,9 @@ uv run baccy service start
 uv run baccy service restart
 uv run baccy service uninstall
 ```
+
+Run `uv run baccy service install` again to explicitly deploy a newer checkout.
+`service restart` only restarts the installed release.
 
 This is intentionally a per-user LaunchAgent, not a privileged LaunchDaemon.
 It does not run before login. Pre-login backups would require a separate
