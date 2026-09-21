@@ -111,8 +111,8 @@ retaining the `unchanged` count.
 
 ## Project publication
 
-Projects are the first directory below a configured recs source. A project with
-an `ssh_url` publishes selected files with `ssh` and `scp` to
+Projects are the first directory below any recs source baccy has backed up. A
+project with an `ssh_url` publishes selected files with `ssh` and `scp` to
 `SSH_URL/<project-relative-session-path>`. The remote base must use the form
 `HOST:/absolute/path`; baccy uses the existing SSH configuration and keys.
 

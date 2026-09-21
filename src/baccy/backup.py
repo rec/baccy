@@ -10,6 +10,7 @@ from .discovery import discover_removable_sources, resolve_sources
 from .models import (
     BackupSummary,
     FileResult,
+    NetworkSource,
     PathSource,
     RecognizedSource,
     ResolvedSource,
@@ -148,7 +149,10 @@ def _run_candidates(
         ):
             catalog.append_deferred(result.source, result.relative_path, result.detail)
     for result in publish_sessions(
-        resolved, settings.projects, settings.backup_root, dry_run
+        _upload_sources(resolved, network_sources, settings.backup_root),
+        settings.projects,
+        settings.backup_root,
+        dry_run,
     ):
         summary = summary.with_result(result)
     return summary.model_copy(
@@ -158,6 +162,26 @@ def _run_candidates(
             'results': summary.results,
         }
     )
+
+
+def _upload_sources(
+    sources: list[ResolvedSource], network_sources: list[NetworkRecsSource], root: Path
+) -> list[ResolvedSource]:
+    return [
+        *sources,
+        *[
+            ResolvedSource(
+                source=NetworkSource(
+                    kind='network',
+                    name=source.name,
+                    mac=source.mac,
+                    host=source.host,
+                ),
+                root=root / 'sources' / source.name,
+            )
+            for source in network_sources
+        ],
+    ]
 
 
 class BackupLock:

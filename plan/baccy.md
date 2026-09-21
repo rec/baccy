@@ -35,8 +35,8 @@ Version one supports:
 Version one does not mount remote machines or manage credentials. It can publish
 selected recs sessions with the user's existing SSH configuration. Each project
 supplies an SCP-style `HOST:/absolute/path` base, a minimum audio duration, and
-optionally named tracks. Upload session-relative files below that base, creating
-the corresponding remote directories. By default publish the journal and
+optionally named tracks. Upload every backed-up recs session below that base,
+creating the corresponding remote directories. By default publish the journal and
 finalized recording document plus the final two channels of the source device
 with the most channels, excluding audio shorter than one minute. Record local
 upload size and modification-time state so unchanged selected files are not
