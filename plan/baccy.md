@@ -88,7 +88,8 @@ lifecycle entry.
 Every ten seconds, watch inspects the local ARP table. A newly seen unicast MAC
 address is tried with batch-mode SSH. Baccy does not record or verify host keys,
 then relies on certificate authentication to determine whether the system is
-eligible. Connection failures are retried after two and four seconds;
+eligible. New hosts are probed in parallel. Connection failures are retried
+after two and four seconds;
 authentication rejections and systems without `~/recs` are remembered until the
 process exits. If `~/recs` exists, its files become a network source; other
 files on the system are never considered.
