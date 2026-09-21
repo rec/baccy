@@ -7,8 +7,8 @@ from typing import BinaryIO, cast
 import pytest
 
 from baccy.backup import run_backup
-from baccy.models import Settings
-from baccy.network import NetworkDiscovery
+from baccy.models import ProjectUpload, Settings
+from baccy.network import NetworkDiscovery, NetworkRecsSource
 
 
 def test_network_discovery_tries_each_new_node_once(tmp_path: Path) -> None:
@@ -250,3 +250,47 @@ def test_network_discovery_probes_new_hosts_in_parallel() -> None:
     sources = NetworkDiscovery(run).discover()
 
     assert [source.host for source in sources] == ['first.local', 'second.local']
+
+
+def test_network_recs_backup_is_available_for_project_upload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = NetworkRecsSource(mac='aa:bb:cc:dd:ee:ff', host='pi.local')
+    session = tmp_path / 'backup' / 'sources' / source.name / 'project' / 'session'
+    session.mkdir(parents=True)
+    (session / 'recording.toml').write_text('format = "recs"\n')
+    (session / 'session-record.jsonl').write_text('{"type":"header"}\n')
+    uploads: list[Path] = []
+
+    def upload(
+        path: Path,
+        upload_path: Path,
+        ssh_url: str,
+        run: object,
+    ) -> None:
+        uploads.append(upload_path)
+
+    class Discovery:
+        def __init__(self) -> None:
+            self.run = subprocess.run
+            self.verbose = False
+
+        def discover(self) -> list[NetworkRecsSource]:
+            return [source]
+
+    monkeypatch.setattr('baccy.backup.backup_network_source', lambda *args: [])
+    monkeypatch.setattr('baccy.upload._upload', upload)
+    result = run_backup(
+        Settings(
+            backup_root=tmp_path / 'backup',
+            discover_removable=False,
+            projects={'project': ProjectUpload(ssh_url='user@host:/srv/recs')},
+        ),
+        network=cast(NetworkDiscovery, Discovery()),
+    )
+
+    assert result.uploaded == 2
+    assert uploads == [
+        Path('project/session/recording.toml'),
+        Path('project/session/session-record.jsonl'),
+    ]
