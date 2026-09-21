@@ -80,7 +80,7 @@ def test_backup_records_one_deferred_event_per_deferral_cycle(tmp_path: Path) ->
     run_backup(settings)
     events = [
         json.loads(line)
-        for line in (destination / '.baccy' / 'events.jsonl').read_text().splitlines()
+        for line in (destination / 'events.jsonl').read_text().splitlines()
     ]
     assert [event['result'] for event in events] == ['deferred']
 
@@ -91,7 +91,7 @@ def test_backup_records_one_deferred_event_per_deferral_cycle(tmp_path: Path) ->
     run_backup(settings)
     events = [
         json.loads(line)
-        for line in (destination / '.baccy' / 'events.jsonl').read_text().splitlines()
+        for line in (destination / 'events.jsonl').read_text().splitlines()
     ]
 
     assert [event['result'] for event in events] == ['deferred', 'copied', 'deferred']
@@ -122,7 +122,7 @@ def test_backup_defers_jsonl_with_partial_final_line(tmp_path: Path) -> None:
     assert result.copied == 0
 
 
-def test_backup_appends_jsonl_without_retaining_a_full_version(tmp_path: Path) -> None:
+def test_backup_appends_jsonl_without_creating_dot_baccy(tmp_path: Path) -> None:
     source = tmp_path / 'source'
     source.mkdir()
     journal = source / 'session-record.jsonl'
@@ -138,7 +138,7 @@ def test_backup_appends_jsonl_without_retaining_a_full_version(tmp_path: Path) -
     assert (
         destination / 'sources' / 'source' / 'session-record.jsonl'
     ).read_text() == '{"type":"header"}\n{"type":"event"}\n'
-    assert not (destination / '.baccy' / 'versions').exists()
+    assert not (destination / '.baccy').exists()
 
 
 def test_backup_defers_active_recs_audio_until_finished(tmp_path: Path) -> None:
@@ -162,7 +162,9 @@ def test_backup_defers_active_recs_audio_until_finished(tmp_path: Path) -> None:
     assert (destination / 'sources' / 'source' / 'audio.wav').read_bytes() == b'audio'
 
 
-def test_backup_retains_replaced_destination_version(tmp_path: Path) -> None:
+def test_backup_replaces_changed_destination_without_retaining_version(
+    tmp_path: Path,
+) -> None:
     source = tmp_path / 'source'
     source.mkdir()
     path = source / 'recording.toml'
@@ -174,13 +176,11 @@ def test_backup_retains_replaced_destination_version(tmp_path: Path) -> None:
 
     result = run_backup(settings)
 
-    versions = list((destination / '.baccy' / 'versions' / 'source').rglob('*'))
     assert result.copied == 1
     assert (
         destination / 'sources' / 'source' / 'recording.toml'
     ).read_text() == 'version = 2\n'
-    assert len([p for p in versions if p.is_file()]) == 1
-    assert next(p for p in versions if p.is_file()).read_text() == 'version = 1\n'
+    assert not (destination / '.baccy').exists()
 
 
 def test_backup_preserves_destination_when_source_disappears(tmp_path: Path) -> None:

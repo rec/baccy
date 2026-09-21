@@ -42,13 +42,11 @@ def test_upload_publishes_last_pair_and_skips_unchanged_files(tmp_path: Path) ->
     assert [command[0] for command in calls].count('scp') == 4
     events = [
         json.loads(line)
-        for line in (tmp_path / 'backup' / '.baccy' / 'events.jsonl')
-        .read_text()
-        .splitlines()
+        for line in (tmp_path / 'backup' / 'events.jsonl').read_text().splitlines()
     ]
     assert [event['result'] for event in events] == ['uploaded'] * 4
     assert {event['operation'] for event in events} == {'upload'}
-    assert not (tmp_path / 'backup' / '.baccy' / 'uploads.jsonl').exists()
+    assert not (tmp_path / 'backup' / 'uploads.jsonl').exists()
     destinations = [command[-1] for command in calls]
     assert any('/project/2026-09-20/12-00-00/audio/3.flac' in d for d in destinations)
     assert any('/project/2026-09-20/12-00-00/audio/4.flac' in d for d in destinations)
@@ -70,7 +68,7 @@ def test_upload_records_invalid_session_journal_failure(tmp_path: Path) -> None:
         False,
     )
 
-    event = json.loads((tmp_path / 'backup' / '.baccy' / 'events.jsonl').read_text())
+    event = json.loads((tmp_path / 'backup' / 'events.jsonl').read_text())
     assert [result.status for result in results] == ['failed']
     assert event['operation'] == 'upload'
     assert event['result'] == 'failed'
