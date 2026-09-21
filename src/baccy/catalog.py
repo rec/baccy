@@ -6,7 +6,7 @@ from pathlib import Path
 
 class Catalog:
     def __init__(self, root: Path) -> None:
-        self.path = root / '.baccy' / 'events.jsonl'
+        self.path = root / 'events.jsonl'
         self._latest, self._deferred = self._load_state()
 
     def latest(

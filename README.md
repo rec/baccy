@@ -120,7 +120,7 @@ By default baccy uploads the session journal, finalized `recording.toml`, and
 the last two channels from the device with the most channels. Audio shorter
 than `minimum_seconds`, which defaults to 60 seconds, is omitted. Set `tracks`
 to select named recs tracks instead. Copy and upload state is recorded in
-`.baccy/events.jsonl`, so unchanged selected files are not sent again.
+`events.jsonl`, so unchanged selected files are not sent again.
 
 ## Run once
 
@@ -146,7 +146,7 @@ FLAC files named by an unfinished `file_started` record are deferred. They are
 copied atomically once recs writes a matching `file_finished` record.
 
 Use `-d` or `--dry-run` to print the same summary with `would_copy` results
-without creating the backup root, lock, catalog, temporary files, or versions.
+without creating the backup root, lock, event log, or temporary files.
 `baccy watch -d` repeatedly performs the same non-writing preview.
 
 ## Watch in the foreground
@@ -224,23 +224,18 @@ Current copies are stored below:
 BACKUP_ROOT/sources/SOURCE_NAME/RELATIVE_PATH
 ```
 
-Internal data lives under `BACKUP_ROOT/.baccy/`:
+At the backup root:
 
 - `events.jsonl` records copied, uploaded, failed, and deferred files.
   A deferred file is recorded once until it is successfully copied.
-- `versions/` contains the previous bytes of files that were later replaced.
-
-`BACKUP_ROOT/.lock` prevents concurrent backup passes against one backup root.
+- `.lock` prevents concurrent backup passes against one backup root.
 
 Each new file is copied to a temporary file beside its destination, flushed to
 disk, and atomically renamed only after the source has passed its snapshot
 checks. A partial copy is never promoted to the visible destination. When a
-file changes, baccy hard-links the existing destination into `versions/` before
-the atomic replacement, preserving it without a second large copy.
+file changes, baccy atomically replaces the existing destination.
 
-To restore a current file, copy it from `sources/`. To restore a previous
-version, select the corresponding file under `.baccy/versions/` and copy it
-back to the desired path.
+To restore a file, copy its current version from `sources/`.
 
 ## Version-one boundaries
 

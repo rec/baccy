@@ -172,22 +172,15 @@ Store user-visible copies below:
 BACKUP_ROOT/sources/SOURCE_NAME/RELATIVE_PATH
 ```
 
-Reserve `BACKUP_ROOT/.baccy/` for internal data. Keep an append-only
-`events.jsonl` containing backup and upload successes, failures, and deferred
-files. A backup success includes source name, source-relative path, source size
-and modification time, SHA-256, destination, copy time, and result. Write
-success lines only after the destination commit succeeds and flush each
-complete line.
+Keep an append-only `BACKUP_ROOT/events.jsonl` containing backup and upload
+successes, failures, and deferred files. A backup success includes source name,
+source-relative path, source size and modification time, SHA-256, destination,
+copy time, and result. Write success lines only after the destination commit
+succeeds and flush each complete line.
 
 The normal destination path represents the newest successfully copied bytes.
-Before replacing different bytes at an existing path, hard-link the old
-destination into a version area beneath `.baccy/versions/`, keyed by source
-name, relative path, timestamp, and content hash, and durably commit that link.
-The backup root and version area are on the same filesystem, so the link and
-subsequent atomic replacement do not recopy a large asset or leave the previous
-version unprotected. Never delete a destination merely because a source file
-or source volume disappears. This gives "permanent" a concrete version-one
-meaning: every successfully committed byte sequence remains recoverable.
+Replace changed files atomically, but never delete a destination merely because
+a source file or source volume disappears.
 
 Use the event log as an optimization, not the sole proof that a backup exists.
 Before skipping a candidate, confirm that the destination still exists and
@@ -254,9 +247,8 @@ session whose large media remains unstable while metadata succeeds.
 
 ## Execution and failure model
 
-Use a filesystem lock at `BACKUP_ROOT/.lock` so only one backup pass writes a backup
-root at a time. A second CLI invocation must fail clearly rather than race the
-service.
+Use `BACKUP_ROOT/.lock` so only one backup pass writes a backup root at a time.
+A second CLI invocation must fail clearly rather than race the service.
 
 Handle files independently after configuration and destination validation.
 Record and log a failed file, continue with unrelated files, and return a
@@ -292,8 +284,8 @@ baccy owns backup progress and backup-specific errors.
 
 ### 3. Durable one-pass backup
 
-- Implement the destination lock, append-only catalog, stability tracking,
-  streaming hashes, temporary writes, atomic commits, and retained versions.
+- Implement the destination lock, append-only event log, stability tracking,
+  streaming hashes, temporary writes, and atomic commits.
 - Implement JSONL prefix snapshots separately from stable ordinary-file copies.
 - Expose the one-pass library operation and wire it to `baccy backup`.
 - Test interruption boundaries so neither a destination nor catalog claims an

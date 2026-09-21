@@ -298,10 +298,8 @@ def commit_snapshot(
     if destination.exists():
         if destination.is_symlink() or not destination.is_file():
             raise OSError(f'destination is not a regular file: {destination}')
-        existing_digest = sha256(destination)
-        if existing_digest == digest:
+        if sha256(destination) == digest:
             return _result(candidate, 'unchanged')
-        _retain(destination, candidate, existing_digest, backup_root)
     os.replace(temporary, destination)
     catalog.append(
         {
@@ -316,22 +314,6 @@ def commit_snapshot(
         }
     )
     return _result(candidate, 'copied')
-
-
-def _retain(
-    destination: Path, candidate: Candidate, digest: str, backup_root: Path
-) -> None:
-    relative = candidate.relative_path
-    version_directory = (
-        backup_root
-        / '.baccy'
-        / 'versions'
-        / candidate.source.source.name
-        / relative.parent
-    )
-    _ensure_directory(backup_root, version_directory)
-    version = version_directory / f'{relative.name}.{time.time_ns()}.{digest}'
-    os.link(destination, version)
 
 
 def _matches_catalog(
