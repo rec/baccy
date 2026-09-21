@@ -116,8 +116,8 @@ an `ssh_url` publishes selected files with `ssh` and `scp` to
 By default baccy uploads the session journal, finalized `recording.toml`, and
 the last two channels from the device with the most channels. Audio shorter
 than `minimum_seconds`, which defaults to 60 seconds, is omitted. Set `tracks`
-to select named recs tracks instead. Upload state is recorded under
-`.baccy/uploads.jsonl`, so unchanged selected files are not sent again.
+to select named recs tracks instead. Copy and upload state is recorded in
+`.baccy/events.jsonl`, so unchanged selected files are not sent again.
 
 ## Run once
 
@@ -223,7 +223,8 @@ BACKUP_ROOT/sources/SOURCE_NAME/RELATIVE_PATH
 
 Internal data lives under `BACKUP_ROOT/.baccy/`:
 
-- `catalog.jsonl` records successful copies and failures.
+- `events.jsonl` records copied, uploaded, failed, and deferred files.
+  A deferred file is recorded once until it is successfully copied.
 - `versions/` contains the previous bytes of files that were later replaced.
 - `lock` prevents concurrent backup passes against one backup root.
 

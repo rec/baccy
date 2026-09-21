@@ -97,6 +97,10 @@ def _run_candidates(
                 break
         else:
             summary = summary.with_result(result)
+        if result.status == 'deferred' and not dry_run:
+            catalog.append_deferred(
+                result.source, candidate.relative_path, result.detail
+            )
     network_results: list[FileResult] = []
     for source in network_sources:
         network_results.extend(
@@ -106,6 +110,12 @@ def _run_candidates(
         )
     for result in network_results:
         summary = summary.with_result(result)
+        if (
+            result.status == 'deferred'
+            and result.relative_path is not None
+            and not dry_run
+        ):
+            catalog.append_deferred(result.source, result.relative_path, result.detail)
     for result in publish_sessions(
         resolved, settings.projects, settings.backup_root, dry_run
     ):

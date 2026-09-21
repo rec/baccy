@@ -1,3 +1,6 @@
+import json
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -57,6 +60,35 @@ def test_backup_defers_recent_ordinary_files(tmp_path: Path) -> None:
 
     assert result.deferred == 1
     assert result.copied == 0
+
+
+def test_backup_records_one_deferred_event_per_deferral_cycle(tmp_path: Path) -> None:
+    source = tmp_path / 'source'
+    source.mkdir()
+    path = source / 'audio.wav'
+    path.write_bytes(b'audio')
+    destination = tmp_path / 'backup'
+    settings = _settings(source, destination, stability_seconds=3600)
+
+    run_backup(settings)
+    run_backup(settings)
+    events = [
+        json.loads(line)
+        for line in (destination / '.baccy' / 'events.jsonl').read_text().splitlines()
+    ]
+    assert [event['result'] for event in events] == ['deferred']
+
+    old = time.time_ns() - 7_200_000_000_000
+    os.utime(path, ns=(old, old))
+    run_backup(settings)
+    path.write_bytes(b'changed')
+    run_backup(settings)
+    events = [
+        json.loads(line)
+        for line in (destination / '.baccy' / 'events.jsonl').read_text().splitlines()
+    ]
+
+    assert [event['result'] for event in events] == ['deferred', 'copied', 'deferred']
 
 
 def test_backup_dry_run_does_not_write(tmp_path: Path) -> None:
