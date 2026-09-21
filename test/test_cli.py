@@ -45,7 +45,7 @@ def test_backup_command_runs_one_pass(
     output = json.loads(capsys.readouterr().out)
     assert exit_code == 0
     assert output['unchanged'] == 1
-    assert output['results'] == []
+    assert output['results'][0]['status'] == 'unchanged'
 
 
 def test_backup_command_verbose_includes_unchanged_files(

@@ -46,7 +46,7 @@ backup_root = "/Volumes/Backups/baccy"
 discover_removable = true
 poll_seconds = 60
 stability_seconds = 60
-verbose = false
+verbose = true
 
 [projects.concert]
 ssh_url = "user@example.org:/srv/recs"
@@ -106,8 +106,8 @@ and neither a source nor the backup root may contain the other.
 Set `verbose = true` to include unchanged files in each JSON summary. When the
 installed service is running, it also sends macOS notifications when it
 recognizes a backup disk or network machine and again when that backup pass
-finishes. The default omits unchanged individual results while retaining the
-`unchanged` count.
+finishes. The current default includes unchanged individual results while
+retaining the `unchanged` count.
 
 ## Project publication
 

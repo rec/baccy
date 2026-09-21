@@ -64,6 +64,7 @@ def test_load_or_default_uses_defaults_when_standard_file_is_missing(
     assert settings.backup_root == tmp_path / 'Backups' / 'baccy'
     assert settings.sources == []
     assert settings.discover_removable is True
+    assert settings.verbose is True
 
 
 def test_load_or_default_rejects_missing_explicit_file(tmp_path: Path) -> None:
