@@ -15,6 +15,7 @@ requires-python = ">=3.14"
 dependencies = [
     "pydantic>=2.13.5",
     "reccy",
+    "tomlkit>=0.15.1",
     "tyro>=1.0.16",
 ]
 
