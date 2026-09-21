@@ -31,7 +31,7 @@ If that file does not exist, baccy still runs with automatic removable-drive
 discovery enabled and writes selected backups to:
 
 ```text
-~/Backups/baccy
+~/baccy
 ```
 
 This makes `baccy backup`, `baccy watch`, and a normally installed service
@@ -42,7 +42,7 @@ Pass `--config PATH` to any backup, watch, or service-install command to use a
 different file.
 
 ```toml
-backup_root = "/Volumes/Backups/baccy"
+backup_root = "/path/to/baccy"
 discover_removable = true
 poll_seconds = 60
 stability_seconds = 60
@@ -134,7 +134,7 @@ uv run baccy backup --dry-run
 
 The first form needs no configuration file. It discovers qualifying removable
 media and stores selected photo files or recs sessions on the main drive under
-`~/Backups/baccy`.
+`~/baccy`.
 
 The command prints a JSON summary. It exits nonzero when a configured source is
 unavailable or a copy fails. A missing removable card or mounted share does not

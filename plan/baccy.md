@@ -93,7 +93,7 @@ are remembered only until the process exits.
 
 Read settings from one TOML configuration file, with a command-line option to
 select a different file. When the standard configuration file is absent, use
-automatic removable discovery and `~/Backups/baccy` on the main drive. A
+automatic removable discovery and `~/baccy` on the main drive. A
 missing explicitly selected configuration remains an error. The model contains:
 
 - the central backup root;
@@ -332,7 +332,7 @@ Version one is complete when:
 - the library can run one backup pass against configured sources and produce a
   structured result;
 - without a configuration file, the CLI uses automatic removable discovery and
-  writes selected content below `~/Backups/baccy`;
+  writes selected content below `~/baccy`;
 - `baccy backup` performs that pass without installing or starting a service;
 - `baccy watch` runs the same engine repeatedly in the foreground;
 - the LaunchAgent starts after login, stays alive, and returns after a reboot;

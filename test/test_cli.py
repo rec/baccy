@@ -125,7 +125,6 @@ def test_backup_command_without_configuration_uses_main_drive(
     output = json.loads(capsys.readouterr().out)
     destination = (
         tmp_path
-        / 'Backups'
         / 'baccy'
         / 'sources'
         / 'removable-test-uuid'
