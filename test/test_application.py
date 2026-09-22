@@ -130,3 +130,19 @@ def test_application_notifies_recognized_sources_and_completion(
         'Recognized machine studio.local; starting backup.',
         'Backup complete for machine studio.local.',
     ]
+
+
+def test_application_notifies_new_ssh_machine_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    notifications: list[str] = []
+    monkeypatch.setattr('baccy.application.notify', notifications.append)
+    application = Application(home=tmp_path, platform=models.Platform.macos)
+    machine = RecognizedSource(
+        source='network-aabb', label='studio.local', kind='machine'
+    )
+
+    application.record_recognized_machines([machine])
+    application.record_recognized_machines([machine])
+
+    assert notifications == ['Recognized machine studio.local.']

@@ -43,13 +43,17 @@ NETWORK_SCAN_SECONDS = 10.0
 _LOGGER = logging.getLogger(__name__)
 
 
-class NetworkRecsSource(BaseModel, frozen=True):
+class NetworkMachine(BaseModel, frozen=True):
     mac: str
     host: str
 
     @property
     def name(self) -> str:
         return f'network-{self.mac.replace(":", "").casefold()}'
+
+
+class NetworkRecsSource(NetworkMachine):
+    pass
 
 
 class RemoteFile(BaseModel, frozen=True):
@@ -69,6 +73,8 @@ class NetworkDiscovery:
         self.verbose = verbose
         self.sleep = sleep
         self.seen: set[str] = set()
+        self.machines: dict[str, NetworkMachine] = {}
+        self.new_machines: list[NetworkMachine] = []
         self.sources: dict[str, NetworkRecsSource] = {}
         self.last_scan: float | None = None
 
@@ -77,12 +83,18 @@ class NetworkDiscovery:
         if self.last_scan is not None and now - self.last_scan < NETWORK_SCAN_SECONDS:
             return list(self.sources.values())
         self.last_scan = now
+        self.new_machines = []
         active: list[NetworkRecsSource] = []
         pending: list[tuple[str, str]] = []
         for mac, host in _network_nodes(self.run):
             if (source := self.sources.get(mac)) is not None:
                 active.append(source.model_copy(update={'host': host}))
                 self.sources[mac] = active[-1]
+                self.machines[mac] = NetworkMachine(mac=mac, host=host)
+                continue
+            if mac in self.machines:
+                self.machines[mac] = NetworkMachine(mac=mac, host=host)
+                pending.append((mac, host))
                 continue
             if mac in self.seen:
                 continue
@@ -97,6 +109,13 @@ class NetworkDiscovery:
                 ]
                 for mac, host, probe in probes:
                     result = probe.result()
+                    if result.returncode != 255 and not _is_authentication_failure(
+                        result
+                    ):
+                        machine = NetworkMachine(mac=mac, host=host)
+                        self.machines[mac] = machine
+                        self.new_machines.append(machine)
+                        self._log('network SSH accepted for %s (%s)', host, mac)
                     if result.returncode == 0:
                         source = NetworkRecsSource(mac=mac, host=host)
                         self.sources[mac] = source

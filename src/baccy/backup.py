@@ -28,6 +28,7 @@ def run_backup(
     dry_run: bool = False,
     network: NetworkDiscovery | None = None,
     recognize: Callable[[list[RecognizedSource]], None] | None = None,
+    recognize_machines: Callable[[list[RecognizedSource]], None] | None = None,
 ) -> BackupSummary:
     _validate_config_roots(settings)
     resolved, unavailable = resolve_sources(settings.sources)
@@ -40,6 +41,15 @@ def run_backup(
     discovery = NetworkDiscovery() if network is None else network
     discovery.verbose = settings.verbose
     network_sources = discovery.discover()
+    if recognize_machines is not None:
+        recognize_machines(
+            [
+                RecognizedSource(
+                    source=machine.name, label=machine.host, kind='machine'
+                )
+                for machine in discovery.new_machines
+            ]
+        )
     if recognize is not None:
         recognize(
             [

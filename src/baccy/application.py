@@ -31,6 +31,7 @@ class Application(Reccy):
         default_factory=set
     )
     _recognized_sources: dict[str, RecognizedSource] = PrivateAttr(default_factory=dict)
+    _recognized_machines: set[str] = PrivateAttr(default_factory=set)
     _pending_completions: set[str] = PrivateAttr(default_factory=set)
 
     def service_metadata(
@@ -59,6 +60,13 @@ class Application(Reccy):
                 )
                 self._pending_completions.add(source.source)
         self._recognized_sources = recognized
+
+    def record_recognized_machines(self, machines: list[RecognizedSource]) -> None:
+        for machine in machines:
+            if machine.source not in self._recognized_machines:
+                notify(f'Recognized machine {machine.label}.')
+                _LOGGER.info('recognized machine %s', machine.label)
+                self._recognized_machines.add(machine.source)
 
     def record_summary(self, summary: BackupSummary) -> None:
         self._summary = summary
