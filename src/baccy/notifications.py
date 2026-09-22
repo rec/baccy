@@ -1,21 +1,26 @@
+import logging
 import subprocess
-import sys
 
 from .models import FileResult
 
 _DISPLAY_NOTIFICATION = (
     'on run argv\ndisplay notification (item 1 of argv) with title "baccy"\nend run'
 )
+_LOGGER = logging.getLogger(__name__)
 
 
 def notify(message: str) -> None:
     result = subprocess.run(
-        ['osascript', '-e', _DISPLAY_NOTIFICATION, message],
+        ['/usr/bin/osascript', '-e', _DISPLAY_NOTIFICATION, message],
         capture_output=True,
         check=False,
     )
     if result.returncode:
-        print(result.stderr.decode(errors='replace').strip(), file=sys.stderr)
+        detail = result.stderr.decode(errors='replace').strip()
+        _LOGGER.error(
+            'macOS notification failed: %s',
+            detail or f'exit status {result.returncode}',
+        )
 
 
 def notify_failures(results: list[FileResult]) -> None:
