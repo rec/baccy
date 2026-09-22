@@ -92,6 +92,9 @@ def _watch(command: WatchCommand) -> int:
                 recognize=(
                     application.record_recognized_sources if value.verbose else None
                 ),
+                recognize_machines=(
+                    application.record_recognized_machines if value.verbose else None
+                ),
             )
 
         application.start()

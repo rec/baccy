@@ -120,6 +120,28 @@ def test_network_discovery_does_not_retry_authentication_rejection() -> None:
     assert delays == []
 
 
+def test_network_discovery_rechecks_ssh_machines_without_recs() -> None:
+    attempts = 0
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        nonlocal attempts
+        if command[0] == 'arp':
+            return subprocess.CompletedProcess(
+                command, 0, b'? (pi.local) at aa:bb:cc:dd:ee:ff on en0\n', b''
+            )
+        attempts += 1
+        return subprocess.CompletedProcess(command, 1 if attempts == 1 else 0, b'', b'')
+
+    discovery = NetworkDiscovery(run)
+
+    assert discovery.discover() == []
+    assert [machine.host for machine in discovery.new_machines] == ['pi.local']
+    discovery.last_scan = None
+
+    assert [source.host for source in discovery.discover()] == ['pi.local']
+    assert attempts == 2
+
+
 def test_network_recs_dry_run_does_not_write(tmp_path: Path) -> None:
     def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
         if command[0] == 'arp':
@@ -274,6 +296,7 @@ def test_network_recs_backup_is_available_for_project_upload(
         def __init__(self) -> None:
             self.run = subprocess.run
             self.verbose = False
+            self.new_machines: list[object] = []
 
         def discover(self) -> list[NetworkRecsSource]:
             return [source]

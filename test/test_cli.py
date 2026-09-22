@@ -11,6 +11,8 @@ from baccy.models import BackupSummary, ResolvedSource, SourceSelection, VolumeS
 
 
 class NoNetworkDiscovery:
+    new_machines: list[object] = []
+
     def discover(self) -> list[object]:
         return []
 

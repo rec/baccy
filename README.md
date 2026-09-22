@@ -170,7 +170,10 @@ Each newly seen MAC address gets an immediate SSH attempt in parallel with the
 other newly seen hosts and, for connection failures, one retry after two
 seconds and another after four seconds.
 Authentication rejections and hosts without a `~/recs` directory are not
-retried until baccy restarts. Multicast and broadcast ARP entries are ignored.
+retried until baccy restarts. A host that accepts SSH but does not yet have
+`~/recs` is checked again on each later ARP scan. With `verbose = true`, baccy
+notifies once per daemon session when it first recognizes an SSH-capable
+machine. Multicast and broadcast ARP entries are ignored.
 Qualifying `~/recs` directories are copied as network sources, with the catalog
 skipping files whose remote size and modification time have not changed.
 

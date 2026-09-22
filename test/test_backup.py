@@ -10,6 +10,8 @@ from baccy.models import PathSource, Settings
 
 
 class NoNetworkDiscovery:
+    new_machines: list[object] = []
+
     def discover(self) -> list[object]:
         return []
 

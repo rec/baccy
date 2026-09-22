@@ -90,9 +90,10 @@ address is tried with batch-mode SSH. Baccy does not record or verify host keys,
 then relies on certificate authentication to determine whether the system is
 eligible. New hosts are probed in parallel. Connection failures are retried
 after two and four seconds;
-authentication rejections and systems without `~/recs` are remembered until the
-process exits. If `~/recs` exists, its files become a network source; other
-files on the system are never considered.
+authentication rejections are remembered until the process exits. A machine
+that accepts SSH is checked for `~/recs` on every later scan. If `~/recs`
+exists, its files become a network source; other files on the system are never
+considered.
 
 Read settings from one TOML configuration file, with a command-line option to
 select a different file. When the standard configuration file is absent, use
