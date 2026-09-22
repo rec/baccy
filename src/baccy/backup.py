@@ -160,11 +160,18 @@ def _run_candidates(
             catalog.append_deferred(result.source, result.relative_path, result.detail)
     for result in publish_sessions(
         _upload_sources(resolved, network_sources, settings.backup_root),
-        settings.projects,
-        settings.backup_root,
+        settings,
         dry_run,
     ):
         summary = summary.with_result(result)
+        if (
+            result.status == 'deferred'
+            and result.relative_path is not None
+            and not dry_run
+        ):
+            catalog.append_upload_deferred(
+                result.source, result.relative_path, result.detail
+            )
     return summary.model_copy(
         update={
             'discovered': summary.discovered

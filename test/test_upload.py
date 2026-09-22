@@ -1,74 +1,201 @@
 import json
-import subprocess
 from pathlib import Path
 
-from baccy.models import PathSource, ProjectUpload, ResolvedSource
+import pytest
+from pydantic import ValidationError
+
+from baccy.match import MatchExpression
+from baccy.models import PathSource, ResolvedSource, Settings
 from baccy.upload import publish_sessions
 
 
-def test_upload_publishes_last_pair_and_skips_unchanged_files(tmp_path: Path) -> None:
+def test_upload_rules_select_main_channels_and_skip_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     root = tmp_path / 'recs'
     session = root / 'project' / '2026-09-20' / '12-00-00'
     session.mkdir(parents=True)
-    (session / 'recording.toml').write_text('format = "recs"\n')
-    records = ['{"type":"header"}']
+    records: list[dict[str, object]] = []
     for channel in range(1, 5):
         path = f'audio/{channel}.flac'
         audio = session / path
         audio.parent.mkdir(exist_ok=True)
         audio.write_bytes(b'audio')
-        records.append(
-            '{"type":"file_finished","media_type":"audio",'
-            f'"source":"device","source_channels":[{channel}],'
-            f'"frame_count":2880000,"sample_rate":48000,"path":"{path}"}}'
+        records.extend(
+            [
+                {
+                    'type': 'file_started',
+                    'media_type': 'audio',
+                    'stream_id': str(channel),
+                    'timestamp': '2026-09-20T12:00:00Z',
+                    'format': 'flac',
+                    'source': 'device',
+                    'source_channels': [channel],
+                    'path': path,
+                },
+                {
+                    'type': 'file_finished',
+                    'media_type': 'audio',
+                    'stream_id': str(channel),
+                    'path': path,
+                    'frame_count': 5_808_000,
+                    'sample_rate': 48_000,
+                },
+            ]
         )
-    (session / 'session-record.jsonl').write_text('\n'.join(records) + '\n')
+    (session / 'session-record.jsonl').write_text(
+        ''.join(json.dumps(record) + '\n' for record in records)
+    )
     calls: list[list[str]] = []
-
-    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        calls.append(command)
-        return subprocess.CompletedProcess(command, 0, b'', b'')
-
+    monkeypatch.setattr('baccy.upload._run', lambda command: calls.append(command))
     source = ResolvedSource(
         source=PathSource(kind='path', name='recs', path=root), root=root
     )
-    projects = {'project': ProjectUpload(ssh_url='user@host:/srv/recs')}
+    settings = Settings.model_validate(
+        {
+            'backup_root': tmp_path / 'backup',
+            'destinations': {'server': {'kind': 'ssh', 'url': 'user@host:/srv/recs'}},
+            'access': {'listeners': {'ssh_mode': '0644'}},
+            'projects': {
+                'project': {
+                    'uploads': [
+                        {
+                            'name': 'main',
+                            'match': 'main and duration > 120',
+                            'encoding': {'format': 'source'},
+                            'filename': '{channels}/{timestamp}.{extension}',
+                            'destination': 'server',
+                            'access': {'profile': 'listeners'},
+                        }
+                    ]
+                }
+            },
+        }
+    )
 
-    first = publish_sessions([source], projects, tmp_path / 'backup', False, run)
-    second = publish_sessions([source], projects, tmp_path / 'backup', False, run)
+    first = publish_sessions([source], settings, False)
+    second = publish_sessions([source], settings, False)
 
-    assert [result.status for result in first] == ['uploaded'] * 4
-    assert [result.status for result in second] == ['unchanged'] * 4
-    assert [command[0] for command in calls].count('scp') == 4
+    assert [result.status for result in first] == ['uploaded'] * 2
+    assert [result.status for result in second] == ['unchanged'] * 2
+    assert [call[0] for call in calls].count('scp') == 2
+    assert [call[0] for call in calls].count('ssh') == 4
     events = [
         json.loads(line)
         for line in (tmp_path / 'backup' / 'events.jsonl').read_text().splitlines()
     ]
-    assert [event['result'] for event in events] == ['uploaded'] * 4
-    assert {event['operation'] for event in events} == {'upload'}
-    assert not (tmp_path / 'backup' / 'uploads.jsonl').exists()
-    destinations = [command[-1] for command in calls]
-    assert any('/project/2026-09-20/12-00-00/audio/3.flac' in d for d in destinations)
-    assert any('/project/2026-09-20/12-00-00/audio/4.flac' in d for d in destinations)
+    assert {event['rule'] for event in events} == {'main'}
+    assert {event['access_profile'] for event in events} == {'listeners'}
 
 
-def test_upload_records_invalid_session_journal_failure(tmp_path: Path) -> None:
+def test_upload_rules_defer_player_access_and_never_write_on_dry_run(
+    tmp_path: Path,
+) -> None:
     root = tmp_path / 'recs'
-    session = root / 'project' / '2026-09-20' / '12-00-00'
+    session = root / 'project' / 'session'
     session.mkdir(parents=True)
-    (session / 'session-record.jsonl').write_text('{invalid}\n')
+    (session / 'audio.wav').write_bytes(b'audio')
+    (session / 'session-record.jsonl').write_text(
+        '\n'.join(
+            [
+                json.dumps(
+                    {
+                        'type': 'file_started',
+                        'media_type': 'audio',
+                        'stream_id': 'mic',
+                        'timestamp': '2026-09-20T12:00:00Z',
+                        'format': 'wav',
+                        'source': 'device',
+                        'source_channels': [1],
+                        'path': 'audio.wav',
+                    }
+                ),
+                json.dumps(
+                    {
+                        'type': 'file_finished',
+                        'media_type': 'audio',
+                        'stream_id': 'mic',
+                        'path': 'audio.wav',
+                        'frame_count': 48_000,
+                        'sample_rate': 48_000,
+                    }
+                ),
+            ]
+        )
+        + '\n'
+    )
+    settings = Settings.model_validate(
+        {
+            'backup_root': tmp_path / 'backup',
+            'destinations': {'server': {'kind': 'ssh', 'url': 'host:/srv/recs'}},
+            'projects': {
+                'project': {
+                    'uploads': [
+                        {
+                            'name': 'player',
+                            'match': 'True',
+                            'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
+                            'filename': '{timestamp}.{extension}',
+                            'destination': 'server',
+                            'access': {'from': 'player'},
+                        }
+                    ]
+                }
+            },
+        }
+    )
     source = ResolvedSource(
         source=PathSource(kind='path', name='recs', path=root), root=root
     )
 
-    results = publish_sessions(
-        [source],
-        {'project': ProjectUpload(ssh_url='user@host:/srv/recs')},
-        tmp_path / 'backup',
-        False,
+    results = publish_sessions([source], settings, True)
+
+    assert [result.status for result in results] == ['deferred']
+    assert results[0].detail == 'player access metadata is missing'
+    assert not (tmp_path / 'backup').exists()
+
+
+@pytest.mark.parametrize(
+    'expression',
+    [
+        'unknown',
+        'duration + 1 > 2',
+        'device.lower() == "device"',
+        'channels[0] == 1',
+        '[item for item in channels]',
+        'x' * 513,
+        "'x' * 257",
+    ],
+)
+def test_match_expressions_reject_unsafe_syntax(expression: str) -> None:
+    with pytest.raises(ValueError):
+        MatchExpression(expression)
+
+
+def test_match_expressions_support_boolean_composition_and_membership() -> None:
+    expression = MatchExpression(
+        "(main and duration > 120) or (format in ['wav', 'flac'] and not has_player)"
     )
 
-    event = json.loads((tmp_path / 'backup' / 'events.jsonl').read_text())
-    assert [result.status for result in results] == ['failed']
-    assert event['operation'] == 'upload'
-    assert event['result'] == 'failed'
+    assert expression.matches(
+        {
+            'duration': 120,
+            'main': False,
+            'device': 'device',
+            'channels': [1],
+            'track': '',
+            'format': 'flac',
+            'player': None,
+            'has_player': False,
+        }
+    )
+
+
+def test_config_rejects_legacy_upload_policy(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match='ssh_url'):
+        Settings.model_validate(
+            {
+                'backup_root': tmp_path / 'backup',
+                'projects': {'project': {'ssh_url': 'host:/srv/recs'}},
+            }
+        )

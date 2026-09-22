@@ -7,7 +7,7 @@ from typing import BinaryIO, cast
 import pytest
 
 from baccy.backup import run_backup
-from baccy.models import ProjectUpload, Settings
+from baccy.models import Settings
 from baccy.network import NetworkDiscovery, NetworkRecsSource
 
 
@@ -280,17 +280,19 @@ def test_network_recs_backup_is_available_for_project_upload(
     source = NetworkRecsSource(mac='aa:bb:cc:dd:ee:ff', host='pi.local')
     session = tmp_path / 'backup' / 'sources' / source.name / 'project' / 'session'
     session.mkdir(parents=True)
-    (session / 'recording.toml').write_text('format = "recs"\n')
-    (session / 'session-record.jsonl').write_text('{"type":"header"}\n')
+    (session / 'audio.flac').write_bytes(b'audio')
+    (session / 'session-record.jsonl').write_text(
+        '{"type":"file_started","media_type":"audio","stream_id":"mic",'
+        '"timestamp":"2026-09-20T12:00:00Z","format":"flac",'
+        '"source":"device","source_channels":[1],"path":"audio.flac"}\n'
+        '{"type":"file_finished","media_type":"audio","stream_id":"mic",'
+        '"path":"audio.flac","frame_count":48000,"sample_rate":48000}\n'
+    )
     uploads: list[Path] = []
 
-    def upload(
-        path: Path,
-        upload_path: Path,
-        ssh_url: str,
-        run: object,
-    ) -> None:
-        uploads.append(upload_path)
+    def upload(plan: object, path: Path) -> bool:
+        uploads.append(path)
+        return True
 
     class Discovery:
         def __init__(self) -> None:
@@ -307,13 +309,25 @@ def test_network_recs_backup_is_available_for_project_upload(
         Settings(
             backup_root=tmp_path / 'backup',
             discover_removable=False,
-            projects={'project': ProjectUpload(ssh_url='user@host:/srv/recs')},
+            destinations={'server': {'kind': 'ssh', 'url': 'user@host:/srv/recs'}},
+            access={'listeners': {'ssh_mode': '0644'}},
+            projects={
+                'project': {
+                    'uploads': [
+                        {
+                            'name': 'archive',
+                            'match': 'True',
+                            'encoding': {'format': 'source'},
+                            'filename': '{timestamp}.{extension}',
+                            'destination': 'server',
+                            'access': {'profile': 'listeners'},
+                        }
+                    ]
+                }
+            },
         ),
         network=cast(NetworkDiscovery, Discovery()),
     )
 
-    assert result.uploaded == 2
-    assert uploads == [
-        Path('project/session/recording.toml'),
-        Path('project/session/session-record.jsonl'),
-    ]
+    assert result.uploaded == 1
+    assert uploads == [session / 'audio.flac']

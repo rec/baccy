@@ -23,7 +23,7 @@ class Catalog:
             file.write(json.dumps(event, sort_keys=True) + '\n')
             file.flush()
             os.fsync(file.fileno())
-        if event.get('result') in {'copied', 'uploaded'}:
+        if event.get('result') in {'copied', 'uploaded', 'unchanged'}:
             self._latest[key] = event
             self._deferred.discard(key)
         elif event.get('result') == 'deferred':
@@ -32,10 +32,21 @@ class Catalog:
     def append_deferred(
         self, source: str, relative_path: Path, detail: str | None
     ) -> None:
-        key = ('backup', source, relative_path.as_posix())
+        self._append_deferred('backup', source, relative_path, detail)
+
+    def append_upload_deferred(
+        self, source: str, relative_path: Path, detail: str | None
+    ) -> None:
+        self._append_deferred('upload', source, relative_path, detail)
+
+    def _append_deferred(
+        self, operation: str, source: str, relative_path: Path, detail: str | None
+    ) -> None:
+        key = (operation, source, relative_path.as_posix())
         if key not in self._deferred:
             self.append(
                 {
+                    'operation': operation,
                     'source': source,
                     'relative_path': relative_path.as_posix(),
                     'result': 'deferred',
@@ -66,7 +77,7 @@ class Catalog:
                 if isinstance(source, str) and isinstance(relative_path, str):
                     operation = str(value.get('operation', 'backup'))
                     key = (operation, source, relative_path)
-                    if value.get('result') in {'copied', 'uploaded'}:
+                    if value.get('result') in {'copied', 'uploaded', 'unchanged'}:
                         latest[key] = value
                         deferred.discard(key)
                     elif value.get('result') == 'deferred':
