@@ -48,13 +48,34 @@ poll_seconds = 60
 stability_seconds = 60
 verbose = true
 
-[projects.concert]
-ssh_url = "user@example.org:/srv/recs"
-minimum_seconds = 60
+[destinations.show_server]
+kind = "ssh"
+url = "user@example.org:/srv/shows"
 
-[projects.interview]
-ssh_url = "user@example.org:/srv/recs"
-tracks = ["host", "guest"]
+[destinations.archive]
+kind = "s3"
+bucket = "show-recordings"
+prefix = "upcoming-shows"
+
+[access.show_listeners]
+ssh_mode = "0644"
+s3_acl = "public-read"
+
+[[projects.concert.uploads]]
+name = "main-mp3"
+match = "main and duration > 120"
+encoding = { format = "mp3", bitrate_kbps = 128 }
+filename = "{timestamp}.{extension}"
+destination = "show_server"
+access = { profile = "show_listeners" }
+
+[[projects.concert.uploads]]
+name = "channel-archive"
+match = "True"
+encoding = { format = "flac" }
+filename = "{session}/{device}/{track}/{timestamp}.{extension}"
+destination = "archive"
+access = { from = "player" }
 
 [[sources]]
 kind = "path"
@@ -111,16 +132,38 @@ retaining the `unchanged` count.
 
 ## Project publication
 
-Projects are the first directory below any recs source baccy has backed up. A
-project with an `ssh_url` publishes selected files with `ssh` and `scp` to
-`SSH_URL/<project-relative-session-path>`. The remote base must use the form
-`HOST:/absolute/path`; baccy uses the existing SSH configuration and keys.
+Projects are the first directory below any recs source baccy has backed up.
+Each `uploads` rule independently selects finalized audio segments, so one
+recording can create several artifacts. Publication always reads the completed
+copy in the backup root, never an active recorder or removable drive.
 
-By default baccy uploads the session journal, finalized `recording.toml`, and
-the last two channels from the device with the most channels. Audio shorter
-than `minimum_seconds`, which defaults to 60 seconds, is omitted. Set `tracks`
-to select named recs tracks instead. Copy and upload state is recorded in
-`events.jsonl`, so unchanged selected files are not sent again.
+`match` is a restricted expression over `duration`, `main`, `device`,
+`channels`, `track`, `format`, `player`, and `has_player`. It supports
+comparisons, membership, `and`, `or`, and `not`, but no calls, attributes,
+subscripts, arithmetic, or Python evaluation. The default `main` tracks are
+the two highest numbered channels of the device with the greatest observed
+channel number. If devices tie, rules referring to `main` are deferred.
+
+Rules encode `source`, `flac`, or `mp3`. MP3 rules require `bitrate_kbps`.
+Derived FLAC and MP3 files are written atomically to `artifacts/` under the
+backup root, keyed by source content and the complete rule definition. The
+cache is disposable: the permanent source backup remains authoritative.
+
+`filename` accepts only `{project}`, `{session}`, `{device}`, `{track}`,
+`{channels}`, `{timestamp}`, `{rule}`, and `{extension}`. It must render a
+safe relative path. Baccy rejects every colliding target before it starts an
+encoder or upload.
+
+SSH destinations use the existing non-interactive SSH configuration and keys;
+their static access profile may set `ssh_mode`. S3 destinations use boto3 and
+the host's normal AWS credential chain. An optional `s3_acl` applies a canned
+ACL. Baccy records an artifact identity in S3 object metadata and skips an
+object with the same identity. Credentials never appear in the TOML or event
+log.
+
+`access = { from = "player" }` is accepted but currently deferred with
+`player access metadata is missing`: current recs sessions do not snapshot the
+player access profile needed to publish safely.
 
 ## Run once
 
@@ -145,8 +188,9 @@ For recs sessions, baccy appends only newly completed lines from
 FLAC files named by an unfinished `file_started` record are deferred. They are
 copied atomically once recs writes a matching `file_finished` record.
 
-Use `-d` or `--dry-run` to print the same summary with `would_copy` results
-without creating the backup root, lock, event log, or temporary files.
+Use `-d` or `--dry-run` to print the same summary with `would_copy` and
+`would_upload` results without creating the backup root, lock, event log,
+artifact cache, temporary files, or network connections.
 `baccy watch -d` repeatedly performs the same non-writing preview.
 
 ## Watch in the foreground

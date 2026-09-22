@@ -1,7 +1,10 @@
 from pathlib import Path, PurePosixPath
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from .match import validate_match
+from .naming import validate_filename_template
 
 
 class PathSource(BaseModel, frozen=True):
@@ -55,12 +58,11 @@ class NetworkSource(BaseModel, frozen=True):
 Source = PathSource | VolumeSource | NetworkSource
 
 
-class ProjectUpload(BaseModel, frozen=True):
-    ssh_url: str
-    minimum_seconds: float = Field(default=60.0, ge=0)
-    tracks: list[str] | None = None
+class SshDestination(BaseModel, frozen=True):
+    kind: Literal['ssh']
+    url: str
 
-    @field_validator('ssh_url')
+    @field_validator('url')
     @classmethod
     def validate_ssh_url(cls, value: str) -> str:
         host, separator, path = value.partition(':')
@@ -70,6 +72,123 @@ class ProjectUpload(BaseModel, frozen=True):
             raise ValueError('SSH URL path must be absolute')
         return value
 
+    model_config = {'extra': 'forbid'}
+
+
+class S3Destination(BaseModel, frozen=True):
+    kind: Literal['s3']
+    bucket: str
+    prefix: str = ''
+
+    @field_validator('bucket')
+    @classmethod
+    def validate_bucket(cls, value: str) -> str:
+        if not value or '/' in value:
+            raise ValueError('S3 bucket must be a non-empty bucket name')
+        return value
+
+    @field_validator('prefix')
+    @classmethod
+    def validate_prefix(cls, value: str) -> str:
+        path = PurePosixPath(value)
+        if path.is_absolute() or '..' in path.parts:
+            raise ValueError('S3 prefix must be a relative path')
+        return value.strip('/')
+
+    model_config = {'extra': 'forbid'}
+
+
+Destination = Annotated[SshDestination | S3Destination, Field(discriminator='kind')]
+
+
+class AccessProfile(BaseModel, frozen=True):
+    ssh_mode: str | None = None
+    s3_acl: str | None = None
+
+    @field_validator('ssh_mode')
+    @classmethod
+    def validate_ssh_mode(cls, value: str | None) -> str | None:
+        if value is not None and (
+            len(value) != 4
+            or not value.isdigit()
+            or any(c not in '01234567' for c in value)
+        ):
+            raise ValueError('SSH mode must be a four-digit octal mode')
+        return value
+
+    model_config = {'extra': 'forbid'}
+
+
+class Encoding(BaseModel, frozen=True):
+    format: Literal['source', 'flac', 'mp3']
+    bitrate_kbps: int | None = Field(default=None, gt=0)
+
+    @model_validator(mode='after')
+    def validate_bitrate(self) -> Encoding:
+        if self.format == 'mp3' and self.bitrate_kbps is None:
+            raise ValueError('MP3 encoding requires bitrate_kbps')
+        if self.format != 'mp3' and self.bitrate_kbps is not None:
+            raise ValueError('only MP3 encoding accepts bitrate_kbps')
+        return self
+
+    model_config = {'extra': 'forbid'}
+
+
+class UploadAccess(BaseModel, frozen=True):
+    profile: str | None = None
+    from_: Literal['player'] | None = Field(default=None, alias='from')
+
+    @model_validator(mode='after')
+    def validate_selection(self) -> UploadAccess:
+        if (self.profile is None) == (self.from_ is None):
+            raise ValueError('upload access must set exactly one of profile or from')
+        return self
+
+    model_config = {'extra': 'forbid', 'populate_by_name': True}
+
+
+class UploadRule(BaseModel, frozen=True):
+    name: str
+    match: str
+    encoding: Encoding
+    filename: str
+    destination: str
+    access: UploadAccess
+
+    @field_validator('name', 'destination')
+    @classmethod
+    def validate_identifier(cls, value: str) -> str:
+        if not value or '/' in value or value in {'.', '..'}:
+            raise ValueError(
+                'upload rule names and destinations must be path components'
+            )
+        return value
+
+    @field_validator('filename')
+    @classmethod
+    def validate_filename(cls, value: str) -> str:
+        return validate_filename_template(value)
+
+    @field_validator('match')
+    @classmethod
+    def validate_match_expression(cls, value: str) -> str:
+        return validate_match(value)
+
+    model_config = {'extra': 'forbid'}
+
+
+class ProjectUpload(BaseModel, frozen=True):
+    uploads: list[UploadRule] = Field(default_factory=list)
+
+    @model_validator(mode='after')
+    def validate_rule_names(self) -> ProjectUpload:
+        names = [r.name for r in self.uploads]
+        if len(names) != len(set(names)):
+            raise ValueError('upload rule names must be unique per project')
+        return self
+
+    model_config = {'extra': 'forbid'}
+
 
 class Settings(BaseModel, frozen=True):
     backup_root: Path
@@ -78,6 +197,8 @@ class Settings(BaseModel, frozen=True):
     poll_seconds: float = Field(default=60.0, gt=0)
     stability_seconds: float = Field(default=60.0, ge=0)
     verbose: bool = True
+    destinations: dict[str, Destination] = Field(default_factory=dict)
+    access: dict[str, AccessProfile] = Field(default_factory=dict)
     projects: dict[str, ProjectUpload] = Field(default_factory=dict)
 
     @model_validator(mode='after')
@@ -85,6 +206,17 @@ class Settings(BaseModel, frozen=True):
         names = [s.name for s in self.sources]
         if len(names) != len(set(names)):
             raise ValueError('source names must be unique')
+        destination_names = set(self.destinations)
+        access_names = set(self.access)
+        for project in self.projects.values():
+            for rule in project.uploads:
+                if rule.destination not in destination_names:
+                    raise ValueError(f'unknown upload destination: {rule.destination}')
+                if (
+                    rule.access.profile is not None
+                    and rule.access.profile not in access_names
+                ):
+                    raise ValueError(f'unknown access profile: {rule.access.profile}')
         return self
 
 

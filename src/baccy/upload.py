@@ -1,25 +1,71 @@
+import ast
+import hashlib
 import json
 import shlex
 import subprocess
-from collections.abc import Callable
-from pathlib import Path
+import tempfile
+from datetime import datetime
+from pathlib import Path, PurePosixPath
+
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
+from pydantic import BaseModel
 
 from .catalog import Catalog
-from .models import FileResult, ProjectUpload, ResolvedSource
+from .match import MatchExpression
+from .models import (
+    AccessProfile,
+    Destination,
+    FileResult,
+    ProjectUpload,
+    ResolvedSource,
+    S3Destination,
+    Settings,
+    SshDestination,
+    UploadRule,
+)
 
-Command = Callable[..., subprocess.CompletedProcess[bytes]]
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
 
 
+class Segment(BaseModel, frozen=True):
+    path: Path
+    timestamp: str
+    source: str
+    channels: list[int]
+    frame_count: int
+    sample_rate: int
+    track: str
+    format: str
+
+    @property
+    def duration(self) -> float:
+        return self.frame_count / self.sample_rate
+
+
+class ArtifactPlan(BaseModel, frozen=True):
+    project: str
+    source_name: str
+    session: Path
+    segment: Segment
+    rule: UploadRule
+    destination: Destination
+    access_profile: str | None
+    access: AccessProfile | None
+    target: PurePosixPath
+    identity: str
+
+
 def publish_sessions(
-    sources: list[ResolvedSource],
-    projects: dict[str, ProjectUpload],
-    backup_root: Path,
-    dry_run: bool,
-    run: Command = subprocess.run,
+    sources: list[ResolvedSource], settings: Settings, dry_run: bool
 ) -> list[FileResult]:
-    catalog = Catalog(backup_root)
+    catalog = Catalog(settings.backup_root)
     results: list[FileResult] = []
+    expressions = {
+        (project_name, rule.name): MatchExpression(rule.match)
+        for project_name, project in settings.projects.items()
+        for rule in project.uploads
+    }
     for source in sources:
         for journal in sorted(source.root.glob('**/session-record.jsonl')):
             if journal.is_symlink():
@@ -28,7 +74,7 @@ def publish_sessions(
             if not relative_session.parts:
                 continue
             project_name = relative_session.parts[0]
-            if (project := projects.get(project_name)) is None:
+            if (project := settings.projects.get(project_name)) is None:
                 continue
             results.extend(
                 _publish_session(
@@ -37,110 +83,72 @@ def publish_sessions(
                     relative_session,
                     project_name,
                     project,
+                    settings,
+                    expressions,
                     catalog,
                     dry_run,
-                    run,
                 )
             )
     return results
 
 
 def _publish_session(
-    source: str,
-    session: Path,
+    source_name: str,
+    session_root: Path,
     relative_session: Path,
     project_name: str,
     project: ProjectUpload,
+    settings: Settings,
+    expressions: dict[tuple[str, str], MatchExpression],
     catalog: Catalog,
     dry_run: bool,
-    run: Command,
 ) -> list[FileResult]:
     try:
-        records = _finished_audio(session / 'session-record.jsonl')
-        paths = [Path('session-record.jsonl')]
-        if (session / 'recording.toml').is_file():
-            paths.append(Path('recording.toml'))
-        paths.extend(_selected_audio(records, project))
+        segments = _completed_segments(session_root / 'session-record.jsonl')
     except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
-        if not dry_run:
-            catalog.append(
-                {
-                    'operation': 'upload',
-                    'source': project_name,
-                    'relative_path': (
-                        Path(source) / relative_session / 'session-record.jsonl'
-                    ).as_posix(),
-                    'result': 'failed',
-                    'detail': str(error),
-                }
-            )
-        return [FileResult(source=project_name, status='failed', detail=str(error))]
-    results: list[FileResult] = []
-    for relative_path in sorted(set(paths)):
-        path = session / relative_path
-        if not path.is_file():
-            continue
-        upload_path = relative_session / relative_path
-        identity = Path(source) / upload_path
-        if _matches_catalog(catalog, project_name, identity, path):
-            results.append(
-                FileResult(
-                    source=project_name, relative_path=upload_path, status='unchanged'
-                )
-            )
-            continue
-        if dry_run:
+        return _record_failure(
+            catalog,
+            project_name,
+            Path(source_name) / relative_session / 'session-record.jsonl',
+            str(error),
+            dry_run,
+        )
+    main, main_error = _main_channels(segments)
+    plans, results = _artifact_plans(
+        segments,
+        source_name,
+        session_root,
+        relative_session,
+        project_name,
+        project,
+        settings,
+        expressions,
+        main,
+        main_error,
+    )
+    targets = [
+        (_destination_identity(plan.destination), plan.target.as_posix())
+        for plan in plans
+    ]
+    for plan in plans:
+        target_key = _destination_identity(plan.destination), plan.target.as_posix()
+        if targets.count(target_key) > 1:
             results.append(
                 FileResult(
                     source=project_name,
-                    relative_path=upload_path,
-                    status='would_upload',
+                    relative_path=Path(plan.target),
+                    status='deferred',
+                    detail='upload target collides with another artifact',
                 )
             )
             continue
-        try:
-            _upload(path, upload_path, project.ssh_url, run)
-        except OSError as error:
-            if not dry_run:
-                catalog.append(
-                    {
-                        'operation': 'upload',
-                        'source': project_name,
-                        'relative_path': identity.as_posix(),
-                        'result': 'failed',
-                        'detail': str(error),
-                    }
-                )
-            results.append(
-                FileResult(
-                    source=project_name,
-                    relative_path=upload_path,
-                    status='failed',
-                    detail=str(error),
-                )
-            )
-            continue
-        stat = path.stat()
-        catalog.append(
-            {
-                'source': project_name,
-                'relative_path': identity.as_posix(),
-                'size': stat.st_size,
-                'mtime_ns': stat.st_mtime_ns,
-                'operation': 'upload',
-                'result': 'uploaded',
-            }
-        )
-        results.append(
-            FileResult(
-                source=project_name, relative_path=upload_path, status='uploaded'
-            )
-        )
+        results.extend(_materialize_and_upload(plan, session_root, catalog, dry_run))
     return results
 
 
-def _finished_audio(journal: Path) -> list[dict[str, object]]:
-    records: list[dict[str, object]] = []
+def _completed_segments(journal: Path) -> list[Segment]:
+    starts: dict[tuple[str, str], dict[str, object]] = {}
+    segments: list[Segment] = []
     with journal.open() as file:
         for line in file:
             if not line.endswith('\n'):
@@ -148,64 +156,411 @@ def _finished_audio(journal: Path) -> list[dict[str, object]]:
             value = json.loads(line)
             if not isinstance(value, dict):
                 raise ValueError(f'invalid recs record in {journal}')
-            if (
-                value.get('type') == 'file_finished'
-                and value.get('media_type') == 'audio'
-            ):
-                records.append(value)
-    return records
+            if value.get('media_type') != 'audio':
+                continue
+            record_type = value.get('type')
+            stream_id = value.get('stream_id')
+            path = value.get('path')
+            if record_type not in {'file_started', 'file_finished'}:
+                continue
+            if not isinstance(stream_id, str) or not isinstance(path, str):
+                raise ValueError(f'invalid audio lifecycle record in {journal}')
+            identity = stream_id, path
+            if record_type == 'file_started':
+                starts[identity] = value
+            elif (start := starts.get(identity)) is not None:
+                segments.append(_segment(start, value, journal))
+    return segments
 
 
-def _selected_audio(
-    records: list[dict[str, object]], project: ProjectUpload
-) -> list[Path]:
-    if project.tracks is not None:
-        return [
-            Path(path)
-            for record in records
-            if isinstance(path := record.get('path'), str)
-            and record.get('track_name') in project.tracks
-            and _long_enough(record, project.minimum_seconds)
-        ]
-    channel_counts: dict[str, int] = {}
-    for record in records:
-        source = record.get('source')
-        channels = record.get('source_channels')
-        if (
-            isinstance(source, str)
-            and isinstance(channels, list)
-            and all(isinstance(channel, int) for channel in channels)
-        ):
-            channel_counts[source] = max(channel_counts.get(source, 0), *channels)
-    if not channel_counts:
-        return []
-    source, count = max(channel_counts.items(), key=lambda item: (item[1], item[0]))
-    desired = {count - 1, count}
-    return [
-        Path(path)
-        for record in records
-        if isinstance(path := record.get('path'), str)
-        and record.get('source') == source
-        and isinstance(channels := record.get('source_channels'), list)
-        and set(channels).issubset(desired)
-        and channels
-        and _long_enough(record, project.minimum_seconds)
-    ]
-
-
-def _long_enough(record: dict[str, object], minimum_seconds: float) -> bool:
-    frames = record.get('frame_count')
-    sample_rate = record.get('sample_rate')
-    return (
-        isinstance(frames, int)
-        and isinstance(sample_rate, int)
-        and sample_rate > 0
-        and frames / sample_rate >= minimum_seconds
+def _segment(
+    start: dict[str, object], finish: dict[str, object], journal: Path
+) -> Segment:
+    path = start.get('path')
+    timestamp = start.get('timestamp')
+    source = start.get('source')
+    channels = start.get('source_channels')
+    frames = finish.get('frame_count')
+    sample_rate = finish.get('sample_rate')
+    track = start.get('track_name')
+    format_name = start.get('format')
+    if (
+        not isinstance(path, str)
+        or PurePosixPath(path).is_absolute()
+        or '..' in PurePosixPath(path).parts
+        or not isinstance(timestamp, str)
+        or not isinstance(source, str)
+        or not isinstance(channels, list)
+        or not channels
+        or not all(isinstance(channel, int) and channel > 0 for channel in channels)
+        or not isinstance(frames, int)
+        or frames < 0
+        or not isinstance(sample_rate, int)
+        or sample_rate <= 0
+        or not isinstance(format_name, str)
+    ):
+        raise ValueError(f'invalid completed audio record in {journal}')
+    return Segment(
+        path=Path(path),
+        timestamp=timestamp,
+        source=source,
+        channels=sorted(channels),
+        frame_count=frames,
+        sample_rate=sample_rate,
+        track=track if isinstance(track, str) else '',
+        format=format_name.lower(),
     )
 
 
-def _matches_catalog(catalog: Catalog, project: str, path: Path, source: Path) -> bool:
-    if (record := catalog.latest(project, path, 'upload')) is None:
+def _main_channels(
+    segments: list[Segment],
+) -> tuple[tuple[str, set[int]] | None, str | None]:
+    widths: dict[str, int] = {}
+    for segment in segments:
+        widths[segment.source] = max(widths.get(segment.source, 0), *segment.channels)
+    if not widths:
+        return None, None
+    maximum = max(widths.values())
+    devices = [device for device, width in widths.items() if width == maximum]
+    if len(devices) != 1:
+        return None, 'main device is ambiguous'
+    device = devices[0]
+    return (device, set(range(max(1, maximum - 1), maximum + 1))), None
+
+
+def _artifact_plans(
+    segments: list[Segment],
+    source_name: str,
+    session_root: Path,
+    relative_session: Path,
+    project_name: str,
+    project: ProjectUpload,
+    settings: Settings,
+    expressions: dict[tuple[str, str], MatchExpression],
+    main: tuple[str, set[int]] | None,
+    main_error: str | None,
+) -> tuple[list[ArtifactPlan], list[FileResult]]:
+    plans: list[ArtifactPlan] = []
+    results: list[FileResult] = []
+    for segment in segments:
+        is_main = (
+            main is not None
+            and segment.source == main[0]
+            and set(segment.channels).issubset(main[1])
+        )
+        values = {
+            'duration': segment.duration,
+            'main': is_main,
+            'device': segment.source,
+            'channels': segment.channels,
+            'track': segment.track,
+            'format': segment.format,
+            'player': None,
+            'has_player': False,
+        }
+        for rule in project.uploads:
+            expression = expressions[project_name, rule.name]
+            if main_error is not None and _expression_uses_main(expression):
+                results.append(
+                    FileResult(
+                        source=project_name,
+                        relative_path=segment.path,
+                        status='deferred',
+                        detail=main_error,
+                    )
+                )
+                continue
+            if not expression.matches(values):
+                continue
+            if rule.access.from_ is not None:
+                results.append(
+                    FileResult(
+                        source=project_name,
+                        relative_path=segment.path,
+                        status='deferred',
+                        detail='player access metadata is missing',
+                    )
+                )
+                continue
+            destination = settings.destinations[rule.destination]
+            profile = rule.access.profile
+            try:
+                target = _render_target(rule, project_name, relative_session, segment)
+                identity = _artifact_identity(
+                    session=relative_session,
+                    source_hash=_source_hash(session_root / segment.path),
+                    segment=segment,
+                    rule=rule,
+                    destination=destination,
+                    access_profile=profile,
+                )
+            except (OSError, ValueError) as error:
+                results.append(
+                    FileResult(
+                        source=project_name,
+                        relative_path=segment.path,
+                        status='deferred',
+                        detail=str(error),
+                    )
+                )
+                continue
+            plans.append(
+                ArtifactPlan(
+                    project=project_name,
+                    source_name=source_name,
+                    session=relative_session,
+                    segment=segment,
+                    rule=rule,
+                    destination=destination,
+                    access_profile=profile,
+                    access=settings.access[profile] if profile is not None else None,
+                    target=target,
+                    identity=identity,
+                )
+            )
+    return plans, results
+
+
+def _expression_uses_main(expression: MatchExpression) -> bool:
+    return any(
+        node.id == 'main'
+        for node in ast.walk(expression.tree)
+        if isinstance(node, ast.Name)
+    )
+
+
+def _render_target(
+    rule: UploadRule, project: str, session: Path, segment: Segment
+) -> PurePosixPath:
+    extension = (
+        segment.path.suffix.removeprefix('.')
+        if rule.encoding.format == 'source'
+        else rule.encoding.format
+    )
+    values = {
+        'project': project,
+        'session': session.as_posix(),
+        'device': segment.source,
+        'track': segment.track,
+        'channels': '-'.join(str(channel) for channel in segment.channels),
+        'timestamp': _timestamp_name(segment.timestamp),
+        'rule': rule.name,
+        'extension': extension,
+    }
+    rendered = rule.filename.format_map(values)
+    path = PurePosixPath(rendered)
+    if (
+        path.is_absolute()
+        or not rendered
+        or any(part in {'', '.', '..'} for part in path.parts)
+    ):
+        raise ValueError('upload filename must render to a safe relative path')
+    return path
+
+
+def _timestamp_name(value: str) -> str:
+    try:
+        timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
+    except ValueError as error:
+        raise ValueError(f'invalid recs segment timestamp: {value}') from error
+    return timestamp.strftime('%Y-%m-%dT%H-%M-%S.%fZ')
+
+
+def _artifact_identity(
+    session: Path,
+    source_hash: str,
+    segment: Segment,
+    rule: UploadRule,
+    destination: Destination,
+    access_profile: str | None,
+) -> str:
+    value = {
+        'session': session.as_posix(),
+        'source_hash': source_hash,
+        'segment': segment.model_dump(mode='json'),
+        'rule': rule.model_dump(mode='json', by_alias=True),
+        'destination': destination.model_dump(mode='json'),
+        'access_profile': access_profile,
+    }
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
+
+
+def _source_hash(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open('rb') as source:
+        while block := source.read(1_048_576):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _materialize_and_upload(
+    plan: ArtifactPlan, session_root: Path, catalog: Catalog, dry_run: bool
+) -> list[FileResult]:
+    source = session_root / plan.segment.path
+    if not source.is_file():
+        return _record_failure(
+            catalog,
+            plan.project,
+            Path(plan.identity),
+            'completed source backup is missing',
+            dry_run,
+        )
+    if _matches_catalog(catalog, plan.project, Path(plan.identity), source):
+        return [
+            FileResult(
+                source=plan.project, relative_path=Path(plan.target), status='unchanged'
+            )
+        ]
+    if dry_run:
+        return [
+            FileResult(
+                source=plan.project,
+                relative_path=Path(plan.target),
+                status='would_upload',
+            )
+        ]
+    try:
+        artifact = _materialize(plan, source, catalog.path.parent)
+        uploaded = _upload(plan, artifact)
+    except (BotoCoreError, ClientError, OSError, subprocess.SubprocessError) as error:
+        return _record_failure(
+            catalog, plan.project, Path(plan.identity), str(error), dry_run
+        )
+    stat = source.stat()
+    if not uploaded:
+        catalog.append(
+            {
+                'source': plan.project,
+                'relative_path': plan.identity,
+                'size': stat.st_size,
+                'mtime_ns': stat.st_mtime_ns,
+                'operation': 'upload',
+                'result': 'unchanged',
+            }
+        )
+        return [
+            FileResult(
+                source=plan.project,
+                relative_path=Path(plan.target),
+                status='unchanged',
+            )
+        ]
+    catalog.append(
+        {
+            'source': plan.project,
+            'relative_path': plan.identity,
+            'size': stat.st_size,
+            'mtime_ns': stat.st_mtime_ns,
+            'operation': 'upload',
+            'result': 'uploaded',
+            'rule': plan.rule.name,
+            'encoding': plan.rule.encoding.model_dump(),
+            'destination': _destination_identity(plan.destination),
+            'target': plan.target.as_posix(),
+            'access_profile': plan.access_profile,
+        }
+    )
+    return [
+        FileResult(
+            source=plan.project, relative_path=Path(plan.target), status='uploaded'
+        )
+    ]
+
+
+def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
+    if plan.rule.encoding.format == 'source':
+        return source
+    extension = plan.rule.encoding.format
+    output = backup_root / 'artifacts' / plan.identity / f'artifact.{extension}'
+    if output.is_file():
+        return output
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=output.parent, suffix=f'.{extension}', delete=False
+    ) as file:
+        temporary = Path(file.name)
+    try:
+        command = ['ffmpeg', '-y', '-i', str(source)]
+        if extension == 'mp3':
+            command.extend(['-b:a', f'{plan.rule.encoding.bitrate_kbps}k'])
+        else:
+            command.extend(['-c:a', 'flac'])
+        command.append(str(temporary))
+        subprocess.run(command, capture_output=True, check=True)
+        temporary.replace(output)
+    except OSError, subprocess.SubprocessError:
+        temporary.unlink(missing_ok=True)
+        raise
+    return output
+
+
+def _upload(plan: ArtifactPlan, path: Path) -> bool:
+    if isinstance(plan.destination, SshDestination):
+        _upload_ssh(path, plan.target, plan.destination, plan.access)
+        return True
+    else:
+        return _upload_s3(
+            path, plan.target, plan.destination, plan.access, plan.identity
+        )
+
+
+def _upload_ssh(
+    path: Path,
+    target: PurePosixPath,
+    destination: SshDestination,
+    access: AccessProfile | None,
+) -> None:
+    host, _, base = destination.url.partition(':')
+    remote_path = f'{base.rstrip("/")}/{target.as_posix()}'
+    directory = str(PurePosixPath(remote_path).parent)
+    _run(['ssh', *_SSH_OPTIONS, host, f'mkdir -p {shlex.quote(directory)}'])
+    _run(['scp', *_SSH_OPTIONS, str(path), f'{host}:{shlex.quote(remote_path)}'])
+    if access is not None and access.ssh_mode is not None:
+        _run(
+            [
+                'ssh',
+                *_SSH_OPTIONS,
+                host,
+                f'chmod {access.ssh_mode} {shlex.quote(remote_path)}',
+            ]
+        )
+
+
+def _upload_s3(
+    path: Path,
+    target: PurePosixPath,
+    destination: S3Destination,
+    access: AccessProfile | None,
+    identity: str,
+) -> bool:
+    client = boto3.client('s3')
+    key = '/'.join(part for part in (destination.prefix, target.as_posix()) if part)
+    try:
+        existing = client.head_object(Bucket=destination.bucket, Key=key)
+    except ClientError as error:
+        if error.response['Error'].get('Code') not in {'404', 'NoSuchKey', 'NotFound'}:
+            raise
+    else:
+        if existing.get('Metadata', {}).get('baccy-identity') == identity:
+            return False
+    extra = {'Metadata': {'baccy-identity': identity}}
+    if access is not None and access.s3_acl is not None:
+        extra['ACL'] = access.s3_acl
+    arguments = {'ExtraArgs': extra}
+    client.upload_file(str(path), destination.bucket, key, **arguments)
+    return True
+
+
+def _run(command: list[str]) -> None:
+    result = subprocess.run(command, capture_output=True, check=False)
+    if result.returncode:
+        raise OSError(result.stderr.decode(errors='replace').strip())
+
+
+def _matches_catalog(
+    catalog: Catalog, project: str, identity: Path, source: Path
+) -> bool:
+    if (record := catalog.latest(project, identity, 'upload')) is None:
         return False
     stat = source.stat()
     return (
@@ -214,21 +569,25 @@ def _matches_catalog(catalog: Catalog, project: str, path: Path, source: Path) -
     )
 
 
-def _upload(path: Path, upload_path: Path, ssh_url: str, run: Command) -> None:
-    host, _, base = ssh_url.partition(':')
-    destination = f'{base.rstrip("/")}/{upload_path.as_posix()}'
-    directory = str(Path(destination).parent)
-    remote = run(
-        ['ssh', *_SSH_OPTIONS, host, f'mkdir -p {shlex.quote(directory)}'],
-        capture_output=True,
-        check=False,
-    )
-    if remote.returncode:
-        raise OSError(remote.stderr.decode(errors='replace').strip())
-    result = run(
-        ['scp', *_SSH_OPTIONS, str(path), f'{host}:{shlex.quote(destination)}'],
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode:
-        raise OSError(result.stderr.decode(errors='replace').strip())
+def _destination_identity(destination: Destination) -> str:
+    if isinstance(destination, SshDestination):
+        return destination.url
+    return f's3://{destination.bucket}/{destination.prefix}'
+
+
+def _record_failure(
+    catalog: Catalog, project: str, path: Path, detail: str, dry_run: bool
+) -> list[FileResult]:
+    if not dry_run:
+        catalog.append(
+            {
+                'operation': 'upload',
+                'source': project,
+                'relative_path': path.as_posix(),
+                'result': 'failed',
+                'detail': detail,
+            }
+        )
+    return [
+        FileResult(source=project, relative_path=path, status='failed', detail=detail)
+    ]
