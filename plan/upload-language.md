@@ -76,8 +76,7 @@ ssh_mode = "0644"
 
 [[projects.concert.uploads]]
 name = "main-mp3"
-channels = "main"
-duration = { greater_than_seconds = 120 }
+match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
 filename = "{timestamp}.{extension}"
 destination = "show_server"
@@ -85,7 +84,7 @@ access = { profile = "show_listeners" }
 
 [[projects.concert.uploads]]
 name = "channel-archive"
-channels = "all"
+match = "True"
 encoding = { format = "flac" }
 filename = "{session}/{device}/{track}/{timestamp}.{extension}"
 destination = "archive"
@@ -101,12 +100,17 @@ validation errors to refine the final TOML.
 Each upload rule has five independent parts:
 
 1. **Selection**
-   - `channels = "main"` uses the definition above.
-   - `channels = "all"` selects every completed audio track.
-   - Later extensions may select explicit device/channel pairs or player IDs,
-     but should extend this field rather than add unrelated selector systems.
-   - Duration comparisons use `frame_count / sample_rate`. Preserve the stated
-     operator: “greater than two minutes” means strictly `> 120`, not `>= 120`.
+   - `match` is a restricted `simpleeval` expression evaluated once for every
+     completed audio segment.
+   - `main` exposes the default main-channel decision described above;
+     `match = "main"` selects those tracks and `match = "True"` selects all
+     completed tracks.
+   - `duration` is `frame_count / sample_rate` in seconds. Preserve the stated
+     operator: `duration > 120` is strictly greater than two minutes, not
+     greater than or equal to two minutes.
+   - Rules can combine facts without adding a new configuration field for each
+     selector, for example `main and duration > 120` or
+     `format in ['wav', 'flac'] and duration >= 60`.
 
 2. **Encoding**
    - `format = "source"` uploads the original bytes.
@@ -142,6 +146,50 @@ Each upload rule has five independent parts:
    - Missing or conflicting player assignments defer that artifact and record a
      clear reason. They must never fall back to broader access.
 
+## Match expression safety
+
+Use `simpleeval` 1.0.6 or newer as the expression parser and evaluator. Version
+1.0.5 fixed a sandbox escape, so older releases are not acceptable. Add the
+dependency in its own dependency commit when implementation begins.
+
+Do not use `simpleeval` with its default feature set. Configure one shared,
+locked-down evaluator that exposes only flat scalar and list values supplied by
+baccy. Pre-validate the parsed AST and allow only:
+
+- names and literal strings, numbers, booleans, `None`, lists, and tuples;
+- comparisons: `==`, `!=`, `<`, `<=`, `>`, and `>=`;
+- membership: `in` and `not in`;
+- Boolean composition: `and`, `or`, and `not`;
+- parentheses.
+
+Disallow calls, attribute access, subscripting, comprehensions, arithmetic,
+bitwise operators, conditional expressions, lambdas, and container literals
+other than bounded lists and tuples. Pass `functions={}` and
+`allowed_attrs={}` even though AST validation already excludes those forms.
+
+Initially expose these names:
+
+- `duration`: floating-point seconds derived from `frame_count / sample_rate`;
+- `main`: whether the segment belongs wholly to the default main channels;
+- `device`: recs source/device name;
+- `channels`: ascending list of positive source channel numbers;
+- `track`: recorded track name or an empty string;
+- `format`: lowercase source audio format;
+- `player`: stable assigned player identifier or `None`;
+- `has_player`: whether the player assignment is complete and unambiguous.
+
+Unknown names are configuration errors. Parse expressions once when loading the
+configuration and reuse the parsed tree for each segment. The result does not
+need to have Boolean type: normal Python truthiness decides whether the rule
+matches.
+
+Resource safety still needs explicit limits because a restricted expression can
+consume excessive memory or time. Limit the expression text to 512 characters,
+literal strings to 256 characters, and literal lists/tuples to 32 items. Set a
+small AST-node limit, reject nesting deeper than a fixed bound, and retain
+`simpleeval`'s own size protections. Since calls and arithmetic are absent,
+there is no exponentiation or user-supplied function path.
+
 ## recs metadata boundary
 
 Baccy should not query a live recs player database while publishing an old
@@ -176,16 +224,18 @@ Separate configuration parsing from runtime work:
 
 1. Parse TOML into validated project, destination, access, selector, encoder,
    naming, and rule models.
-2. Read a journal into typed session facts: header, completed segments, device
+2. Parse and validate every `match` expression once, rejecting unknown names or
+   forbidden syntax before any session is scanned.
+3. Read a journal into typed session facts: header, completed segments, device
    topology, player assignments, and timestamps.
-3. Resolve `main` once per session.
-4. Evaluate every rule against every completed segment and produce immutable
+4. Resolve `main` once per session.
+5. Evaluate every rule against every completed segment and produce immutable
    artifact plans.
-5. Validate target names, permission resolution, and collisions before encoding
+6. Validate target names, permission resolution, and collisions before encoding
    or network I/O.
-6. Materialize required encodings into the local artifact cache.
-7. Apply destination access policy and upload.
-8. Record the result in `events.jsonl`.
+7. Materialize required encodings into the local artifact cache.
+8. Apply destination access policy and upload.
+9. Record the result in `events.jsonl`.
 
 The pure compilation and evaluation stages should not perform filesystem writes,
 encoding, SSH, or S3 calls. This makes selector semantics and rule interactions
@@ -232,9 +282,11 @@ must not be mixed into the first implementation.
 1. **Language and evaluator**
    - Add frozen Pydantic models for named destinations, access profiles, and
      upload rules.
+   - Add `simpleeval>=1.0.6` in a separate dependency commit and wrap it with
+     the restricted AST and resource limits above.
    - Replace the current `ProjectUpload` fields with the canonical rules form.
-   - Build typed session facts and implement `main`, `all`, strict duration
-     filtering, naming, collision detection, and additive rule evaluation.
+   - Build typed session facts and implement `main`, match evaluation, naming,
+     collision detection, and additive rule evaluation.
    - Produce dry-run artifact plans without encoding or uploading.
 
 2. **Artifact pipeline and SSH**
@@ -274,7 +326,11 @@ Cover at least:
 - mono and stereo devices select the available highest channels;
 - tied largest devices defer `main` rules;
 - a track spanning non-main and main channels is not a main track;
-- exactly 120 seconds fails a strict `greater_than_seconds = 120` selector;
+- exactly 120 seconds fails `match = "duration > 120"`;
+- `and`, `or`, `not`, membership, parentheses, and normal truthiness work;
+- unknown names and every forbidden AST form fail during configuration loading;
+- calls, attributes, subscripts, comprehensions, and oversized expressions or
+  literals are rejected;
 - one segment matches both additive example rules;
 - an MP3 rule plans 128 kbit/s output and renders only the timestamp filename;
 - FLAC input passes through the FLAC rule while WAV input plans a lossless
