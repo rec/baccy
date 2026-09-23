@@ -165,6 +165,7 @@ def backup_network_source(
     backup_root: Path,
     catalog: Catalog,
     dry_run: bool,
+    projects: set[str] | None = None,
     run: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
 ) -> list[FileResult]:
     try:
@@ -184,7 +185,7 @@ def backup_network_source(
     for file in files:
         try:
             result = _backup_remote_file(
-                source, file, backup_root, catalog, dry_run, run
+                source, file, backup_root, catalog, dry_run, projects or set(), run
             )
         except OSError as error:
             result = FileResult(
@@ -272,10 +273,18 @@ def _backup_remote_file(
     backup_root: Path,
     catalog: Catalog,
     dry_run: bool,
+    projects: set[str],
     run: Callable[..., subprocess.CompletedProcess[bytes]],
 ) -> FileResult:
-    candidate = _candidate(source, file)
-    destination = backup_root / 'sources' / source.name / file.relative_path
+    project = (
+        file.relative_path.parts[0] if file.relative_path.parts[0] in projects else None
+    )
+    candidate = _candidate(source, file, project)
+    destination = (
+        backup_root / file.relative_path
+        if project is not None
+        else backup_root / 'sources' / source.name / file.relative_path
+    )
     if _matches_catalog(source, file, destination, catalog):
         return _result(candidate, 'unchanged')
     if dry_run:
@@ -312,7 +321,9 @@ def _backup_remote_file(
             temporary.unlink()
 
 
-def _candidate(source: NetworkRecsSource, file: RemoteFile) -> Candidate:
+def _candidate(
+    source: NetworkRecsSource, file: RemoteFile, project: str | None
+) -> Candidate:
     network_source = NetworkSource(
         kind='network', name=source.name, mac=source.mac, host=source.host
     )
@@ -321,6 +332,7 @@ def _candidate(source: NetworkRecsSource, file: RemoteFile) -> Candidate:
         path=Path('/network') / file.relative_path,
         relative_path=file.relative_path,
         priority=0,
+        project=project,
     )
 
 

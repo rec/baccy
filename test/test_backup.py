@@ -53,6 +53,51 @@ def test_backup_copies_metadata_before_media_and_then_skips_it(tmp_path: Path) -
     assert (destination / 'sources' / 'source' / 'audio.wav').read_bytes() == b'audio'
 
 
+def test_backup_copies_project_sessions_to_the_canonical_project_directory(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / 'source'
+    session = source / 'concert' / 'session'
+    session.mkdir(parents=True)
+    (session / 'recording.toml').write_text('format = "recs"\n')
+    destination = tmp_path / 'backup'
+    settings = Settings.model_validate(
+        {
+            'backup_root': destination,
+            'discover_removable': False,
+            'stability_seconds': 0,
+            'sources': [{'kind': 'path', 'name': 'source', 'path': source}],
+            'projects': {'concert': {}},
+        }
+    )
+
+    run_backup(settings)
+
+    assert (destination / 'concert' / 'session' / 'recording.toml').read_text() == (
+        'format = "recs"\n'
+    )
+    assert not (destination / 'sources' / 'source' / 'concert').exists()
+
+
+def test_backup_migrates_legacy_project_directory(tmp_path: Path) -> None:
+    destination = tmp_path / 'backup'
+    legacy = destination / 'sources' / 'card' / 'concert' / 'session'
+    legacy.mkdir(parents=True)
+    (legacy / 'recording.toml').write_text('format = "recs"\n')
+    settings = Settings(
+        backup_root=destination,
+        discover_removable=False,
+        projects={'concert': {}},
+    )
+
+    run_backup(settings)
+
+    assert (destination / 'concert' / 'session' / 'recording.toml').read_text() == (
+        'format = "recs"\n'
+    )
+    assert not (destination / 'sources' / 'card' / 'concert').exists()
+
+
 def test_backup_defers_recent_ordinary_files(tmp_path: Path) -> None:
     source = tmp_path / 'source'
     source.mkdir()

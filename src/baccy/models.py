@@ -206,6 +206,10 @@ class Settings(BaseModel, frozen=True):
         names = [s.name for s in self.sources]
         if len(names) != len(set(names)):
             raise ValueError('source names must be unique')
+        if any(
+            not name or '/' in name or name in {'.', '..'} for name in self.projects
+        ):
+            raise ValueError('project names must be non-empty path components')
         destination_names = set(self.destinations)
         access_names = set(self.access)
         for project in self.projects.values():
@@ -246,6 +250,7 @@ class Candidate(BaseModel, frozen=True):
     relative_path: Path
     priority: int
     active: bool = False
+    project: str | None = None
 
 
 class FileResult(BaseModel, frozen=True):

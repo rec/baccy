@@ -330,4 +330,4 @@ def test_network_recs_backup_is_available_for_project_upload(
     )
 
     assert result.uploaded == 1
-    assert uploads == [session / 'audio.flac']
+    assert uploads == [tmp_path / 'backup' / 'project' / 'session' / 'audio.flac']
