@@ -38,9 +38,7 @@ def copy_candidate(
             candidate, 'deferred', 'source is still within the stability interval'
         )
 
-    destination = (
-        backup_root / 'sources' / candidate.source.source.name / candidate.relative_path
-    )
+    destination = _destination(candidate, backup_root)
     ensure_destination_parent(backup_root, destination.parent)
     temporary, digest = _snapshot(source, before, destination.parent)
     try:
@@ -90,9 +88,7 @@ def _copy_jsonl_candidate(
     backup_root: Path,
     catalog: Catalog,
 ) -> FileResult:
-    destination = (
-        backup_root / 'sources' / candidate.source.source.name / candidate.relative_path
-    )
+    destination = _destination(candidate, backup_root)
     if record := catalog.latest(candidate.source.source.name, candidate.relative_path):
         size = record.get('size')
         digest = record.get('sha256')
@@ -327,14 +323,20 @@ def _matches_catalog(
         or record.get('mtime_ns') != source.st_mtime_ns
     ):
         return False
-    destination = (
-        backup_root / 'sources' / candidate.source.source.name / candidate.relative_path
-    )
+    destination = _destination(candidate, backup_root)
     return destination.is_file() and destination.stat().st_size == source.st_size
 
 
 def ensure_destination_parent(backup_root: Path, parent: Path) -> None:
     _ensure_directory(backup_root, parent)
+
+
+def _destination(candidate: Candidate, backup_root: Path) -> Path:
+    if candidate.project is not None:
+        return backup_root / candidate.relative_path
+    return (
+        backup_root / 'sources' / candidate.source.source.name / candidate.relative_path
+    )
 
 
 def _ensure_directory(backup_root: Path, directory: Path) -> None:

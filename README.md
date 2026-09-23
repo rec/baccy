@@ -283,7 +283,19 @@ they are copied.
 
 ## Backup layout and recovery
 
-Current copies are stored below:
+Project sessions are stored in their one canonical location:
+
+```text
+BACKUP_ROOT/PROJECT/SESSION/RELATIVE_PATH
+```
+
+On its next backup pass, baccy migrates an existing
+`BACKUP_ROOT/sources/SOURCE/PROJECT` directory to `BACKUP_ROOT/PROJECT` for
+each configured project. It refuses to overwrite an already-existing canonical
+project directory. New copies for configured projects go directly to the
+canonical location.
+
+Non-project assets, such as photos, remain source-specific:
 
 ```text
 BACKUP_ROOT/sources/SOURCE_NAME/RELATIVE_PATH
@@ -300,7 +312,7 @@ disk, and atomically renamed only after the source has passed its snapshot
 checks. A partial copy is never promoted to the visible destination. When a
 file changes, baccy atomically replaces the existing destination.
 
-To restore a file, copy its current version from `sources/`.
+To restore a project session, copy it from `PROJECT/SESSION/`.
 
 ## Version-one boundaries
 

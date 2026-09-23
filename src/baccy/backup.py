@@ -74,6 +74,7 @@ def run_backup(
             settings, resolved, unavailable, network_sources, discovery, dry_run=True
         )
     with BackupLock(settings.backup_root):
+        _migrate_projects(settings)
         return _run_candidates(
             settings, resolved, unavailable, network_sources, discovery, dry_run=False
         )
@@ -92,7 +93,19 @@ def _run_candidates(
         summary = summary.with_result(
             FileResult(source=source.name, status='unavailable')
         )
-    candidates = [candidate for source in resolved for candidate in scan(source)]
+    candidates = [
+        candidate.model_copy(
+            update={
+                'project': (
+                    candidate.relative_path.parts[0]
+                    if candidate.relative_path.parts[0] in settings.projects
+                    else None
+                )
+            }
+        )
+        for source in resolved
+        for candidate in scan(source)
+    ]
     summary = summary.model_copy(
         update={'discovered': len(candidates), 'results': summary.results}
     )
@@ -147,6 +160,7 @@ def _run_candidates(
                 settings.backup_root,
                 catalog,
                 dry_run,
+                set(settings.projects),
                 network.run,
             )
         )
@@ -185,6 +199,9 @@ def _upload_sources(
     sources: list[ResolvedSource], network_sources: list[NetworkRecsSource], root: Path
 ) -> list[ResolvedSource]:
     return [
+        ResolvedSource(
+            source=PathSource(kind='path', name='backup', path=root), root=root
+        ),
         *sources,
         *[
             ResolvedSource(
@@ -199,6 +216,36 @@ def _upload_sources(
             for source in network_sources
         ],
     ]
+
+
+def _migrate_projects(settings: Settings) -> None:
+    sources = settings.backup_root / 'sources'
+    if not sources.is_dir():
+        return
+    catalog = Catalog(settings.backup_root)
+    for source in sorted(sources.iterdir(), key=lambda path: path.name):
+        if source.is_symlink() or not source.is_dir():
+            continue
+        for project in settings.projects:
+            legacy = source / project
+            destination = settings.backup_root / project
+            if not legacy.is_dir() or legacy.is_symlink():
+                continue
+            if destination.exists():
+                raise RuntimeError(
+                    f'cannot migrate {legacy}: canonical project already exists: '
+                    f'{destination}'
+                )
+            legacy.rename(destination)
+            catalog.append(
+                {
+                    'operation': 'migration',
+                    'source': source.name,
+                    'relative_path': project,
+                    'destination': project,
+                    'result': 'copied',
+                }
+            )
 
 
 class BackupLock:
