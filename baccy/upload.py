@@ -5,6 +5,7 @@ import shlex
 import subprocess
 from datetime import datetime
 from pathlib import Path, PurePosixPath
+from urllib.parse import unquote
 
 from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import BaseModel
@@ -191,6 +192,7 @@ def _publish_session(
 
 def _completed_segments(journal: Path) -> list[Segment]:
     starts: dict[tuple[str, str], dict[str, object]] = {}
+    source_details: dict[str, tuple[str, int]] = {}
     segments: list[Segment] = []
     with journal.open() as file:
         for line in file:
@@ -199,9 +201,12 @@ def _completed_segments(journal: Path) -> list[Segment]:
             value = json.loads(line)
             if not isinstance(value, dict):
                 raise ValueError(f'invalid recs record in {journal}')
-            if value.get('media_type') != 'audio':
-                continue
             record_type = value.get('type')
+            if record_type == 'source_online':
+                _record_source_details(value, source_details)
+                continue
+            if not _is_audio_record(value):
+                continue
             stream_id = value.get('stream_id')
             path = value.get('path')
             if record_type not in {'file_started', 'file_finished'}:
@@ -212,22 +217,64 @@ def _completed_segments(journal: Path) -> list[Segment]:
             if record_type == 'file_started':
                 starts[identity] = value
             elif (start := starts.get(identity)) is not None:
-                if (segment := _segment(start, value, journal)) is not None:
+                if (
+                    segment := _segment(start, value, journal, source_details)
+                ) is not None:
                     segments.append(segment)
     return segments
 
 
+def _record_source_details(
+    record: dict[str, object], source_details: dict[str, tuple[str, int]]
+) -> None:
+    clock_id = record.get('clock_id')
+    source = record.get('source')
+    sample_rate = record.get('sample_rate')
+    if (
+        isinstance(clock_id, str)
+        and isinstance(source, str)
+        and isinstance(sample_rate, int)
+        and sample_rate > 0
+    ):
+        source_details[clock_id] = source, sample_rate
+
+
+def _is_audio_record(record: dict[str, object]) -> bool:
+    stream_id = record.get('stream_id')
+    return record.get('media_type') == 'audio' or (
+        isinstance(stream_id, str) and stream_id.startswith('audio:')
+    )
+
+
 def _segment(
-    start: dict[str, object], finish: dict[str, object], journal: Path
+    start: dict[str, object],
+    finish: dict[str, object],
+    journal: Path,
+    source_details: dict[str, tuple[str, int]],
 ) -> Segment | None:
     path = start.get('path')
     timestamp = start.get('timestamp')
     source = start.get('source')
     channels = start.get('source_channels')
     frames = finish.get('frame_count')
-    sample_rate = finish.get('sample_rate')
+    sample_rate = finish.get('sample_rate', start.get('sample_rate'))
     track = start.get('track_name')
-    format_name = start.get('format')
+    format_name = start.get('format', finish.get('format'))
+    stream_id = start.get('stream_id')
+    clock_id = start.get('clock_id')
+    if (
+        (not isinstance(source, str) or not isinstance(track, str))
+        and isinstance(stream_id, str)
+        and stream_id.startswith('audio:')
+    ):
+        source, track = _audio_stream_parts(stream_id, journal)
+    if not isinstance(sample_rate, int) and isinstance(clock_id, str):
+        details = source_details.get(clock_id)
+        if details is not None:
+            source = source if isinstance(source, str) else details[0]
+            sample_rate = details[1]
+    if not isinstance(format_name, str) and isinstance(path, str):
+        format_name = Path(path).suffix.removeprefix('.')
     if (
         not isinstance(path, str)
         or PurePosixPath(path).is_absolute()
@@ -255,6 +302,15 @@ def _segment(
         track=track if isinstance(track, str) else '',
         format=format_name.lower(),
     )
+
+
+def _audio_stream_parts(stream_id: str, journal: Path) -> tuple[str, str]:
+    _, _, values = stream_id.partition(':')
+    source, separator, track_and_capture = values.partition(':')
+    track, _, _ = track_and_capture.partition(':')
+    if not separator or not source or not track:
+        raise ValueError(f'invalid audio stream ID in {journal}: {stream_id}')
+    return unquote(source), unquote(track)
 
 
 def _main_channels(

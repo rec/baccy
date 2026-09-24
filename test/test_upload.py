@@ -148,6 +148,78 @@ def test_upload_rules_defer_player_access_and_never_write_on_dry_run(
     assert not (tmp_path / 'backup').exists()
 
 
+def test_upload_accepts_compact_recs_v5_audio_records(tmp_path: Path) -> None:
+    root = tmp_path / 'recs'
+    session = root / 'project' / 'session'
+    audio = session / 'audio' / 'mic.flac'
+    audio.parent.mkdir(parents=True)
+    audio.write_bytes(b'audio')
+    (session / 'session-record.jsonl').write_text(
+        '\n'.join(
+            [
+                json.dumps(
+                    {
+                        'type': 'source_online',
+                        'timestamp': '2026-09-24T20:00:00Z',
+                        'source': 'Mic',
+                        'clock_id': 'mic-clock',
+                        'channel_count': 1,
+                        'sample_rate': 48_000,
+                    }
+                ),
+                json.dumps(
+                    {
+                        'type': 'file_started',
+                        'timestamp': '2026-09-24T20:00:00Z',
+                        'stream_id': 'audio:Mic:1',
+                        'clock_id': 'mic-clock',
+                        'path': 'audio/mic.flac',
+                        'source_channels': [1],
+                    }
+                ),
+                json.dumps(
+                    {
+                        'type': 'file_finished',
+                        'timestamp': '2026-09-24T20:01:00Z',
+                        'stream_id': 'audio:Mic:1',
+                        'clock_id': 'mic-clock',
+                        'path': 'audio/mic.flac',
+                        'source_channels': [1],
+                        'frame_count': 48_000,
+                    }
+                ),
+            ]
+        )
+        + '\n'
+    )
+    settings = Settings.model_validate(
+        {
+            'backup_root': tmp_path / 'backup',
+            'destinations': {'archive': {'kind': 's3', 'bucket': 'archive'}},
+            'access': {'private': {}},
+            'uploads': [
+                {
+                    'name': 'archive',
+                    'match': 'format == "flac" and device == "Mic"',
+                    'encoding': {'format': 'source'},
+                    'filename': '{timestamp}.{extension}',
+                    'destination': 'archive',
+                    'access': {'profile': 'private'},
+                }
+            ],
+        }
+    )
+    source = ResolvedSource(
+        source=PathSource(kind='path', name='recs', path=root), root=root
+    )
+
+    results = publish_sessions([source], settings, dry_run=True)
+
+    assert [(result.relative_path, result.status) for result in results] == [
+        (Path('project/session/audio/mic.flac'), 'would_upload')
+    ]
+
+
 @pytest.mark.parametrize(
     'expression',
     [
