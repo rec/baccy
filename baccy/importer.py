@@ -161,7 +161,8 @@ def _project_name(session: Path) -> str | None:
 def _directory_project(directory: Path, session: Path) -> str | None:
     if session == directory:
         return None
-    name = directory.name
+    relative = session.relative_to(directory)
+    name = relative.parts[0] if not relative.parts[0].isdecimal() else directory.name
     if not name or '/' in name or name in {'.', '..'}:
         return None
     return name

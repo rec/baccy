@@ -40,6 +40,8 @@ def test_axto_config_dry_run_imports_recs_results_layout(
     paths = {result['relative_path'] for result in output['results']}
     assert 'audio/totm/2017/01/01/00-00-02' in paths
     assert 'audio/oderg in duo/2026/03/28/10-45-52' in paths
+    sources = {result['source'] for result in output['results']}
+    assert sources == {'oderg in duo', 'totm'}
     assert not (settings.backup_root / 'events.jsonl').exists()
 
 
