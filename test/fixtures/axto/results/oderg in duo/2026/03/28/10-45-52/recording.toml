@@ -1,0 +1,75 @@
+format = "recs"
+version = 4
+name = "6c494ca9-48bf-5418-b513-b20c8eb48e88"
+title = "10-45-52"
+tags = []
+inputs = []
+outputs = []
+parameters = []
+kind = "recording"
+
+[[timebases]]
+name = "clock-442e8798ae3756c6"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[assets]]
+name = "original-journal"
+encoding = "recs-session-v4"
+
+[assets.location]
+kind = "relative_file"
+path = "session-record.jsonl"
+
+[assets.content]
+byte_length = 1277
+sha256 = "22453022d3d78e323a0a7885e77a69394da3ba54490a205cd4f08848ab187d14"
+
+[[assets]]
+name = "asset-442e8798ae3756c6"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/5-6 + 20260328-104552.flac"
+
+[assets.content]
+byte_length = 4243614
+sha256 = "e75cfa85617db4acb2a6310570ae63356231556bb202466a970c42953125131f"
+
+[body]
+state = "sealed"
+project_name = "oderg in duo"
+started_at = "2026-03-28T09:45:52.371Z"
+ended_at = "2026-03-28T09:46:14.472Z"
+observed_duration_seconds = 22.101333333333333
+journal = "original-journal"
+clock_observations = []
+unfinished_files = []
+continued_at = []
+
+[[body.streams]]
+kind = "audio"
+name = "stream-442e8798ae3756c6"
+source_id = "audio:FLOW 8:5-6"
+source_name = "FLOW 8"
+track_name = "5-6"
+end = 1060864
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 1060864
+asset = "asset-442e8798ae3756c6"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-442e8798ae3756c6"
+channels = ["input-5", "input-6"]

@@ -1,0 +1,247 @@
+format = "recs"
+version = 4
+name = "57b3a50a-e926-536a-b7d8-8725847d31e9"
+title = "14-52-29"
+tags = []
+inputs = []
+outputs = []
+parameters = []
+kind = "recording"
+
+[[timebases]]
+name = "clock-94e6d316cfd2a2f2"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-186a0b1834647002"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-d6da12564b9b809a"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-d7d50205b32bd549"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-6551541aeed026b5"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[assets]]
+name = "original-journal"
+encoding = "recs-session-v4"
+
+[assets.location]
+kind = "relative_file"
+path = "session-record.jsonl"
+
+[assets.content]
+byte_length = 4825
+sha256 = "9c40c18e7dea0fd59544efc15d2aad3105c817ba511f0270d4d0fb2a6a53724e"
+
+[[assets]]
+name = "asset-94e6d316cfd2a2f2"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/1-2 + 20260328-145229.flac"
+
+[assets.content]
+byte_length = 232210590
+sha256 = "ac849cabe495d32cd8eceb3a3a909d2221dc88cf85101df9a9151f3440928965"
+
+[[assets]]
+name = "asset-186a0b1834647002"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/3-4 + 20260328-145229.flac"
+
+[assets.content]
+byte_length = 232210590
+sha256 = "f79e42ca8f54af937a93bdeefb5bf57dfcfa502ada67494c5009ffcdfa7a14e5"
+
+[[assets]]
+name = "asset-d6da12564b9b809a"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/5-6 + 20260328-145229.flac"
+
+[assets.content]
+byte_length = 232210590
+sha256 = "81c20abee8499d5a3cf18da56e89478cd73eb65caa94bbc245c9ad245f98dfa6"
+
+[[assets]]
+name = "asset-d7d50205b32bd549"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/7-8 + 20260328-145229.flac"
+
+[assets.content]
+byte_length = 232210590
+sha256 = "c66b276f0c911f461c7acd364a199026c9f48b9f27300ae81e79189dc3a84b60"
+
+[[assets]]
+name = "asset-6551541aeed026b5"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/9-10 + 20260328-145229.flac"
+
+[assets.content]
+byte_length = 232210590
+sha256 = "8665b2250cc8a84f8a59b3626708696d582393f5b349dc7473efd809ae0d84a9"
+
+[body]
+state = "sealed"
+project_name = "oderg in duo"
+started_at = "2026-03-28T13:52:29.375Z"
+ended_at = "2026-03-28T14:12:38.804Z"
+observed_duration_seconds = 1209.4293333333333
+journal = "original-journal"
+clock_observations = []
+unfinished_files = []
+continued_at = []
+
+[[body.streams]]
+kind = "audio"
+name = "stream-94e6d316cfd2a2f2"
+source_id = "audio:FLOW 8:1-2"
+source_name = "FLOW 8"
+track_name = "1-2"
+end = 58052608
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 58052608
+asset = "asset-94e6d316cfd2a2f2"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-94e6d316cfd2a2f2"
+channels = ["input-1", "input-2"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-186a0b1834647002"
+source_id = "audio:FLOW 8:3-4"
+source_name = "FLOW 8"
+track_name = "3-4"
+end = 58052608
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 58052608
+asset = "asset-186a0b1834647002"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-186a0b1834647002"
+channels = ["input-3", "input-4"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-d6da12564b9b809a"
+source_id = "audio:FLOW 8:5-6"
+source_name = "FLOW 8"
+track_name = "5-6"
+end = 58052608
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 58052608
+asset = "asset-d6da12564b9b809a"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-d6da12564b9b809a"
+channels = ["input-5", "input-6"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-d7d50205b32bd549"
+source_id = "audio:FLOW 8:7-8"
+source_name = "FLOW 8"
+track_name = "7-8"
+end = 58052608
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 58052608
+asset = "asset-d7d50205b32bd549"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-d7d50205b32bd549"
+channels = ["input-7", "input-8"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-6551541aeed026b5"
+source_id = "audio:FLOW 8:9-10"
+source_name = "FLOW 8"
+track_name = "9-10"
+end = 58052608
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 58052608
+asset = "asset-6551541aeed026b5"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-6551541aeed026b5"
+channels = ["input-9", "input-10"]

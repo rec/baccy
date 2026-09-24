@@ -1,0 +1,75 @@
+format = "recs"
+version = 4
+name = "d2138718-0c57-5758-b2f5-fc0d652a9a8f"
+title = "16-18-13"
+tags = []
+inputs = []
+outputs = []
+parameters = []
+kind = "recording"
+
+[[timebases]]
+name = "clock-125d6aaca44cea23"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[assets]]
+name = "original-journal"
+encoding = "recs-session-v4"
+
+[assets.location]
+kind = "relative_file"
+path = "session-record.jsonl"
+
+[assets.content]
+byte_length = 1361
+sha256 = "da8ee60aa17bcb18bdb928e28eb33f278b5ce6d02d8b5fddf04df904af6cbb16"
+
+[[assets]]
+name = "asset-125d6aaca44cea23"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/9-10 + 20250831-161813.flac"
+
+[assets.content]
+byte_length = 89538718
+sha256 = "64b83f83e48132482b4901bce59e13196a7befc09857fa5bbd3b679ac2d5edfd"
+
+[body]
+state = "sealed"
+project_name = "totm"
+started_at = "2025-08-31T14:18:13.344Z"
+ended_at = "2025-08-31T14:25:59.690Z"
+observed_duration_seconds = 466.3466666666667
+journal = "original-journal"
+clock_observations = []
+unfinished_files = []
+continued_at = []
+
+[[body.streams]]
+kind = "audio"
+name = "stream-125d6aaca44cea23"
+source_id = "audio:FLOW 8 (Recording):9-10"
+source_name = "FLOW 8 (Recording)"
+track_name = "9-10"
+end = 22384640
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 22384640
+asset = "asset-125d6aaca44cea23"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-125d6aaca44cea23"
+channels = ["input-9", "input-10"]
