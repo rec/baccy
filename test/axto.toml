@@ -1,12 +1,3 @@
-backup_root = "TODO"
-stability_seconds = 0
-discover_removable = false
-
-[[sources]]
-kind = "path"
-name = "recs-results"
-path = "TODO"
-
 [destinations.axto]
 kind = "s3"
 bucket = "axto"

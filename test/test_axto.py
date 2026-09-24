@@ -5,52 +5,28 @@ from pytest import CaptureFixture, MonkeyPatch
 
 from baccy.cli import main
 from baccy.config import load
-from baccy.models import PathSource, ResolvedSource, S3Destination
-from baccy.upload import publish_sessions
+from baccy.models import S3Destination
 
 
-class NoNetworkDiscovery:
-    new_machines: list[object] = []
-
-    def discover(self) -> list[object]:
-        return []
-
-
-def test_axto_config_dry_run_mirrors_recs_results_layout(
+def test_axto_config_dry_run_syncs_recs_results_layout(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
 ) -> None:
-    results = tmp_path / 'results'
-    _write_session(results)
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
     backup = tmp_path / 'baccy'
-    config = _write_config(tmp_path, results, backup)
-    monkeypatch.setattr('baccy.backup.NetworkDiscovery', NoNetworkDiscovery)
+    _write_session(backup / 'audio')
+    config = Path(__file__).parent / 'axto.toml'
 
-    exit_code = main(['backup', '--dry-run', '--config', str(config)])
+    exit_code = main(['--dry-run', 'sync', '--config', str(config)])
 
     output = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert output['would_copy'] == 7
-    assert output['would_upload'] == 0
-    assert not backup.exists()
-
-
-def test_axto_config_dry_run_plans_main_mp3_and_all_flac(tmp_path: Path) -> None:
-    backup = tmp_path / 'baccy'
-    _write_session(backup / 'audio')
-    config = _write_config(tmp_path, tmp_path / 'results', backup)
     settings = load(config)
     destination = settings.destinations['axto']
     assert isinstance(destination, S3Destination)
     assert destination.endpoint_url is None
-    source = ResolvedSource(
-        source=PathSource(kind='path', name='audio', path=backup / 'audio'),
-        root=backup / 'audio',
-    )
-
-    results = publish_sessions([source], settings, dry_run=True)
-
-    assert [result.status for result in results] == ['would_upload'] * 3
-    assert [result.relative_path for result in results] == [
+    assert settings.backup_root == backup
+    assert output['would_upload'] == 3
+    assert [Path(result['relative_path']) for result in output['results']] == [
         Path(
             'project/2026/09/04/15-01-57/'
             'FLOW 8 (Recording)/1-2/2026-09-04T13-01-58.000000Z.flac'
@@ -62,17 +38,6 @@ def test_axto_config_dry_run_plans_main_mp3_and_all_flac(tmp_path: Path) -> None
         ),
     ]
     assert not (backup / 'events.jsonl').exists()
-
-
-def _write_config(directory: Path, results: Path, backup: Path) -> Path:
-    config = directory / 'axto.toml'
-    text = (Path(__file__).parent / 'axto.toml').read_text()
-    config.write_text(
-        text.replace('backup_root = "TODO"', f'backup_root = "{backup}"').replace(
-            'path = "TODO"', f'path = "{results}"'
-        )
-    )
-    return config
 
 
 def _write_session(root: Path) -> None:

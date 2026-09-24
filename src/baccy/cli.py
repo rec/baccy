@@ -163,8 +163,7 @@ def _import(command: ImportCommand, dry_run: bool) -> int:
 
 def _sync(command: SyncCommand, dry_run: bool) -> int:
     settings = load_or_default(command.config)
-    directories = command.directories or [settings.backup_root]
-    summary = sync(directories, settings, dry_run)
+    summary = sync(command.directories, settings, dry_run)
     _print_summary(summary, settings.verbose)
     return 1 if summary.failed else 0
 
