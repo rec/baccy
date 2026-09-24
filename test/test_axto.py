@@ -1,3 +1,4 @@
+import json
 import shutil
 from pathlib import Path
 
@@ -35,12 +36,39 @@ def test_axto_config_dry_run_imports_recs_results_layout(
     assert isinstance(destination, S3Destination)
     assert destination.endpoint_url is None
     assert settings.backup_root == tmp_path / 'baccy'
-    assert len(paths) == 61
-    assert 'audio/totm/2017/01/01/00-00-02' in paths
-    assert 'audio/oderg in duo/2026/03/28/10-45-52' in paths
-    assert all(not path.startswith('audio/results/') for path in paths)
+    assert paths == (FIXTURES / 'imports.txt').read_text().splitlines()
     assert not (settings.backup_root / 'events.jsonl').exists()
+
+
+def test_axto_config_dry_run_syncs_all_expected_transfers(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    backup = tmp_path / 'baccy'
+    _write_results(backup / 'audio')
+    config = Path(__file__).parent / 'axto.toml'
+
+    exit_code = main(['--dry-run', 'sync', '--config', str(config)])
+
+    scheduled = sorted(capsys.readouterr().out.splitlines())
+    assert exit_code == 0
+    assert scheduled == (FIXTURES / 'transfers.txt').read_text().splitlines()
+    assert not (backup / 'events.jsonl').exists()
 
 
 def _write_results(root: Path) -> None:
     shutil.copytree(FIXTURES / 'results', root)
+    for journal in root.glob('**/session-record.jsonl'):
+        _write_audio_stubs(journal)
+
+
+def _write_audio_stubs(journal: Path) -> None:
+    with journal.open() as source:
+        for line in source:
+            record = json.loads(line)
+            if record.get('media_type') != 'audio':
+                continue
+            if (path := record.get('path')) is not None:
+                audio = journal.parent / path
+                audio.parent.mkdir(parents=True, exist_ok=True)
+                audio.touch()
