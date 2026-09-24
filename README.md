@@ -230,6 +230,20 @@ names absent from that listing. It assumes files are immutable under their
 target names, so it neither hashes local files nor compares bytes with remote
 objects.
 
+## Test upload access
+
+Test authentication and access to every configured SSH and S3 destination
+without scanning or uploading files:
+
+```sh
+uv run baccy test
+uv run baccy test --config /path/to/baccy.toml
+```
+
+It prints `ok` on success. On failure, it prints each inaccessible destination
+and its error to standard error, then exits with status `-1` (reported by macOS
+as `255`).
+
 ## Watch in the foreground
 
 Run repeated scans in the current terminal:

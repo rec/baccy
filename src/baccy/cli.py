@@ -14,6 +14,7 @@ from .config import default_config_path, load_or_default
 from .importer import import_recs
 from .models import BackupSummary, Settings
 from .network import NetworkDiscovery
+from .server_test import test_destinations
 from .sync import sync
 from .watch import watch
 
@@ -42,6 +43,10 @@ class SyncCommand(ConfigCommand):
     directories: Annotated[list[Path], tyro.conf.Positional] = Field(
         default_factory=list
     )
+
+
+class TestCommand(ConfigCommand):
+    """Test access to configured upload destinations."""
 
 
 class InstallCommand(ConfigCommand):
@@ -82,6 +87,9 @@ def main(argv: list[str] | None = None) -> int:
     if command == 'sync':
         value = tyro.cli(SyncCommand, args=rest, prog='baccy sync')
         return _sync(value)
+    if command == 'test':
+        value = tyro.cli(TestCommand, args=rest, prog='baccy test')
+        return _test(value)
     if command == 'service':
         return _service(rest)
     print(f'unknown command: {command}', file=sys.stderr)
@@ -156,6 +164,15 @@ def _sync(command: SyncCommand) -> int:
     return 1 if summary.failed else 0
 
 
+def _test(command: TestCommand) -> int:
+    failures = test_destinations(load_or_default(command.config))
+    if failures:
+        print('\n'.join(failures), file=sys.stderr)
+        return -1
+    print('ok')
+    return 0
+
+
 def _service(arguments: list[str]) -> int:
     if not arguments or arguments[0] in {'-h', '--help'}:
         print(_service_usage())
@@ -217,7 +234,7 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 
 
 def _usage() -> str:
-    return 'Usage: baccy {backup,watch,import,sync,service} ...'
+    return 'Usage: baccy {backup,watch,import,sync,test,service} ...'
 
 
 def _service_usage() -> str:
