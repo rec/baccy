@@ -32,6 +32,7 @@ def test_backup_command_runs_one_pass(
     config.write_text(
         f'backup_root = "{tmp_path / "backup"}"\n'
         'stability_seconds = 0\n'
+        'discover_removable = false\n'
         '[[sources]]\n'
         'kind = "path"\n'
         'name = "source"\n'
@@ -62,6 +63,7 @@ def test_backup_command_verbose_includes_unchanged_files(
     config.write_text(
         f'backup_root = "{tmp_path / "backup"}"\n'
         'stability_seconds = 0\n'
+        'discover_removable = false\n'
         'verbose = true\n'
         '[[sources]]\n'
         'kind = "path"\n'
@@ -162,6 +164,7 @@ def test_backup_command_dry_run_does_not_write(
     config.write_text(
         f'backup_root = "{destination}"\n'
         'stability_seconds = 0\n'
+        'discover_removable = false\n'
         '[[sources]]\n'
         'kind = "path"\n'
         'name = "source"\n'
@@ -265,3 +268,40 @@ def test_import_command_copies_direct_session_with_project_override(
         / '20-00-00'
         / 'session-record.jsonl'
     ).exists()
+
+
+def test_global_dry_run_previews_import_without_writing(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    source = tmp_path / 'incoming-project'
+    session = source / '2026' / '09' / '24' / '20-00-00'
+    session.mkdir(parents=True)
+    (session / 'session-record.jsonl').write_text(
+        '{"type":"header","project_name":"concert"}\n'
+    )
+    backup = tmp_path / 'backup'
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{backup}"\n')
+
+    assert main(['--dry-run', 'import', str(source), '--config', str(config)]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    assert output['would_copy'] == 1
+    assert session.exists()
+    assert not backup.exists()
+
+
+def test_global_dry_run_reaches_sync(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
+    received: list[bool] = []
+    monkeypatch.setattr(
+        'baccy.cli.sync',
+        lambda directories, settings, dry_run: (
+            received.append(dry_run) or BackupSummary()
+        ),
+    )
+
+    assert main(['-d', 'sync', '--config', str(config)]) == 0
+
+    assert received == [True]

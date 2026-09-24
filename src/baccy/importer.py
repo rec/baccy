@@ -14,7 +14,10 @@ def import_recs(
     settings: Settings,
     copy_directories: bool,
     project: str | None,
+    dry_run: bool = False,
 ) -> BackupSummary:
+    if dry_run:
+        return _preview_import(directories, settings, project)
     imported: list[FileResult] = []
     with BackupLock(settings.backup_root):
         catalog = Catalog(settings.backup_root)
@@ -72,6 +75,42 @@ def import_recs(
     summary = BackupSummary()
     for result in [*imported, *uploads]:
         summary = summary.with_result(result)
+    return summary
+
+
+def _preview_import(
+    directories: list[Path], settings: Settings, project: str | None
+) -> BackupSummary:
+    summary = BackupSummary()
+    for directory in directories:
+        for session in _sessions(directory):
+            project_name = (
+                project
+                or _project_name(session)
+                or _directory_project(directory, session)
+            )
+            if project_name is None:
+                raise ValueError(
+                    f'cannot determine the project for session: {session}; '
+                    'use --project'
+                )
+            destination = (
+                settings.backup_root
+                / 'audio'
+                / project_name
+                / _session_relative(directory, session)
+            )
+            if destination.exists():
+                raise FileExistsError(
+                    f'import destination already exists: {destination}'
+                )
+            summary = summary.with_result(
+                FileResult(
+                    source=project_name,
+                    relative_path=destination.relative_to(settings.backup_root),
+                    status='would_copy',
+                )
+            )
     return summary
 
 
