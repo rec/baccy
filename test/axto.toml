@@ -1,0 +1,43 @@
+# TODO: Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and AWS_ENDPOINT_URL_S3
+# for your Hetzner Object Storage location before running baccy.
+# TODO: Replace these two local paths.
+backup_root = "TODO_BACCY_ROOT"
+stability_seconds = 0
+discover_removable = false
+
+[[sources]]
+kind = "path"
+name = "recs-results"
+path = "TODO_RECS_RESULTS_PATH"
+
+[destinations.axto]
+kind = "s3"
+bucket = "axto"
+
+[destinations.axto-private]
+kind = "s3"
+bucket = "axto-private"
+
+# TODO: Set the public and private access policies on the respective buckets.
+[access.axto-public]
+
+[access.axto-private]
+
+# TODO: Rename this table, or add a table with these rules for each project.
+[projects."oderg in duo"]
+
+[[projects."oderg in duo".uploads]]
+name = "main-mp3"
+match = "main and duration > 120"
+encoding = { format = "mp3", bitrate_kbps = 128 }
+filename = "{session}/{timestamp}.{extension}"
+destination = "axto"
+access = { profile = "axto-public" }
+
+[[projects."oderg in duo".uploads]]
+name = "all-flac"
+match = "True"
+encoding = { format = "flac" }
+filename = "{session}/{device}/{channels}/{timestamp}.{extension}"
+destination = "axto-private"
+access = { profile = "axto-private" }
