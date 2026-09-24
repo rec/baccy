@@ -10,12 +10,10 @@ path = "TODO"
 [destinations.axto]
 kind = "s3"
 bucket = "axto"
-endpoint_url = "TODO"
 
 [destinations.axto-private]
 kind = "s3"
 bucket = "axto-private"
-endpoint_url = "TODO"
 
 [access.axto-public]
 

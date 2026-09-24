@@ -1,9 +1,9 @@
 import subprocess
 
-import boto3
 from botocore.exceptions import BotoCoreError, ClientError
 
 from .models import Destination, S3Destination, Settings, SshDestination
+from .s3 import s3_client
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
 
@@ -31,7 +31,4 @@ def _test_destination(destination: Destination) -> None:
 
 
 def _test_s3(destination: S3Destination) -> None:
-    boto3.client(
-        's3',
-        endpoint_url=destination.endpoint_url,
-    ).list_objects_v2(Bucket=destination.bucket, MaxKeys=1)
+    s3_client(destination).list_objects_v2(Bucket=destination.bucket, MaxKeys=1)
