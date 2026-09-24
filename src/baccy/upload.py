@@ -423,6 +423,14 @@ def _materialize_and_upload(
             dry_run,
         )
     destination_id = _destination_identity(plan.destination)
+    if dry_run:
+        return [
+            FileResult(
+                source=plan.project,
+                relative_path=Path(plan.target),
+                status='would_upload',
+            )
+        ]
     if sync:
         if destination_id not in remote_targets:
             remote_targets[destination_id] = _remote_targets(plan.destination)
@@ -439,14 +447,6 @@ def _materialize_and_upload(
         return [
             FileResult(
                 source=plan.project, relative_path=Path(plan.target), status='unchanged'
-            )
-        ]
-    if dry_run:
-        return [
-            FileResult(
-                source=plan.project,
-                relative_path=Path(plan.target),
-                status='would_upload',
             )
         ]
     try:

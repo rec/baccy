@@ -238,3 +238,12 @@ def test_sync_uses_remote_names_without_hashing_sources(
 
     assert result.unchanged == 1
     assert result.uploaded == 0
+
+    monkeypatch.setattr(
+        'baccy.upload._remote_targets',
+        lambda destination: pytest.fail('dry-run sync must not contact destinations'),
+    )
+
+    dry_run = sync([Path('concert')], settings, dry_run=True)
+
+    assert dry_run.would_upload == 1

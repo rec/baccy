@@ -26,7 +26,7 @@ class ConfigCommand(BaseModel, frozen=True):
 
 
 class BackupCommand(ConfigCommand):
-    dry_run: Annotated[bool, tyro.conf.arg(aliases=('-d',))] = False
+    pass
 
 
 class WatchCommand(BackupCommand):
@@ -71,40 +71,41 @@ class SummaryReporter:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
+    dry_run, arguments = _dry_run(arguments)
     if not arguments or arguments[0] in {'-h', '--help'}:
         print(_usage())
         return 0
     command, rest = arguments[0], arguments[1:]
     if command == 'backup':
         value = tyro.cli(BackupCommand, args=rest, prog='baccy backup')
-        return _backup(value)
+        return _backup(value, dry_run)
     if command == 'watch':
         value = tyro.cli(WatchCommand, args=rest, prog='baccy watch')
-        return _watch(value)
+        return _watch(value, dry_run)
     if command == 'import':
         value = tyro.cli(ImportCommand, args=rest, prog='baccy import')
-        return _import(value)
+        return _import(value, dry_run)
     if command == 'sync':
         value = tyro.cli(SyncCommand, args=rest, prog='baccy sync')
-        return _sync(value)
+        return _sync(value, dry_run)
     if command == 'test':
         value = tyro.cli(TestCommand, args=rest, prog='baccy test')
-        return _test(value)
+        return _test(value, dry_run)
     if command == 'service':
-        return _service(rest)
+        return _service(rest, dry_run)
     print(f'unknown command: {command}', file=sys.stderr)
     print(_usage(), file=sys.stderr)
     return 2
 
 
-def _backup(command: BackupCommand) -> int:
+def _backup(command: BackupCommand, dry_run: bool) -> int:
     settings = load_or_default(command.config)
-    summary = run_backup(settings, dry_run=command.dry_run)
+    summary = run_backup(settings, dry_run=dry_run)
     _print_summary(summary, settings.verbose)
     return 1 if summary.failed or summary.unavailable else 0
 
 
-def _watch(command: WatchCommand) -> int:
+def _watch(command: WatchCommand, dry_run: bool) -> int:
     settings = load_or_default(command.config)
     network = NetworkDiscovery(verbose=settings.verbose)
     reporter = SummaryReporter(settings.verbose)
@@ -115,7 +116,7 @@ def _watch(command: WatchCommand) -> int:
         def action(value: Settings) -> BackupSummary:
             return run_backup(
                 value,
-                dry_run=command.dry_run,
+                dry_run=dry_run,
                 network=network,
                 recognize=(
                     application.record_recognized_sources if value.verbose else None
@@ -137,7 +138,7 @@ def _watch(command: WatchCommand) -> int:
     else:
 
         def action(value: Settings) -> BackupSummary:
-            return run_backup(value, dry_run=command.dry_run, network=network)
+            return run_backup(value, dry_run=dry_run, network=network)
 
         watch(
             settings,
@@ -147,24 +148,28 @@ def _watch(command: WatchCommand) -> int:
     return 0
 
 
-def _import(command: ImportCommand) -> int:
+def _import(command: ImportCommand, dry_run: bool) -> int:
     settings = load_or_default(command.config)
     summary = import_recs(
-        command.directories, settings, command.copy_directories, command.project
+        command.directories,
+        settings,
+        command.copy_directories,
+        command.project,
+        dry_run,
     )
     _print_summary(summary, settings.verbose)
     return 1 if summary.failed else 0
 
 
-def _sync(command: SyncCommand) -> int:
+def _sync(command: SyncCommand, dry_run: bool) -> int:
     settings = load_or_default(command.config)
     directories = command.directories or [settings.backup_root]
-    summary = sync(directories, settings)
+    summary = sync(directories, settings, dry_run)
     _print_summary(summary, settings.verbose)
     return 1 if summary.failed else 0
 
 
-def _test(command: TestCommand) -> int:
+def _test(command: TestCommand, dry_run: bool) -> int:
     failures = test_destinations(load_or_default(command.config))
     if failures:
         print('\n'.join(failures), file=sys.stderr)
@@ -173,11 +178,14 @@ def _test(command: TestCommand) -> int:
     return 0
 
 
-def _service(arguments: list[str]) -> int:
+def _service(arguments: list[str], dry_run: bool) -> int:
     if not arguments or arguments[0] in {'-h', '--help'}:
         print(_service_usage())
         return 0
     command, rest = arguments[0], arguments[1:]
+    if dry_run:
+        print(tomlkit.dumps({'command': command, 'dry_run': True}), end='')
+        return 0
     application = Application()
     if command == 'install':
         value = tyro.cli(InstallCommand, args=rest, prog='baccy service install')
@@ -209,6 +217,13 @@ def _parse_service_command(arguments: list[str], command: str) -> None:
     tyro.cli(ServiceCommand, args=arguments, prog=f'baccy service {command}')
 
 
+def _dry_run(arguments: list[str]) -> tuple[bool, list[str]]:
+    flags = {'-d', '--dry-run'}
+    return any(argument in flags for argument in arguments), [
+        argument for argument in arguments if argument not in flags
+    ]
+
+
 def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
     value = _visible_summary(summary, verbose)
     print(json.dumps(value.model_dump(mode='json'), sort_keys=True))
@@ -234,7 +249,7 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 
 
 def _usage() -> str:
-    return 'Usage: baccy {backup,watch,import,sync,test,service} ...'
+    return 'Usage: baccy [--dry-run|-d] {backup,watch,import,sync,test,service} ...'
 
 
 def _service_usage() -> str:

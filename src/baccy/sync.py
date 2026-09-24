@@ -4,14 +4,16 @@ from .models import BackupSummary, PathSource, ResolvedSource, Settings
 from .upload import publish_sessions
 
 
-def sync(directories: list[Path], settings: Settings) -> BackupSummary:
+def sync(
+    directories: list[Path], settings: Settings, dry_run: bool = False
+) -> BackupSummary:
     root = (settings.backup_root / 'audio').resolve()
     selected = [_directory(root, directory) for directory in directories]
     source = ResolvedSource(
         source=PathSource(kind='path', name='backup', path=root), root=root
     )
     results = publish_sessions(
-        [source], settings, False, sync=True, directories=selected
+        [source], settings, dry_run, sync=True, directories=selected
     )
     summary = BackupSummary()
     for result in results:
