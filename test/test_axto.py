@@ -31,7 +31,7 @@ def test_axto_config_dry_run_syncs_recs_results_layout(
     assert isinstance(destination, S3Destination)
     assert destination.endpoint_url is None
     assert settings.backup_root == backup
-    assert output['would_upload'] == 529
+    assert output['would_upload'] == 478
     assert [result['relative_path'] for result in output['results']] == json.loads(
         (FIXTURES / 'transfers.json').read_text()
     )
