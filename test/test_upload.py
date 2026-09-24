@@ -206,7 +206,7 @@ def test_sync_uses_remote_names_without_hashing_sources(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     backup = tmp_path / 'backup'
-    session = backup / 'concert' / '2026' / '09' / '24' / '20-00-00'
+    session = backup / 'audio' / 'concert' / '2026' / '09' / '24' / '20-00-00'
     session.mkdir(parents=True)
     (session / 'audio.flac').write_bytes(b'audio')
     (session / 'session-record.jsonl').write_text(

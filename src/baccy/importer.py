@@ -32,6 +32,7 @@ def import_recs(
                     )
                 destination = (
                     settings.backup_root
+                    / 'audio'
                     / project_name
                     / _session_relative(directory, session)
                 )
@@ -62,8 +63,10 @@ def import_recs(
                     )
                 )
         source = ResolvedSource(
-            source=PathSource(kind='path', name='backup', path=settings.backup_root),
-            root=settings.backup_root,
+            source=PathSource(
+                kind='path', name='audio', path=settings.backup_root / 'audio'
+            ),
+            root=settings.backup_root / 'audio',
         )
         uploads = publish_sessions([source], settings, False)
     summary = BackupSummary()

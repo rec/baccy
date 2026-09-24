@@ -281,9 +281,9 @@ def _backup_remote_file(
     )
     candidate = _candidate(source, file, project)
     destination = (
-        backup_root / file.relative_path
+        backup_root / 'audio' / file.relative_path
         if project is not None
-        else backup_root / 'sources' / source.name / file.relative_path
+        else backup_root / 'photo' / source.name / file.relative_path
     )
     if _matches_catalog(source, file, destination, catalog):
         return _result(candidate, 'unchanged')
