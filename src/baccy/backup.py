@@ -9,6 +9,7 @@ from .copy import copy_candidate, preview_candidate
 from .discovery import discover_removable_sources, resolve_sources
 from .models import (
     BackupSummary,
+    Candidate,
     FileResult,
     PathSource,
     RecognizedSource,
@@ -92,15 +93,7 @@ def _run_candidates(
             FileResult(source=source.name, status='unavailable')
         )
     candidates = [
-        candidate.model_copy(
-            update={
-                'project': (
-                    candidate.relative_path.parts[0]
-                    if candidate.relative_path.parts[0] in settings.projects
-                    else None
-                )
-            }
-        )
+        candidate.model_copy(update={'project': _project_name(candidate)})
         for source in resolved
         for candidate in scan(source)
     ]
@@ -158,7 +151,6 @@ def _run_candidates(
                 settings.backup_root,
                 catalog,
                 dry_run,
-                set(settings.projects),
                 network.run,
             )
         )
@@ -200,6 +192,16 @@ def _upload_sources(root: Path) -> list[ResolvedSource]:
             root=root / 'audio',
         ),
     ]
+
+
+def _project_name(candidate: Candidate) -> str | None:
+    for parent in candidate.path.parents:
+        if not parent.is_relative_to(candidate.source.root):
+            break
+        if (parent / 'session-record.jsonl').is_file():
+            relative_session = parent.relative_to(candidate.source.root)
+            return relative_session.parts[0] if relative_session.parts else None
+    return None
 
 
 class BackupLock:

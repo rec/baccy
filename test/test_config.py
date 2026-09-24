@@ -30,7 +30,7 @@ def test_load_reads_sources(tmp_path: Path) -> None:
     assert settings.stability_seconds == 30
 
 
-def test_load_reads_project_upload_rules(tmp_path: Path) -> None:
+def test_load_reads_upload_rules(tmp_path: Path) -> None:
     path = tmp_path / 'baccy.toml'
     path.write_text(
         'backup_root = "/backup"\n'
@@ -39,8 +39,7 @@ def test_load_reads_project_upload_rules(tmp_path: Path) -> None:
         'url = "user@example.org:/srv/recs"\n'
         '[access.listeners]\n'
         'ssh_mode = "0644"\n'
-        '[projects.concert]\n'
-        '[[projects.concert.uploads]]\n'
+        '[[uploads]]\n'
         'name = "main"\n'
         'match = "main and duration > 90"\n'
         'encoding = { format = "mp3", bitrate_kbps = 128 }\n'
@@ -51,10 +50,15 @@ def test_load_reads_project_upload_rules(tmp_path: Path) -> None:
 
     settings = load(path)
 
-    rule = settings.projects['concert'].uploads[0]
+    rule = settings.uploads[0]
     assert rule.match == 'main and duration > 90'
     assert rule.encoding.format == 'mp3'
     assert settings.destinations['server'].kind == 'ssh'
+
+
+def test_settings_rejects_project_upload_tables(tmp_path: Path) -> None:
+    with pytest.raises(ValidationError, match='projects'):
+        Settings.model_validate({'backup_root': tmp_path / 'backup', 'projects': {}})
 
 
 def test_default_config_path_uses_application_support(tmp_path: Path) -> None:

@@ -54,12 +54,12 @@ def test_axto_config_dry_run_plans_main_mp3_and_all_flac(tmp_path: Path) -> None
     assert [result.status for result in results] == ['would_upload'] * 3
     assert [result.relative_path for result in results] == [
         Path(
-            'TODO/2026/09/04/15-01-57/'
+            'project/2026/09/04/15-01-57/'
             'FLOW 8 (Recording)/1-2/2026-09-04T13-01-58.000000Z.flac'
         ),
-        Path('TODO/2026/09/04/15-01-57/2026-09-04T13-02-06.000000Z.mp3'),
+        Path('project/2026/09/04/15-01-57/2026-09-04T13-02-06.000000Z.mp3'),
         Path(
-            'TODO/2026/09/04/15-01-57/'
+            'project/2026/09/04/15-01-57/'
             'FLOW 8 (Recording)/9-10/2026-09-04T13-02-06.000000Z.flac'
         ),
     ]
@@ -78,7 +78,7 @@ def _write_config(directory: Path, results: Path, backup: Path) -> Path:
 
 
 def _write_session(root: Path) -> None:
-    session = root / 'TODO' / '2026' / '09' / '04' / '15-01-57'
+    session = root / 'project' / '2026' / '09' / '04' / '15-01-57'
     session.mkdir(parents=True)
     (session / 'recording.toml').write_text('format = "recs"\n')
     (session / 'evidence').mkdir()

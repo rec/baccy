@@ -180,19 +180,6 @@ class UploadRule(BaseModel, frozen=True):
     model_config = {'extra': 'forbid'}
 
 
-class ProjectUpload(BaseModel, frozen=True):
-    uploads: list[UploadRule] = Field(default_factory=list)
-
-    @model_validator(mode='after')
-    def validate_rule_names(self) -> ProjectUpload:
-        names = [r.name for r in self.uploads]
-        if len(names) != len(set(names)):
-            raise ValueError('upload rule names must be unique per project')
-        return self
-
-    model_config = {'extra': 'forbid'}
-
-
 class Settings(BaseModel, frozen=True):
     backup_root: Path
     sources: list[Source] = Field(default_factory=list)
@@ -202,29 +189,29 @@ class Settings(BaseModel, frozen=True):
     verbose: bool = True
     destinations: dict[str, Destination] = Field(default_factory=dict)
     access: dict[str, AccessProfile] = Field(default_factory=dict)
-    projects: dict[str, ProjectUpload] = Field(default_factory=dict)
+    uploads: list[UploadRule] = Field(default_factory=list)
 
     @model_validator(mode='after')
     def validate_source_names(self) -> Settings:
         names = [s.name for s in self.sources]
         if len(names) != len(set(names)):
             raise ValueError('source names must be unique')
-        if any(
-            not name or '/' in name or name in {'.', '..'} for name in self.projects
-        ):
-            raise ValueError('project names must be non-empty path components')
         destination_names = set(self.destinations)
         access_names = set(self.access)
-        for project in self.projects.values():
-            for rule in project.uploads:
-                if rule.destination not in destination_names:
-                    raise ValueError(f'unknown upload destination: {rule.destination}')
-                if (
-                    rule.access.profile is not None
-                    and rule.access.profile not in access_names
-                ):
-                    raise ValueError(f'unknown access profile: {rule.access.profile}')
+        names = [r.name for r in self.uploads]
+        if len(names) != len(set(names)):
+            raise ValueError('upload rule names must be unique')
+        for rule in self.uploads:
+            if rule.destination not in destination_names:
+                raise ValueError(f'unknown upload destination: {rule.destination}')
+            if (
+                rule.access.profile is not None
+                and rule.access.profile not in access_names
+            ):
+                raise ValueError(f'unknown access profile: {rule.access.profile}')
         return self
+
+    model_config = {'extra': 'forbid'}
 
 
 class SourceSelection(BaseModel, frozen=True):

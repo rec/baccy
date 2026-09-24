@@ -199,14 +199,7 @@ def test_backup_command_without_configuration_uses_main_drive(
     exit_code = main(['backup'])
 
     output = json.loads(capsys.readouterr().out)
-    destination = (
-        tmp_path
-        / 'baccy'
-        / 'photo'
-        / 'removable-test-uuid'
-        / 'recs-session'
-        / 'session-record.jsonl'
-    )
+    destination = tmp_path / 'baccy' / 'audio' / 'recs-session' / 'session-record.jsonl'
     assert exit_code == 0
     assert output['copied'] == 1
     assert destination.read_text() == '{"type":"header"}\n'

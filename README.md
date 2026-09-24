@@ -61,7 +61,7 @@ prefix = "upcoming-shows"
 ssh_mode = "0644"
 s3_acl = "public-read"
 
-[[projects.concert.uploads]]
+[[uploads]]
 name = "main-mp3"
 match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
@@ -69,7 +69,7 @@ filename = "{timestamp}.{extension}"
 destination = "show_server"
 access = { profile = "show_listeners" }
 
-[[projects.concert.uploads]]
+[[uploads]]
 name = "channel-archive"
 match = "True"
 encoding = { format = "flac" }
@@ -337,19 +337,15 @@ they are copied.
 Project sessions are stored in their one canonical location:
 
 ```text
-BACKUP_ROOT/PROJECT/SESSION/RELATIVE_PATH
+BACKUP_ROOT/audio/PROJECT/SESSION/RELATIVE_PATH
 ```
 
-On its next backup pass, baccy migrates an existing
-`BACKUP_ROOT/sources/SOURCE/PROJECT` directory to `BACKUP_ROOT/PROJECT` for
-each configured project. It refuses to overwrite an already-existing canonical
-project directory. New copies for configured projects go directly to the
-canonical location.
+New recs sessions are copied directly to the canonical project directory.
 
 Non-project assets, such as photos, remain source-specific:
 
 ```text
-BACKUP_ROOT/sources/SOURCE_NAME/RELATIVE_PATH
+BACKUP_ROOT/photo/SOURCE_NAME/RELATIVE_PATH
 ```
 
 At the backup root:
