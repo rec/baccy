@@ -33,7 +33,8 @@ without special cases.
 
 ## Implementation
 
-1. Write a standalone, uncommitted repair program outside the baccy repository.
+1. Write the standalone repair program at `scripts/repair_imported_session.py`.
+   It is a one-time operational script, not baccy library behavior.
 2. Read the affected session's top-level and evidence journals.
 3. Validate evidence paths exactly as current journal paths are validated.
    Never allow an evidence path to escape the session root.
