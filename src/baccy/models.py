@@ -179,7 +179,7 @@ class UploadRule(BaseModel, frozen=True):
 
 
 class Settings(BaseModel, frozen=True):
-    backup_root: Path
+    backup_root: Path = Field(default_factory=lambda: Path.home() / 'baccy')
     sources: list[Source] = Field(default_factory=list)
     discover_removable: bool = True
     poll_seconds: float = Field(default=60.0, gt=0)

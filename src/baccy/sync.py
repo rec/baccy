@@ -13,7 +13,7 @@ def sync(
         source=PathSource(kind='path', name='backup', path=root), root=root
     )
     results = publish_sessions(
-        [source], settings, dry_run, sync=True, directories=selected
+        [source], settings, dry_run, sync=True, directories=selected or None
     )
     summary = BackupSummary()
     for result in results:
