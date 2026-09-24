@@ -201,7 +201,7 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
     assert first.copied == 1
     assert second.unchanged == 1
     assert (
-        destination / 'photo' / 'network-aabbccddeeff' / 'session' / 'recording.toml'
+        destination / 'audio' / 'session' / 'recording.toml'
     ).read_text() == 'format = "recs"\n'
 
 
@@ -311,20 +311,16 @@ def test_network_recs_backup_is_available_for_project_upload(
             discover_removable=False,
             destinations={'server': {'kind': 'ssh', 'url': 'user@host:/srv/recs'}},
             access={'listeners': {'ssh_mode': '0644'}},
-            projects={
-                'project': {
-                    'uploads': [
-                        {
-                            'name': 'archive',
-                            'match': 'True',
-                            'encoding': {'format': 'source'},
-                            'filename': '{timestamp}.{extension}',
-                            'destination': 'server',
-                            'access': {'profile': 'listeners'},
-                        }
-                    ]
+            uploads=[
+                {
+                    'name': 'archive',
+                    'match': 'True',
+                    'encoding': {'format': 'source'},
+                    'filename': '{timestamp}.{extension}',
+                    'destination': 'server',
+                    'access': {'profile': 'listeners'},
                 }
-            },
+            ],
         ),
         network=cast(NetworkDiscovery, Discovery()),
     )

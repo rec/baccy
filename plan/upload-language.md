@@ -57,9 +57,8 @@ device and channel count to be specified explicitly.
 ## Proposed configuration
 
 Use named destinations and access profiles so rules remain readable and shared
-configuration is not repeated. Replace the current project-level `ssh_url`,
-`minimum_seconds`, and `tracks` fields with `uploads`. Reject configurations
-that mix the old and new forms.
+configuration is not repeated. Use one top-level `uploads` list for every
+project.
 
 ```toml
 [destinations.show_server]
@@ -74,7 +73,7 @@ prefix = "upcoming-shows"
 [access.show_listeners]
 ssh_mode = "0644"
 
-[[projects.concert.uploads]]
+[[uploads]]
 name = "main-mp3"
 match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
@@ -82,7 +81,7 @@ filename = "{timestamp}.{extension}"
 destination = "show_server"
 access = { profile = "show_listeners" }
 
-[[projects.concert.uploads]]
+[[uploads]]
 name = "channel-archive"
 match = "True"
 encoding = { format = "flac" }
@@ -284,7 +283,7 @@ must not be mixed into the first implementation.
      upload rules.
    - Add `simpleeval>=1.0.6` in a separate dependency commit and wrap it with
      the restricted AST and resource limits above.
-   - Replace the current `ProjectUpload` fields with the canonical rules form.
+   - Add the canonical top-level rules form.
    - Build typed session facts and implement `main`, match evaluation, naming,
      collision detection, and additive rule evaluation.
    - Produce dry-run artifact plans without encoding or uploading.

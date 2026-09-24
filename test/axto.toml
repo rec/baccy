@@ -21,9 +21,7 @@ endpoint_url = "TODO"
 
 [access.axto-private]
 
-[projects."TODO"]
-
-[[projects."TODO".uploads]]
+[[uploads]]
 name = "main-mp3"
 match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
@@ -31,7 +29,7 @@ filename = "{session}/{timestamp}.{extension}"
 destination = "axto"
 access = { profile = "axto-public" }
 
-[[projects."TODO".uploads]]
+[[uploads]]
 name = "all-flac"
 match = "True"
 encoding = { format = "flac" }

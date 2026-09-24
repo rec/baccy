@@ -57,20 +57,16 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
             'backup_root': tmp_path / 'backup',
             'destinations': {'server': {'kind': 'ssh', 'url': 'user@host:/srv/recs'}},
             'access': {'listeners': {'ssh_mode': '0644'}},
-            'projects': {
-                'project': {
-                    'uploads': [
-                        {
-                            'name': 'main',
-                            'match': 'main and duration > 120',
-                            'encoding': {'format': 'source'},
-                            'filename': '{channels}/{timestamp}.{extension}',
-                            'destination': 'server',
-                            'access': {'profile': 'listeners'},
-                        }
-                    ]
+            'uploads': [
+                {
+                    'name': 'main',
+                    'match': 'main and duration > 120',
+                    'encoding': {'format': 'source'},
+                    'filename': '{channels}/{timestamp}.{extension}',
+                    'destination': 'server',
+                    'access': {'profile': 'listeners'},
                 }
-            },
+            ],
         }
     )
 
@@ -129,20 +125,16 @@ def test_upload_rules_defer_player_access_and_never_write_on_dry_run(
         {
             'backup_root': tmp_path / 'backup',
             'destinations': {'server': {'kind': 'ssh', 'url': 'host:/srv/recs'}},
-            'projects': {
-                'project': {
-                    'uploads': [
-                        {
-                            'name': 'player',
-                            'match': 'True',
-                            'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
-                            'filename': '{timestamp}.{extension}',
-                            'destination': 'server',
-                            'access': {'from': 'player'},
-                        }
-                    ]
+            'uploads': [
+                {
+                    'name': 'player',
+                    'match': 'True',
+                    'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
+                    'filename': '{timestamp}.{extension}',
+                    'destination': 'server',
+                    'access': {'from': 'player'},
                 }
-            },
+            ],
         }
     )
     source = ResolvedSource(
@@ -197,7 +189,7 @@ def test_config_rejects_legacy_upload_policy(tmp_path: Path) -> None:
         Settings.model_validate(
             {
                 'backup_root': tmp_path / 'backup',
-                'projects': {'project': {'ssh_url': 'host:/srv/recs'}},
+                'uploads': [{'ssh_url': 'host:/srv/recs'}],
             }
         )
 
@@ -221,20 +213,16 @@ def test_sync_uses_remote_names_without_hashing_sources(
             'backup_root': backup,
             'destinations': {'server': {'kind': 'ssh', 'url': 'host:/srv/recs'}},
             'access': {'private': {}},
-            'projects': {
-                'concert': {
-                    'uploads': [
-                        {
-                            'name': 'archive',
-                            'match': 'True',
-                            'encoding': {'format': 'source'},
-                            'filename': '{timestamp}.{extension}',
-                            'destination': 'server',
-                            'access': {'profile': 'private'},
-                        }
-                    ]
+            'uploads': [
+                {
+                    'name': 'archive',
+                    'match': 'True',
+                    'encoding': {'format': 'source'},
+                    'filename': '{timestamp}.{extension}',
+                    'destination': 'server',
+                    'access': {'profile': 'private'},
                 }
-            },
+            ],
         }
     )
     monkeypatch.setattr(

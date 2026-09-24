@@ -18,7 +18,6 @@ from .models import (
     AccessProfile,
     Destination,
     FileResult,
-    ProjectUpload,
     ResolvedSource,
     S3Destination,
     Settings,
@@ -66,11 +65,7 @@ def publish_sessions(
 ) -> list[FileResult]:
     catalog = Catalog(settings.backup_root)
     results: list[FileResult] = []
-    expressions = {
-        (project_name, rule.name): MatchExpression(rule.match)
-        for project_name, project in settings.projects.items()
-        for rule in project.uploads
-    }
+    expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
     remote_targets: dict[str, set[str]] = {}
     for source in sources:
         for journal in sorted(source.root.glob('**/session-record.jsonl')):
@@ -84,15 +79,12 @@ def publish_sessions(
             if not relative_session.parts:
                 continue
             project_name = relative_session.parts[0]
-            if (project := settings.projects.get(project_name)) is None:
-                continue
             results.extend(
                 _publish_session(
                     source.source.name,
                     journal.parent,
                     relative_session,
                     project_name,
-                    project,
                     settings,
                     expressions,
                     catalog,
@@ -109,9 +101,8 @@ def _publish_session(
     session_root: Path,
     relative_session: Path,
     project_name: str,
-    project: ProjectUpload,
     settings: Settings,
-    expressions: dict[tuple[str, str], MatchExpression],
+    expressions: dict[str, MatchExpression],
     catalog: Catalog,
     dry_run: bool,
     sync: bool,
@@ -134,7 +125,6 @@ def _publish_session(
         session_root,
         relative_session,
         project_name,
-        project,
         settings,
         expressions,
         main,
@@ -253,9 +243,8 @@ def _artifact_plans(
     session_root: Path,
     relative_session: Path,
     project_name: str,
-    project: ProjectUpload,
     settings: Settings,
-    expressions: dict[tuple[str, str], MatchExpression],
+    expressions: dict[str, MatchExpression],
     main: tuple[str, set[int]] | None,
     main_error: str | None,
     sync: bool,
@@ -278,8 +267,8 @@ def _artifact_plans(
             'player': None,
             'has_player': False,
         }
-        for rule in project.uploads:
-            expression = expressions[project_name, rule.name]
+        for rule in settings.uploads:
+            expression = expressions[rule.name]
             if main_error is not None and _expression_uses_main(expression):
                 results.append(
                     FileResult(

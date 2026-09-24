@@ -60,6 +60,7 @@ def test_backup_copies_project_sessions_to_the_canonical_project_directory(
     session = source / 'concert' / 'session'
     session.mkdir(parents=True)
     (session / 'recording.toml').write_text('format = "recs"\n')
+    (session / 'session-record.jsonl').write_text('{"type":"header"}\n')
     destination = tmp_path / 'backup'
     settings = Settings.model_validate(
         {
@@ -67,7 +68,6 @@ def test_backup_copies_project_sessions_to_the_canonical_project_directory(
             'discover_removable': False,
             'stability_seconds': 0,
             'sources': [{'kind': 'path', 'name': 'source', 'path': source}],
-            'projects': {'concert': {}},
         }
     )
 

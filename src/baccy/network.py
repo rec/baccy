@@ -165,7 +165,6 @@ def backup_network_source(
     backup_root: Path,
     catalog: Catalog,
     dry_run: bool,
-    projects: set[str] | None = None,
     run: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
 ) -> list[FileResult]:
     try:
@@ -185,7 +184,7 @@ def backup_network_source(
     for file in files:
         try:
             result = _backup_remote_file(
-                source, file, backup_root, catalog, dry_run, projects or set(), run
+                source, file, backup_root, catalog, dry_run, run
             )
         except OSError as error:
             result = FileResult(
@@ -273,18 +272,11 @@ def _backup_remote_file(
     backup_root: Path,
     catalog: Catalog,
     dry_run: bool,
-    projects: set[str],
     run: Callable[..., subprocess.CompletedProcess[bytes]],
 ) -> FileResult:
-    project = (
-        file.relative_path.parts[0] if file.relative_path.parts[0] in projects else None
-    )
+    project = file.relative_path.parts[0]
     candidate = _candidate(source, file, project)
-    destination = (
-        backup_root / 'audio' / file.relative_path
-        if project is not None
-        else backup_root / 'photo' / source.name / file.relative_path
-    )
+    destination = backup_root / 'audio' / file.relative_path
     if _matches_catalog(source, file, destination, catalog):
         return _result(candidate, 'unchanged')
     if dry_run:
