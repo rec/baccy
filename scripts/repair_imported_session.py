@@ -83,14 +83,34 @@ def _repair_records(
         ):
             replacement, item = _resolve_path(session, path)
             report.append(item)
-            if replacement is not None:
+            source = _source_name(start, stream_id)
+            if replacement is not None and source is not None:
                 repaired.extend(
                     [
-                        {**start, 'path': replacement},
+                        {**start, 'path': replacement, 'source': source},
                         {**record, 'path': replacement},
                     ]
                 )
+            elif replacement is not None:
+                report[-1] = RepairRecord(
+                    path=path,
+                    status='deferred',
+                    reason='audio source is missing from the evidence record',
+                )
     return repaired, report
+
+
+def _source_name(record: dict[str, object], stream_id: str) -> str | None:
+    source = record.get('source')
+    if isinstance(source, str):
+        return source
+    prefix = 'audio:'
+    if not stream_id.startswith(prefix):
+        return None
+    source, separator, track = stream_id.removeprefix(prefix).rpartition(':')
+    if not separator or not source or not track:
+        return None
+    return source
 
 
 def _validate_lifecycle_path(
