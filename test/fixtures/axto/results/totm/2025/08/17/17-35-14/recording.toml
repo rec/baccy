@@ -1,0 +1,290 @@
+format = "recs"
+version = 4
+name = "13b14ffd-951d-5292-9960-72cabf782072"
+title = "17-35-14"
+tags = []
+inputs = []
+outputs = []
+parameters = []
+kind = "recording"
+
+[[timebases]]
+name = "clock-bdc78d723310c042"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-1c0899b9eee4dfc3"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-cc9641df210c728a"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-0ddafc5f26dbd5af"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-cd9b4d1879b31a56"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-be9042098c4ce10a"
+kind = "physical"
+
+[timebases.rate]
+numerator = 44100
+denominator = 1
+
+[[assets]]
+name = "original-journal"
+encoding = "recs-session-v4"
+
+[assets.location]
+kind = "relative_file"
+path = "session-record.jsonl"
+
+[assets.content]
+byte_length = 6182
+sha256 = "1f26669794744af96c52f62d552a7f7ff59c32fa1a6a4d16e12ab2fad8618df1"
+
+[[assets]]
+name = "asset-bdc78d723310c042"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/1-2 + 20250817-173514.flac"
+
+[assets.content]
+byte_length = 6242462
+sha256 = "470d76ffbc3bae244a60376a2f7e0a81de6f5994f9a300d656be4bb4301b9f93"
+
+[[assets]]
+name = "asset-1c0899b9eee4dfc3"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/3-4 + 20250817-173514.flac"
+
+[assets.content]
+byte_length = 6242462
+sha256 = "778978aa4f4a6c0fda8f4347d2db518deb18e42a29d27c41c7a9f183d7116ba4"
+
+[[assets]]
+name = "asset-cc9641df210c728a"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/5-6 + 20250817-173514.flac"
+
+[assets.content]
+byte_length = 6242462
+sha256 = "65877638ad017d7dab969c905af415c82f480fb92a86bae6d15bb0eb70f65fbc"
+
+[[assets]]
+name = "asset-0ddafc5f26dbd5af"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/7-8 + 20250817-173514.flac"
+
+[assets.content]
+byte_length = 6242462
+sha256 = "12ded38972f4b0baf4f04db2662f18c255612ae541b544a9574a95dea84b0df6"
+
+[[assets]]
+name = "asset-cd9b4d1879b31a56"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/9-10 + 20250817-173514.flac"
+
+[assets.content]
+byte_length = 6242462
+sha256 = "fd7fc840e8662bec8f5a38a16b017cae36055f24b985a91584077c226ecbabeb"
+
+[[assets]]
+name = "asset-be9042098c4ce10a"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/MacBook Pro Microphone + 1 + 20250817-173514.flac"
+
+[assets.content]
+byte_length = 103586974
+sha256 = "157a5c82e697adea4fbb0a56af2eceec9f46f8abf71fbab06458b302ee51e426"
+
+[body]
+state = "sealed"
+project_name = "totm"
+started_at = "2025-08-17T15:35:14.385Z"
+ended_at = "2025-08-17T15:54:48.838Z"
+observed_duration_seconds = 1174.4536961451247
+journal = "original-journal"
+clock_observations = []
+unfinished_files = []
+continued_at = []
+
+[[body.streams]]
+kind = "audio"
+name = "stream-bdc78d723310c042"
+source_id = "audio:FLOW 8 (Recording):1-2"
+source_name = "FLOW 8 (Recording)"
+track_name = "1-2"
+end = 1560576
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 1560576
+asset = "asset-bdc78d723310c042"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-bdc78d723310c042"
+channels = ["input-1", "input-2"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-1c0899b9eee4dfc3"
+source_id = "audio:FLOW 8 (Recording):3-4"
+source_name = "FLOW 8 (Recording)"
+track_name = "3-4"
+end = 1560576
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 1560576
+asset = "asset-1c0899b9eee4dfc3"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-1c0899b9eee4dfc3"
+channels = ["input-3", "input-4"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-cc9641df210c728a"
+source_id = "audio:FLOW 8 (Recording):5-6"
+source_name = "FLOW 8 (Recording)"
+track_name = "5-6"
+end = 1560576
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 1560576
+asset = "asset-cc9641df210c728a"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-cc9641df210c728a"
+channels = ["input-5", "input-6"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-0ddafc5f26dbd5af"
+source_id = "audio:FLOW 8 (Recording):7-8"
+source_name = "FLOW 8 (Recording)"
+track_name = "7-8"
+end = 1560576
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 1560576
+asset = "asset-0ddafc5f26dbd5af"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-0ddafc5f26dbd5af"
+channels = ["input-7", "input-8"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-cd9b4d1879b31a56"
+source_id = "audio:FLOW 8 (Recording):9-10"
+source_name = "FLOW 8 (Recording)"
+track_name = "9-10"
+end = 1560576
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 1560576
+asset = "asset-cd9b4d1879b31a56"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-cd9b4d1879b31a56"
+channels = ["input-9", "input-10"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-be9042098c4ce10a"
+source_id = "audio:MacBook Pro Microphone:1"
+source_name = "MacBook Pro Microphone"
+track_name = "1"
+end = 51793408
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 51793408
+asset = "asset-be9042098c4ce10a"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-be9042098c4ce10a"
+channels = ["input-1"]

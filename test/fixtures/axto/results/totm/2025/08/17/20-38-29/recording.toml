@@ -1,0 +1,75 @@
+format = "recs"
+version = 4
+name = "5e073084-c51d-5bd4-b9b3-b3ee891b1ba6"
+title = "20-38-29"
+tags = []
+inputs = []
+outputs = []
+parameters = []
+kind = "recording"
+
+[[timebases]]
+name = "clock-8cc98f559afa22cf"
+kind = "physical"
+
+[timebases.rate]
+numerator = 44100
+denominator = 1
+
+[[assets]]
+name = "original-journal"
+encoding = "recs-session-v4"
+
+[assets.location]
+kind = "relative_file"
+path = "session-record.jsonl"
+
+[assets.content]
+byte_length = 1357
+sha256 = "0bc89c9a9a842c03bb6ed5ad593995a68eca6508772b389a2864a3b07cada162"
+
+[[assets]]
+name = "asset-8cc98f559afa22cf"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/MacBook Pro Microphone + 1 + 20250817-203829.flac"
+
+[assets.content]
+byte_length = 1664158
+sha256 = "c3d14810f01c1434c1527f2124a5b58e4f405f710ab14f38ca81748bbe0342b6"
+
+[body]
+state = "sealed"
+project_name = "totm"
+started_at = "2025-08-17T18:38:29.266Z"
+ended_at = "2025-08-17T18:38:48.132Z"
+observed_duration_seconds = 18.866213151927436
+journal = "original-journal"
+clock_observations = []
+unfinished_files = []
+continued_at = []
+
+[[body.streams]]
+kind = "audio"
+name = "stream-8cc98f559afa22cf"
+source_id = "audio:MacBook Pro Microphone:1"
+source_name = "MacBook Pro Microphone"
+track_name = "1"
+end = 832000
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 832000
+asset = "asset-8cc98f559afa22cf"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-8cc98f559afa22cf"
+channels = ["input-1"]

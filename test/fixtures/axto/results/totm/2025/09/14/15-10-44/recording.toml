@@ -1,0 +1,505 @@
+format = "recs"
+version = 4
+name = "3727d410-f581-5553-80b9-0e7f334553df"
+title = "15-10-44"
+tags = []
+inputs = []
+outputs = []
+parameters = []
+kind = "recording"
+
+[[timebases]]
+name = "clock-06f60aeac78a72cc"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-40f56bec0985b08c"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-bb47c8f92f3cfb5a"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-36232b8d3ed6227f"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-d6d24df11af42a08"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-3aa9e4346796ced7"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-061305693deed689"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-d6df0dbdeb10d654"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-752aa0061bacb817"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-617e75158ac3309b"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[timebases]]
+name = "clock-72a194909dab5247"
+kind = "physical"
+
+[timebases.rate]
+numerator = 48000
+denominator = 1
+
+[[assets]]
+name = "original-journal"
+encoding = "recs-session-v4"
+
+[assets.location]
+kind = "relative_file"
+path = "session-record.jsonl"
+
+[assets.content]
+byte_length = 11074
+sha256 = "9d6e11ed4a56984e006acd41841fb416fdeab33a1513c7d3c7db3a6832d01f23"
+
+[[assets]]
+name = "asset-06f60aeac78a72cc"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 master + MASTER + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 362336014
+sha256 = "6481da474430bbc5e3ac1330ae62ce0880e72f7db4f58b6f6ac334f5be7b6585"
+
+[[assets]]
+name = "asset-40f56bec0985b08c"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK01 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 181168462
+sha256 = "2e50910d1b3cf30b8498f689f289ff081e82331ad878c38f01ce2989bc1fbcf9"
+
+[[assets]]
+name = "asset-bb47c8f92f3cfb5a"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK02 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 181168462
+sha256 = "de5db2b14e1ab2b270565d5e57c45fb92c55c94c4662699680a2142eadc1a863"
+
+[[assets]]
+name = "asset-36232b8d3ed6227f"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK03 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 181168462
+sha256 = "7b642cb4adff12d406f4553ee6e4b3250746b74959b4070041b99f0cd248ccdf"
+
+[[assets]]
+name = "asset-d6d24df11af42a08"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK04 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 181168462
+sha256 = "2311c10fd657437cbe92ec4de27096f7ddb92e36611d4afec7ea0cde501af38f"
+
+[[assets]]
+name = "asset-3aa9e4346796ced7"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK05 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 181168462
+sha256 = "0e942835368c91e3674ce248d07c2b2538da24ebf7e04adaec3bc72901649166"
+
+[[assets]]
+name = "asset-061305693deed689"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK06 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 181168462
+sha256 = "fdc09e67181742a49c97707567098c4e6dda63fa15818939b236f62c98fb8951"
+
+[[assets]]
+name = "asset-d6df0dbdeb10d654"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK07 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 181168462
+sha256 = "7411ee7ff7930052b2284748f277c3f02083c8f423a77bfea89bc37fc0651fe9"
+
+[[assets]]
+name = "asset-752aa0061bacb817"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK08 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 181168462
+sha256 = "5e94445ad63c2a2b05899c7697bad110e3a56b07228ca18476c5a4a98cf6e736"
+
+[[assets]]
+name = "asset-617e75158ac3309b"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK09_10 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 362336014
+sha256 = "61ca310bbf6423039fe1d00a95beaf7696b042906c7768381ded2d0b060dd3cf"
+
+[[assets]]
+name = "asset-72a194909dab5247"
+encoding = "wav"
+
+[assets.location]
+kind = "relative_file"
+path = "audio/LiveTrak L-12 + TRACK11_12 + 20250914-151044.WAV"
+
+[assets.content]
+byte_length = 362336014
+sha256 = "2ff0e48e939d440b256f3a7128f0894cbfb557ef5994b07aa04b9e261682f770"
+
+[body]
+state = "sealed"
+project_name = "totm"
+started_at = "2025-09-14T13:10:44.000Z"
+ended_at = "2025-09-14T13:31:42.108Z"
+observed_duration_seconds = 1258.108
+journal = "original-journal"
+clock_observations = []
+unfinished_files = []
+continued_at = []
+
+[[body.streams]]
+kind = "audio"
+name = "stream-06f60aeac78a72cc"
+source_id = "audio:LiveTrak L-12 master:MASTER"
+source_name = "LiveTrak L-12 master"
+track_name = "MASTER"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-06f60aeac78a72cc"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-06f60aeac78a72cc"
+channels = ["channel-1", "channel-2"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-40f56bec0985b08c"
+source_id = "audio:LiveTrak L-12:TRACK01"
+source_name = "LiveTrak L-12"
+track_name = "TRACK01"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-40f56bec0985b08c"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-40f56bec0985b08c"
+channels = ["input-1"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-bb47c8f92f3cfb5a"
+source_id = "audio:LiveTrak L-12:TRACK02"
+source_name = "LiveTrak L-12"
+track_name = "TRACK02"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-bb47c8f92f3cfb5a"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-bb47c8f92f3cfb5a"
+channels = ["input-2"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-36232b8d3ed6227f"
+source_id = "audio:LiveTrak L-12:TRACK03"
+source_name = "LiveTrak L-12"
+track_name = "TRACK03"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-36232b8d3ed6227f"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-36232b8d3ed6227f"
+channels = ["input-3"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-d6d24df11af42a08"
+source_id = "audio:LiveTrak L-12:TRACK04"
+source_name = "LiveTrak L-12"
+track_name = "TRACK04"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-d6d24df11af42a08"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-d6d24df11af42a08"
+channels = ["input-4"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-3aa9e4346796ced7"
+source_id = "audio:LiveTrak L-12:TRACK05"
+source_name = "LiveTrak L-12"
+track_name = "TRACK05"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-3aa9e4346796ced7"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-3aa9e4346796ced7"
+channels = ["input-5"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-061305693deed689"
+source_id = "audio:LiveTrak L-12:TRACK06"
+source_name = "LiveTrak L-12"
+track_name = "TRACK06"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-061305693deed689"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-061305693deed689"
+channels = ["input-6"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-d6df0dbdeb10d654"
+source_id = "audio:LiveTrak L-12:TRACK07"
+source_name = "LiveTrak L-12"
+track_name = "TRACK07"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-d6df0dbdeb10d654"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-d6df0dbdeb10d654"
+channels = ["input-7"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-752aa0061bacb817"
+source_id = "audio:LiveTrak L-12:TRACK08"
+source_name = "LiveTrak L-12"
+track_name = "TRACK08"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-752aa0061bacb817"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-752aa0061bacb817"
+channels = ["input-8"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-617e75158ac3309b"
+source_id = "audio:LiveTrak L-12:TRACK09_10"
+source_name = "LiveTrak L-12"
+track_name = "TRACK09_10"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-617e75158ac3309b"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-617e75158ac3309b"
+channels = ["input-9", "input-10"]
+
+[[body.streams]]
+kind = "audio"
+name = "stream-72a194909dab5247"
+source_id = "audio:LiveTrak L-12:TRACK11_12"
+source_name = "LiveTrak L-12"
+track_name = "TRACK11_12"
+end = 60389184
+unmapped_fragments = []
+gaps = []
+
+[[body.streams.fragments]]
+asset_start = 0
+start = 0
+count = 60389184
+asset = "asset-72a194909dab5247"
+
+[body.streams.stream]
+family = "sampled"
+quantity = "audio_amplitude"
+unit = "full_scale"
+timebase = "clock-72a194909dab5247"
+channels = ["input-11", "input-12"]
