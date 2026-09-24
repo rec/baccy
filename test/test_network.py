@@ -201,7 +201,7 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
     assert first.copied == 1
     assert second.unchanged == 1
     assert (
-        destination / 'sources' / 'network-aabbccddeeff' / 'session' / 'recording.toml'
+        destination / 'photo' / 'network-aabbccddeeff' / 'session' / 'recording.toml'
     ).read_text() == 'format = "recs"\n'
 
 
@@ -278,7 +278,7 @@ def test_network_recs_backup_is_available_for_project_upload(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = NetworkRecsSource(mac='aa:bb:cc:dd:ee:ff', host='pi.local')
-    session = tmp_path / 'backup' / 'sources' / source.name / 'project' / 'session'
+    session = tmp_path / 'backup' / 'audio' / 'project' / 'session'
     session.mkdir(parents=True)
     (session / 'audio.flac').write_bytes(b'audio')
     (session / 'session-record.jsonl').write_text(
@@ -330,4 +330,6 @@ def test_network_recs_backup_is_available_for_project_upload(
     )
 
     assert result.uploaded == 1
-    assert uploads == [tmp_path / 'backup' / 'project' / 'session' / 'audio.flac']
+    assert uploads == [
+        tmp_path / 'backup' / 'audio' / 'project' / 'session' / 'audio.flac'
+    ]

@@ -50,7 +50,7 @@ def test_backup_copies_metadata_before_media_and_then_skips_it(tmp_path: Path) -
     ]
     assert first.copied == 3
     assert second.unchanged == 3
-    assert (destination / 'sources' / 'source' / 'audio.wav').read_bytes() == b'audio'
+    assert (destination / 'photo' / 'source' / 'audio.wav').read_bytes() == b'audio'
 
 
 def test_backup_copies_project_sessions_to_the_canonical_project_directory(
@@ -73,29 +73,10 @@ def test_backup_copies_project_sessions_to_the_canonical_project_directory(
 
     run_backup(settings)
 
-    assert (destination / 'concert' / 'session' / 'recording.toml').read_text() == (
-        'format = "recs"\n'
-    )
-    assert not (destination / 'sources' / 'source' / 'concert').exists()
-
-
-def test_backup_migrates_legacy_project_directory(tmp_path: Path) -> None:
-    destination = tmp_path / 'backup'
-    legacy = destination / 'sources' / 'card' / 'concert' / 'session'
-    legacy.mkdir(parents=True)
-    (legacy / 'recording.toml').write_text('format = "recs"\n')
-    settings = Settings(
-        backup_root=destination,
-        discover_removable=False,
-        projects={'concert': {}},
-    )
-
-    run_backup(settings)
-
-    assert (destination / 'concert' / 'session' / 'recording.toml').read_text() == (
-        'format = "recs"\n'
-    )
-    assert not (destination / 'sources' / 'card' / 'concert').exists()
+    assert (
+        destination / 'audio' / 'concert' / 'session' / 'recording.toml'
+    ).read_text() == ('format = "recs"\n')
+    assert not (destination / 'photo' / 'source' / 'concert').exists()
 
 
 def test_backup_defers_recent_ordinary_files(tmp_path: Path) -> None:
@@ -183,7 +164,7 @@ def test_backup_appends_jsonl_without_creating_dot_baccy(tmp_path: Path) -> None
 
     assert result.copied == 1
     assert (
-        destination / 'sources' / 'source' / 'session-record.jsonl'
+        destination / 'photo' / 'source' / 'session-record.jsonl'
     ).read_text() == '{"type":"header"}\n{"type":"event"}\n'
     assert not (destination / '.baccy').exists()
 
@@ -206,7 +187,7 @@ def test_backup_defers_active_recs_audio_until_finished(tmp_path: Path) -> None:
 
     assert active.deferred == 1
     assert finished.copied == 2
-    assert (destination / 'sources' / 'source' / 'audio.wav').read_bytes() == b'audio'
+    assert (destination / 'photo' / 'source' / 'audio.wav').read_bytes() == b'audio'
 
 
 def test_backup_replaces_changed_destination_without_retaining_version(
@@ -225,7 +206,7 @@ def test_backup_replaces_changed_destination_without_retaining_version(
 
     assert result.copied == 1
     assert (
-        destination / 'sources' / 'source' / 'recording.toml'
+        destination / 'photo' / 'source' / 'recording.toml'
     ).read_text() == 'version = 2\n'
     assert not (destination / '.baccy').exists()
 
@@ -243,7 +224,7 @@ def test_backup_preserves_destination_when_source_disappears(tmp_path: Path) -> 
     result = run_backup(settings)
 
     assert result.unavailable == 1
-    assert (destination / 'sources' / 'source' / 'recording.toml').exists()
+    assert (destination / 'photo' / 'source' / 'recording.toml').exists()
 
 
 def test_backup_rejects_overlapping_source_and_destination_without_writing(

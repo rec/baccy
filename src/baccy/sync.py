@@ -5,7 +5,7 @@ from .upload import publish_sessions
 
 
 def sync(directories: list[Path], settings: Settings) -> BackupSummary:
-    root = settings.backup_root.resolve()
+    root = (settings.backup_root / 'audio').resolve()
     selected = [_directory(root, directory) for directory in directories]
     source = ResolvedSource(
         source=PathSource(kind='path', name='backup', path=root), root=root

@@ -202,7 +202,7 @@ def test_backup_command_without_configuration_uses_main_drive(
     destination = (
         tmp_path
         / 'baccy'
-        / 'sources'
+        / 'photo'
         / 'removable-test-uuid'
         / 'recs-session'
         / 'session-record.jsonl'
@@ -228,7 +228,7 @@ def test_import_command_moves_project_sessions_from_their_header(
     assert main(['import', str(source), '--config', str(config)]) == 0
 
     output = json.loads(capsys.readouterr().out)
-    destination = backup / 'concert' / '2026' / '09' / '24' / '20-00-00'
+    destination = backup / 'audio' / 'concert' / '2026' / '09' / '24' / '20-00-00'
     assert output['copied'] == 1
     assert (destination / 'session-record.jsonl').exists()
     assert not session.exists()
@@ -263,5 +263,12 @@ def test_import_command_copies_direct_session_with_project_override(
 
     assert session.exists()
     assert (
-        backup / 'concert' / '2026' / '09' / '24' / '20-00-00' / 'session-record.jsonl'
+        backup
+        / 'audio'
+        / 'concert'
+        / '2026'
+        / '09'
+        / '24'
+        / '20-00-00'
+        / 'session-record.jsonl'
     ).exists()

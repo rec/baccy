@@ -333,9 +333,9 @@ def ensure_destination_parent(backup_root: Path, parent: Path) -> None:
 
 def _destination(candidate: Candidate, backup_root: Path) -> Path:
     if candidate.project is not None:
-        return backup_root / candidate.relative_path
+        return backup_root / 'audio' / candidate.relative_path
     return (
-        backup_root / 'sources' / candidate.source.source.name / candidate.relative_path
+        backup_root / 'photo' / candidate.source.source.name / candidate.relative_path
     )
 
 
