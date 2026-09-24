@@ -3,7 +3,6 @@ import hashlib
 import json
 import shlex
 import subprocess
-import tempfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
@@ -66,6 +65,9 @@ def publish_sessions(
     results: list[FileResult] = []
     expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
     remote_targets: dict[str, set[str]] = {}
+    missing = _missing_sources(sources, directories)
+    if missing:
+        return missing
     for source in sources:
         for journal in sorted(source.root.glob('**/session-record.jsonl')):
             if journal.is_symlink():
@@ -93,6 +95,39 @@ def publish_sessions(
                 )
             )
     return results
+
+
+def _missing_sources(
+    sources: list[ResolvedSource], directories: list[Path] | None
+) -> list[FileResult]:
+    missing: list[FileResult] = []
+    for source in sources:
+        for journal in sorted(source.root.glob('**/session-record.jsonl')):
+            if journal.is_symlink() or (
+                directories is not None
+                and not any(
+                    journal.is_relative_to(directory) for directory in directories
+                )
+            ):
+                continue
+            relative_session = journal.parent.relative_to(source.root)
+            if not relative_session.parts:
+                continue
+            try:
+                segments = _completed_segments(journal)
+            except OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError:
+                continue
+            for segment in segments:
+                if not (journal.parent / segment.path).is_file():
+                    missing.append(
+                        FileResult(
+                            source=relative_session.parts[0],
+                            relative_path=relative_session / segment.path,
+                            status='failed',
+                            detail='completed source backup is missing',
+                        )
+                    )
+    return missing
 
 
 def _publish_session(
@@ -346,30 +381,7 @@ def _expression_uses_main(expression: MatchExpression) -> bool:
 def _render_target(
     rule: UploadRule, project: str, session: Path, segment: Segment
 ) -> PurePosixPath:
-    extension = (
-        segment.path.suffix.removeprefix('.')
-        if rule.encoding.format == 'source'
-        else rule.encoding.format
-    )
-    values = {
-        'project': project,
-        'session': session.as_posix(),
-        'device': segment.source,
-        'track': segment.track,
-        'channels': '-'.join(str(channel) for channel in segment.channels),
-        'timestamp': _timestamp_name(segment.timestamp),
-        'rule': rule.name,
-        'extension': extension,
-    }
-    rendered = rule.filename.format_map(values)
-    path = PurePosixPath(rendered)
-    if (
-        path.is_absolute()
-        or not rendered
-        or any(part in {'', '.', '..'} for part in path.parts)
-    ):
-        raise ValueError('upload filename must render to a safe relative path')
-    return path
+    return PurePosixPath(session.as_posix()) / PurePosixPath(segment.path.as_posix())
 
 
 def _timestamp_name(value: str) -> str:
@@ -502,30 +514,7 @@ def _materialize_and_upload(
 
 
 def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
-    if plan.rule.encoding.format == 'source':
-        return source
-    extension = plan.rule.encoding.format
-    output = backup_root / 'artifacts' / plan.identity / f'artifact.{extension}'
-    if output.is_file():
-        return output
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        dir=output.parent, suffix=f'.{extension}', delete=False
-    ) as file:
-        temporary = Path(file.name)
-    try:
-        command = ['ffmpeg', '-y', '-i', str(source)]
-        if extension == 'mp3':
-            command.extend(['-b:a', f'{plan.rule.encoding.bitrate_kbps}k'])
-        else:
-            command.extend(['-c:a', 'flac'])
-        command.append(str(temporary))
-        subprocess.run(command, capture_output=True, check=True)
-        temporary.replace(output)
-    except OSError, subprocess.SubprocessError:
-        temporary.unlink(missing_ok=True)
-        raise
-    return output
+    return source
 
 
 def _upload(plan: ArtifactPlan, path: Path) -> bool:

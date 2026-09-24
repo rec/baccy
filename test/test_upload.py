@@ -227,7 +227,7 @@ def test_sync_uses_remote_names_without_hashing_sources(
     )
     monkeypatch.setattr(
         'baccy.upload._remote_targets',
-        lambda destination: {'2026-09-24T20-00-00.000000Z.flac'},
+        lambda destination: {'concert/2026/09/24/20-00-00/audio.flac'},
     )
     monkeypatch.setattr(
         'baccy.upload._source_hash',
