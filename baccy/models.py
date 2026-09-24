@@ -102,24 +102,6 @@ class S3Destination(BaseModel, frozen=True):
 Destination = Annotated[SshDestination | S3Destination, Field(discriminator='kind')]
 
 
-class AccessProfile(BaseModel, frozen=True):
-    ssh_mode: str | None = None
-    s3_acl: str | None = None
-
-    @field_validator('ssh_mode')
-    @classmethod
-    def validate_ssh_mode(cls, value: str | None) -> str | None:
-        if value is not None and (
-            len(value) != 4
-            or not value.isdigit()
-            or any(c not in '01234567' for c in value)
-        ):
-            raise ValueError('SSH mode must be a four-digit octal mode')
-        return value
-
-    model_config = {'extra': 'forbid'}
-
-
 class Encoding(BaseModel, frozen=True):
     format: Literal['source', 'flac', 'mp3']
     bitrate_kbps: int | None = Field(default=None, gt=0)
@@ -135,26 +117,12 @@ class Encoding(BaseModel, frozen=True):
     model_config = {'extra': 'forbid'}
 
 
-class UploadAccess(BaseModel, frozen=True):
-    profile: str | None = None
-    from_: Literal['player'] | None = Field(default=None, alias='from')
-
-    @model_validator(mode='after')
-    def validate_selection(self) -> UploadAccess:
-        if (self.profile is None) == (self.from_ is None):
-            raise ValueError('upload access must set exactly one of profile or from')
-        return self
-
-    model_config = {'extra': 'forbid', 'populate_by_name': True}
-
-
 class UploadRule(BaseModel, frozen=True):
     name: str
     match: str
     encoding: Encoding
     filename: str
     destination: str
-    access: UploadAccess
 
     @field_validator('name', 'destination')
     @classmethod
@@ -186,7 +154,6 @@ class Settings(BaseModel, frozen=True):
     stability_seconds: float = Field(default=60.0, ge=0)
     verbose: bool = True
     destinations: dict[str, Destination] = Field(default_factory=dict)
-    access: dict[str, AccessProfile] = Field(default_factory=dict)
     uploads: list[UploadRule] = Field(default_factory=list)
 
     @model_validator(mode='after')
@@ -195,18 +162,12 @@ class Settings(BaseModel, frozen=True):
         if len(names) != len(set(names)):
             raise ValueError('source names must be unique')
         destination_names = set(self.destinations)
-        access_names = set(self.access)
         names = [r.name for r in self.uploads]
         if len(names) != len(set(names)):
             raise ValueError('upload rule names must be unique')
         for rule in self.uploads:
             if rule.destination not in destination_names:
                 raise ValueError(f'unknown upload destination: {rule.destination}')
-            if (
-                rule.access.profile is not None
-                and rule.access.profile not in access_names
-            ):
-                raise ValueError(f'unknown access profile: {rule.access.profile}')
         return self
 
     model_config = {'extra': 'forbid'}

@@ -57,17 +57,12 @@ kind = "s3"
 bucket = "show-recordings"
 prefix = "upcoming-shows"
 
-[access.show_listeners]
-ssh_mode = "0644"
-s3_acl = "public-read"
-
 [[uploads]]
 name = "main-mp3"
 match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
 filename = "{timestamp}.{extension}"
 destination = "show_server"
-access = { profile = "show_listeners" }
 
 [[uploads]]
 name = "channel-archive"
@@ -75,7 +70,6 @@ match = "True"
 encoding = { format = "flac" }
 filename = "{session}/{device}/{track}/{timestamp}.{extension}"
 destination = "archive"
-access = { from = "player" }
 
 [[sources]]
 kind = "path"
@@ -154,16 +148,10 @@ cache is disposable: the permanent source backup remains authoritative.
 safe relative path. Baccy rejects every colliding target before it starts an
 encoder or upload.
 
-SSH destinations use the existing non-interactive SSH configuration and keys;
-their static access profile may set `ssh_mode`. S3 destinations use boto3 and
-the host's normal AWS credential chain. An optional `s3_acl` applies a canned
-ACL. Baccy records an artifact identity in S3 object metadata and skips an
-object with the same identity. Credentials never appear in the TOML or event
-log.
-
-`access = { from = "player" }` is accepted but currently deferred with
-`player access metadata is missing`: current recs sessions do not snapshot the
-player access profile needed to publish safely.
+SSH destinations use the existing non-interactive SSH configuration and keys.
+S3 destinations use boto3 and the host's normal AWS credential chain. Baccy
+records an artifact identity in S3 object metadata and skips an object with the
+same identity. Credentials never appear in the TOML or event log.
 
 ## Run once
 

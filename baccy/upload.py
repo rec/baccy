@@ -3,6 +3,7 @@ import hashlib
 import json
 import shlex
 import subprocess
+import tempfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
@@ -13,7 +14,6 @@ from pydantic import BaseModel
 from .catalog import Catalog
 from .match import MatchExpression
 from .models import (
-    AccessProfile,
     Destination,
     FileResult,
     ResolvedSource,
@@ -49,8 +49,6 @@ class ArtifactPlan(BaseModel, frozen=True):
     segment: Segment
     rule: UploadRule
     destination: Destination
-    access_profile: str | None
-    access: AccessProfile | None
     target: PurePosixPath
     identity: str
 
@@ -373,18 +371,7 @@ def _artifact_plans(
                 continue
             if not expression.matches(values):
                 continue
-            if rule.access.from_ is not None:
-                results.append(
-                    FileResult(
-                        source=project_name,
-                        relative_path=segment.path,
-                        status='deferred',
-                        detail='player access metadata is missing',
-                    )
-                )
-                continue
             destination = settings.destinations[rule.destination]
-            profile = rule.access.profile
             try:
                 target = _render_target(rule, project_name, relative_session, segment)
                 identity = _artifact_identity(
@@ -397,7 +384,6 @@ def _artifact_plans(
                     segment=segment,
                     rule=rule,
                     destination=destination,
-                    access_profile=profile,
                 )
             except (OSError, ValueError) as error:
                 results.append(
@@ -417,8 +403,6 @@ def _artifact_plans(
                     segment=segment,
                     rule=rule,
                     destination=destination,
-                    access_profile=profile,
-                    access=settings.access[profile] if profile is not None else None,
                     target=target,
                     identity=identity,
                 )
@@ -437,7 +421,30 @@ def _expression_uses_main(expression: MatchExpression) -> bool:
 def _render_target(
     rule: UploadRule, project: str, session: Path, segment: Segment
 ) -> PurePosixPath:
-    return PurePosixPath(session.as_posix()) / PurePosixPath(segment.path.as_posix())
+    if rule.encoding.format == 'source':
+        return PurePosixPath(session.as_posix()) / PurePosixPath(
+            segment.path.as_posix()
+        )
+    extension = rule.encoding.format
+    values = {
+        'project': project,
+        'session': session.as_posix(),
+        'device': segment.source,
+        'track': segment.track,
+        'channels': '-'.join(str(channel) for channel in segment.channels),
+        'timestamp': _timestamp_name(segment.timestamp),
+        'rule': rule.name,
+        'extension': extension,
+    }
+    rendered = rule.filename.format_map(values)
+    path = PurePosixPath(rendered)
+    if (
+        path.is_absolute()
+        or not rendered
+        or any(part in {'', '.', '..'} for part in path.parts)
+    ):
+        raise ValueError('upload filename must render to a safe relative path')
+    return path
 
 
 def _timestamp_name(value: str) -> str:
@@ -454,7 +461,6 @@ def _artifact_identity(
     segment: Segment,
     rule: UploadRule,
     destination: Destination,
-    access_profile: str | None,
 ) -> str:
     value = {
         'session': session.as_posix(),
@@ -462,7 +468,6 @@ def _artifact_identity(
         'segment': segment.model_dump(mode='json'),
         'rule': rule.model_dump(mode='json', by_alias=True),
         'destination': destination.model_dump(mode='json'),
-        'access_profile': access_profile,
     }
     return hashlib.sha256(json.dumps(value, sort_keys=True).encode()).hexdigest()
 
@@ -559,7 +564,6 @@ def _materialize_and_upload(
             'encoding': plan.rule.encoding.model_dump(),
             'destination': _destination_identity(plan.destination),
             'target': plan.target.as_posix(),
-            'access_profile': plan.access_profile,
         }
     )
     return [
@@ -570,46 +574,56 @@ def _materialize_and_upload(
 
 
 def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
-    return source
+    if plan.rule.encoding.format == 'source':
+        return source
+    extension = plan.rule.encoding.format
+    output = backup_root / 'artifacts' / plan.identity / f'artifact.{extension}'
+    if output.is_file():
+        return output
+    output.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=output.parent, suffix=f'.{extension}', delete=False
+    ) as file:
+        temporary = Path(file.name)
+    try:
+        command = ['ffmpeg', '-y', '-i', str(source)]
+        if extension == 'mp3':
+            command.extend(['-b:a', f'{plan.rule.encoding.bitrate_kbps}k'])
+        else:
+            command.extend(['-c:a', 'flac'])
+        command.append(str(temporary))
+        subprocess.run(command, capture_output=True, check=True)
+        temporary.replace(output)
+    except OSError, subprocess.SubprocessError:
+        temporary.unlink(missing_ok=True)
+        raise
+    return output
 
 
 def _upload(plan: ArtifactPlan, path: Path) -> bool:
     if isinstance(plan.destination, SshDestination):
-        _upload_ssh(path, plan.target, plan.destination, plan.access)
+        _upload_ssh(path, plan.target, plan.destination)
         return True
     else:
-        return _upload_s3(
-            path, plan.target, plan.destination, plan.access, plan.identity
-        )
+        return _upload_s3(path, plan.target, plan.destination, plan.identity)
 
 
 def _upload_ssh(
     path: Path,
     target: PurePosixPath,
     destination: SshDestination,
-    access: AccessProfile | None,
 ) -> None:
     host, _, base = destination.url.partition(':')
     remote_path = f'{base.rstrip("/")}/{target.as_posix()}'
     directory = str(PurePosixPath(remote_path).parent)
     _run(['ssh', *_SSH_OPTIONS, host, f'mkdir -p {shlex.quote(directory)}'])
     _run(['scp', *_SSH_OPTIONS, str(path), f'{host}:{shlex.quote(remote_path)}'])
-    if access is not None and access.ssh_mode is not None:
-        _run(
-            [
-                'ssh',
-                *_SSH_OPTIONS,
-                host,
-                f'chmod {access.ssh_mode} {shlex.quote(remote_path)}',
-            ]
-        )
 
 
 def _upload_s3(
     path: Path,
     target: PurePosixPath,
     destination: S3Destination,
-    access: AccessProfile | None,
     identity: str,
 ) -> bool:
     client = s3_client(destination)
@@ -623,8 +637,6 @@ def _upload_s3(
         if existing.get('Metadata', {}).get('baccy-identity') == identity:
             return False
     extra = {'Metadata': {'baccy-identity': identity}}
-    if access is not None and access.s3_acl is not None:
-        extra['ACL'] = access.s3_acl
     arguments = {'ExtraArgs': extra}
     client.upload_file(str(path), destination.bucket, key, **arguments)
     return True

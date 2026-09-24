@@ -56,7 +56,6 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
         {
             'backup_root': tmp_path / 'backup',
             'destinations': {'server': {'kind': 'ssh', 'url': 'user@host:/srv/recs'}},
-            'access': {'listeners': {'ssh_mode': '0644'}},
             'uploads': [
                 {
                     'name': 'main',
@@ -64,7 +63,6 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
                     'encoding': {'format': 'source'},
                     'filename': '{channels}/{timestamp}.{extension}',
                     'destination': 'server',
-                    'access': {'profile': 'listeners'},
                 }
             ],
         }
@@ -76,18 +74,15 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
     assert [result.status for result in first] == ['uploaded'] * 2
     assert [result.status for result in second] == ['unchanged'] * 2
     assert [call[0] for call in calls].count('scp') == 2
-    assert [call[0] for call in calls].count('ssh') == 4
+    assert [call[0] for call in calls].count('ssh') == 2
     events = [
         json.loads(line)
         for line in (tmp_path / 'backup' / 'events.jsonl').read_text().splitlines()
     ]
     assert {event['rule'] for event in events} == {'main'}
-    assert {event['access_profile'] for event in events} == {'listeners'}
 
 
-def test_upload_rules_defer_player_access_and_never_write_on_dry_run(
-    tmp_path: Path,
-) -> None:
+def test_upload_rules_include_main_tracks_on_dry_run(tmp_path: Path) -> None:
     root = tmp_path / 'recs'
     session = root / 'project' / 'session'
     session.mkdir(parents=True)
@@ -127,12 +122,11 @@ def test_upload_rules_defer_player_access_and_never_write_on_dry_run(
             'destinations': {'server': {'kind': 'ssh', 'url': 'host:/srv/recs'}},
             'uploads': [
                 {
-                    'name': 'player',
+                    'name': 'main',
                     'match': 'True',
                     'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
                     'filename': '{timestamp}.{extension}',
                     'destination': 'server',
-                    'access': {'from': 'player'},
                 }
             ],
         }
@@ -143,8 +137,7 @@ def test_upload_rules_defer_player_access_and_never_write_on_dry_run(
 
     results = publish_sessions([source], settings, True)
 
-    assert [result.status for result in results] == ['deferred']
-    assert results[0].detail == 'player access metadata is missing'
+    assert [result.status for result in results] == ['would_upload']
     assert not (tmp_path / 'backup').exists()
 
 
@@ -196,7 +189,6 @@ def test_upload_accepts_compact_recs_v5_audio_records(tmp_path: Path) -> None:
         {
             'backup_root': tmp_path / 'backup',
             'destinations': {'archive': {'kind': 's3', 'bucket': 'archive'}},
-            'access': {'private': {}},
             'uploads': [
                 {
                     'name': 'archive',
@@ -204,7 +196,6 @@ def test_upload_accepts_compact_recs_v5_audio_records(tmp_path: Path) -> None:
                     'encoding': {'format': 'source'},
                     'filename': '{timestamp}.{extension}',
                     'destination': 'archive',
-                    'access': {'profile': 'private'},
                 }
             ],
         }
@@ -284,7 +275,6 @@ def test_sync_uses_remote_names_without_hashing_sources(
         {
             'backup_root': backup,
             'destinations': {'server': {'kind': 'ssh', 'url': 'host:/srv/recs'}},
-            'access': {'private': {}},
             'uploads': [
                 {
                     'name': 'archive',
@@ -292,7 +282,6 @@ def test_sync_uses_remote_names_without_hashing_sources(
                     'encoding': {'format': 'source'},
                     'filename': '{timestamp}.{extension}',
                     'destination': 'server',
-                    'access': {'profile': 'private'},
                 }
             ],
         }

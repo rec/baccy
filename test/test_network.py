@@ -310,7 +310,6 @@ def test_network_recs_backup_is_available_for_project_upload(
             backup_root=tmp_path / 'backup',
             discover_removable=False,
             destinations={'server': {'kind': 'ssh', 'url': 'user@host:/srv/recs'}},
-            access={'listeners': {'ssh_mode': '0644'}},
             uploads=[
                 {
                     'name': 'archive',
@@ -318,7 +317,6 @@ def test_network_recs_backup_is_available_for_project_upload(
                     'encoding': {'format': 'source'},
                     'filename': '{timestamp}.{extension}',
                     'destination': 'server',
-                    'access': {'profile': 'listeners'},
                 }
             ],
         ),
