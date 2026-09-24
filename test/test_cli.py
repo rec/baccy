@@ -1,4 +1,3 @@
-import json
 import tomllib
 from pathlib import Path
 
@@ -7,7 +6,13 @@ from pytest import CaptureFixture, MonkeyPatch
 from reccy.services.models import StatusResult
 
 from baccy.cli import main
-from baccy.models import BackupSummary, ResolvedSource, SourceSelection, VolumeSource
+from baccy.models import (
+    BackupSummary,
+    FileResult,
+    ResolvedSource,
+    SourceSelection,
+    VolumeSource,
+)
 
 
 class NoNetworkDiscovery:
@@ -33,6 +38,7 @@ def test_backup_command_runs_one_pass(
         f'backup_root = "{tmp_path / "backup"}"\n'
         'stability_seconds = 0\n'
         'discover_removable = false\n'
+        'verbose = false\n'
         '[[sources]]\n'
         'kind = "path"\n'
         'name = "source"\n'
@@ -41,16 +47,13 @@ def test_backup_command_runs_one_pass(
 
     exit_code = main(['backup', '--config', str(config)])
 
-    output = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert output['copied'] == 1
+    assert capsys.readouterr().out == 'recording.toml\n'
 
     exit_code = main(['backup', '--config', str(config)])
 
-    output = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert output['unchanged'] == 1
-    assert output['results'][0]['status'] == 'unchanged'
+    assert capsys.readouterr().out == '(no files)\n'
 
 
 def test_backup_command_verbose_includes_unchanged_files(
@@ -75,9 +78,7 @@ def test_backup_command_verbose_includes_unchanged_files(
     capsys.readouterr()
     main(['backup', '--config', str(config)])
 
-    output = json.loads(capsys.readouterr().out)
-    assert output['unchanged'] == 1
-    assert output['results'][0]['status'] == 'unchanged'
+    assert capsys.readouterr().out == 'recording.toml\n'
 
 
 def test_watch_command_prints_only_changed_summaries(
@@ -91,16 +92,21 @@ def test_watch_command_prints_only_changed_summaries(
         assert callable(report)
         report(BackupSummary())
         report(BackupSummary())
-        report(BackupSummary(copied=1))
+        report(
+            BackupSummary().with_result(
+                FileResult(
+                    source='source',
+                    relative_path=Path('recording.toml'),
+                    status='copied',
+                )
+            )
+        )
 
     monkeypatch.setattr('baccy.cli.watch', run_watch)
 
     assert main(['watch', '--config', str(config)]) == 0
 
-    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
-        BackupSummary().model_dump(mode='json'),
-        BackupSummary(copied=1).model_dump(mode='json'),
-    ]
+    assert capsys.readouterr().out == '(no files)\nrecording.toml\n'
 
 
 def test_service_commands_print_toml(
@@ -173,9 +179,8 @@ def test_backup_command_dry_run_does_not_write(
 
     exit_code = main(['backup', flag, '--config', str(config)])
 
-    output = json.loads(capsys.readouterr().out)
     assert exit_code == 0
-    assert output['would_copy'] == 1
+    assert capsys.readouterr().out == 'recording.toml\n'
     assert not destination.exists()
 
 
@@ -201,10 +206,9 @@ def test_backup_command_without_configuration_uses_main_drive(
 
     exit_code = main(['backup'])
 
-    output = json.loads(capsys.readouterr().out)
     destination = tmp_path / 'baccy' / 'audio' / 'recs-session' / 'session-record.jsonl'
     assert exit_code == 0
-    assert output['copied'] == 1
+    assert capsys.readouterr().out == 'recs-session/session-record.jsonl\n'
     assert destination.read_text() == '{"type":"header"}\n'
 
 
@@ -223,9 +227,8 @@ def test_import_command_moves_project_sessions_from_their_header(
 
     assert main(['import', str(source), '--config', str(config)]) == 0
 
-    output = json.loads(capsys.readouterr().out)
     destination = backup / 'audio' / 'concert' / '2026' / '09' / '24' / '20-00-00'
-    assert output['copied'] == 1
+    assert capsys.readouterr().out == 'audio/concert/2026/09/24/20-00-00\n'
     assert (destination / 'session-record.jsonl').exists()
     assert not session.exists()
 
@@ -285,13 +288,14 @@ def test_global_dry_run_previews_import_without_writing(
 
     assert main(['--dry-run', 'import', str(source), '--config', str(config)]) == 0
 
-    output = json.loads(capsys.readouterr().out)
-    assert output['would_copy'] == 1
+    assert capsys.readouterr().out == 'audio/concert/2026/09/24/20-00-00\n'
     assert session.exists()
     assert not backup.exists()
 
 
-def test_global_dry_run_reaches_sync(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+def test_global_dry_run_reaches_sync(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
     config = tmp_path / 'baccy.toml'
     config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
     received: list[bool] = []
@@ -305,3 +309,4 @@ def test_global_dry_run_reaches_sync(tmp_path: Path, monkeypatch: MonkeyPatch) -
     assert main(['-d', 'sync', '--config', str(config)]) == 0
 
     assert received == [True]
+    assert capsys.readouterr().out == '(no files)\n'

@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 from pathlib import Path
@@ -225,7 +224,12 @@ def _dry_run(arguments: list[str]) -> tuple[bool, list[str]]:
 
 def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
     value = _visible_summary(summary, verbose)
-    print(json.dumps(value.model_dump(mode='json'), sort_keys=True))
+    paths = [
+        result.relative_path.as_posix()
+        for result in value.results
+        if result.relative_path is not None
+    ]
+    print('\n'.join(paths) if paths else '(no files)')
 
 
 def _report(
