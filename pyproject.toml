@@ -2,6 +2,9 @@
 requires = ["uv_build>=0.10.12,<0.11"]
 build-backend = "uv_build"
 
+[tool.uv.build-backend]
+module-root = "."
+
 [project]
 name = "baccy"
 version = "0.1.0"
