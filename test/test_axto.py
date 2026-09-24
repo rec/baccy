@@ -5,7 +5,7 @@ from pytest import CaptureFixture, MonkeyPatch
 
 from baccy.cli import main
 from baccy.config import load
-from baccy.models import PathSource, ResolvedSource
+from baccy.models import PathSource, ResolvedSource, S3Destination
 from baccy.upload import publish_sessions
 
 
@@ -39,6 +39,11 @@ def test_axto_config_dry_run_plans_main_mp3_and_all_flac(tmp_path: Path) -> None
     _write_session(backup / 'audio')
     config = _write_config(tmp_path, tmp_path / 'results', backup)
     settings = load(config)
+    destination = settings.destinations['axto']
+    assert isinstance(destination, S3Destination)
+    assert destination.endpoint_url == 'TODO'
+    assert destination.access_key_id == 'TODO'
+    assert destination.secret_access_key == 'TODO'
     source = ResolvedSource(
         source=PathSource(kind='path', name='audio', path=backup / 'audio'),
         root=backup / 'audio',
@@ -49,12 +54,12 @@ def test_axto_config_dry_run_plans_main_mp3_and_all_flac(tmp_path: Path) -> None
     assert [result.status for result in results] == ['would_upload'] * 3
     assert [result.relative_path for result in results] == [
         Path(
-            'oderg in duo/2026/09/04/15-01-57/'
+            'TODO/2026/09/04/15-01-57/'
             'FLOW 8 (Recording)/1-2/2026-09-04T13-01-58.000000Z.flac'
         ),
-        Path('oderg in duo/2026/09/04/15-01-57/2026-09-04T13-02-06.000000Z.mp3'),
+        Path('TODO/2026/09/04/15-01-57/2026-09-04T13-02-06.000000Z.mp3'),
         Path(
-            'oderg in duo/2026/09/04/15-01-57/'
+            'TODO/2026/09/04/15-01-57/'
             'FLOW 8 (Recording)/9-10/2026-09-04T13-02-06.000000Z.flac'
         ),
     ]
@@ -65,15 +70,15 @@ def _write_config(directory: Path, results: Path, backup: Path) -> Path:
     config = directory / 'axto.toml'
     text = (Path(__file__).parent / 'axto.toml').read_text()
     config.write_text(
-        text.replace('TODO_RECS_RESULTS_PATH', str(results)).replace(
-            'TODO_BACCY_ROOT', str(backup)
+        text.replace('backup_root = "TODO"', f'backup_root = "{backup}"').replace(
+            'path = "TODO"', f'path = "{results}"'
         )
     )
     return config
 
 
 def _write_session(root: Path) -> None:
-    session = root / 'oderg in duo' / '2026' / '09' / '04' / '15-01-57'
+    session = root / 'TODO' / '2026' / '09' / '04' / '15-01-57'
     session.mkdir(parents=True)
     (session / 'recording.toml').write_text('format = "recs"\n')
     (session / 'evidence').mkdir()

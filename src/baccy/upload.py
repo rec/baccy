@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 
 import boto3
+from botocore.client import BaseClient
 from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import BaseModel
 
@@ -576,7 +577,7 @@ def _upload_s3(
     access: AccessProfile | None,
     identity: str,
 ) -> bool:
-    client = boto3.client('s3')
+    client = _s3_client(destination)
     key = '/'.join(part for part in (destination.prefix, target.as_posix()) if part)
     try:
         existing = client.head_object(Bucket=destination.bucket, Key=key)
@@ -615,7 +616,9 @@ def _matches_catalog(
 def _destination_identity(destination: Destination) -> str:
     if isinstance(destination, SshDestination):
         return destination.url
-    return f's3://{destination.bucket}/{destination.prefix}'
+    return (
+        f'{destination.endpoint_url or "aws"}/{destination.bucket}/{destination.prefix}'
+    )
 
 
 def _remote_targets(destination: Destination) -> set[str]:
@@ -634,7 +637,7 @@ def _remote_targets(destination: Destination) -> set[str]:
             for path in result.stdout.decode(errors='replace').splitlines()
             if path.startswith(prefix)
         }
-    client = boto3.client('s3')
+    client = _s3_client(destination)
     prefix = destination.prefix.rstrip('/')
     values: set[str] = set()
     paginator = client.get_paginator('list_objects_v2')
@@ -643,6 +646,15 @@ def _remote_targets(destination: Destination) -> set[str]:
             if isinstance(key := value.get('Key'), str):
                 values.add(key.removeprefix(f'{prefix}/'))
     return values
+
+
+def _s3_client(destination: S3Destination) -> BaseClient:
+    return boto3.client(
+        's3',
+        endpoint_url=destination.endpoint_url,
+        aws_access_key_id=destination.access_key_id,
+        aws_secret_access_key=destination.secret_access_key,
+    )
 
 
 def _record_failure(
