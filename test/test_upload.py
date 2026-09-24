@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from baccy.match import MatchExpression
 from baccy.models import PathSource, ResolvedSource, Settings
+from baccy.sync import sync
 from baccy.upload import publish_sessions
 
 
@@ -199,3 +200,53 @@ def test_config_rejects_legacy_upload_policy(tmp_path: Path) -> None:
                 'projects': {'project': {'ssh_url': 'host:/srv/recs'}},
             }
         )
+
+
+def test_sync_uses_remote_names_without_hashing_sources(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backup = tmp_path / 'backup'
+    session = backup / 'concert' / '2026' / '09' / '24' / '20-00-00'
+    session.mkdir(parents=True)
+    (session / 'audio.flac').write_bytes(b'audio')
+    (session / 'session-record.jsonl').write_text(
+        '{"type":"file_started","media_type":"audio","stream_id":"mic",'
+        '"timestamp":"2026-09-24T20:00:00Z","format":"flac",'
+        '"source":"device","source_channels":[1],"path":"audio.flac"}\n'
+        '{"type":"file_finished","media_type":"audio","stream_id":"mic",'
+        '"path":"audio.flac","frame_count":48000,"sample_rate":48000}\n'
+    )
+    settings = Settings.model_validate(
+        {
+            'backup_root': backup,
+            'destinations': {'server': {'kind': 'ssh', 'url': 'host:/srv/recs'}},
+            'access': {'private': {}},
+            'projects': {
+                'concert': {
+                    'uploads': [
+                        {
+                            'name': 'archive',
+                            'match': 'True',
+                            'encoding': {'format': 'source'},
+                            'filename': '{timestamp}.{extension}',
+                            'destination': 'server',
+                            'access': {'profile': 'private'},
+                        }
+                    ]
+                }
+            },
+        }
+    )
+    monkeypatch.setattr(
+        'baccy.upload._remote_targets',
+        lambda destination: {'2026-09-24T20-00-00.000000Z.flac'},
+    )
+    monkeypatch.setattr(
+        'baccy.upload._source_hash',
+        lambda path: pytest.fail('sync must not hash sources'),
+    )
+
+    result = sync([Path('concert')], settings)
+
+    assert result.unchanged == 1
+    assert result.uploaded == 0

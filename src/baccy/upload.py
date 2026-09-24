@@ -57,7 +57,11 @@ class ArtifactPlan(BaseModel, frozen=True):
 
 
 def publish_sessions(
-    sources: list[ResolvedSource], settings: Settings, dry_run: bool
+    sources: list[ResolvedSource],
+    settings: Settings,
+    dry_run: bool,
+    sync: bool = False,
+    directories: list[Path] | None = None,
 ) -> list[FileResult]:
     catalog = Catalog(settings.backup_root)
     results: list[FileResult] = []
@@ -66,9 +70,14 @@ def publish_sessions(
         for project_name, project in settings.projects.items()
         for rule in project.uploads
     }
+    remote_targets: dict[str, set[str]] = {}
     for source in sources:
         for journal in sorted(source.root.glob('**/session-record.jsonl')):
             if journal.is_symlink():
+                continue
+            if directories is not None and not any(
+                journal.is_relative_to(directory) for directory in directories
+            ):
                 continue
             relative_session = journal.parent.relative_to(source.root)
             if not relative_session.parts:
@@ -87,6 +96,8 @@ def publish_sessions(
                     expressions,
                     catalog,
                     dry_run,
+                    sync,
+                    remote_targets,
                 )
             )
     return results
@@ -102,6 +113,8 @@ def _publish_session(
     expressions: dict[tuple[str, str], MatchExpression],
     catalog: Catalog,
     dry_run: bool,
+    sync: bool,
+    remote_targets: dict[str, set[str]],
 ) -> list[FileResult]:
     try:
         segments = _completed_segments(session_root / 'session-record.jsonl')
@@ -125,6 +138,7 @@ def _publish_session(
         expressions,
         main,
         main_error,
+        sync,
     )
     targets = [
         (_destination_identity(plan.destination), plan.target.as_posix())
@@ -142,7 +156,11 @@ def _publish_session(
                 )
             )
             continue
-        results.extend(_materialize_and_upload(plan, session_root, catalog, dry_run))
+        results.extend(
+            _materialize_and_upload(
+                plan, session_root, catalog, dry_run, sync, remote_targets
+            )
+        )
     return results
 
 
@@ -239,6 +257,7 @@ def _artifact_plans(
     expressions: dict[tuple[str, str], MatchExpression],
     main: tuple[str, set[int]] | None,
     main_error: str | None,
+    sync: bool,
 ) -> tuple[list[ArtifactPlan], list[FileResult]]:
     plans: list[ArtifactPlan] = []
     results: list[FileResult] = []
@@ -288,7 +307,11 @@ def _artifact_plans(
                 target = _render_target(rule, project_name, relative_session, segment)
                 identity = _artifact_identity(
                     session=relative_session,
-                    source_hash=_source_hash(session_root / segment.path),
+                    source_hash=(
+                        segment.path.as_posix()
+                        if sync
+                        else _source_hash(session_root / segment.path)
+                    ),
                     segment=segment,
                     rule=rule,
                     destination=destination,
@@ -394,7 +417,12 @@ def _source_hash(path: Path) -> str:
 
 
 def _materialize_and_upload(
-    plan: ArtifactPlan, session_root: Path, catalog: Catalog, dry_run: bool
+    plan: ArtifactPlan,
+    session_root: Path,
+    catalog: Catalog,
+    dry_run: bool,
+    sync: bool,
+    remote_targets: dict[str, set[str]],
 ) -> list[FileResult]:
     source = session_root / plan.segment.path
     if not source.is_file():
@@ -405,7 +433,20 @@ def _materialize_and_upload(
             'completed source backup is missing',
             dry_run,
         )
-    if _matches_catalog(catalog, plan.project, Path(plan.identity), source):
+    destination_id = _destination_identity(plan.destination)
+    if sync:
+        if destination_id not in remote_targets:
+            remote_targets[destination_id] = _remote_targets(plan.destination)
+        targets = remote_targets[destination_id]
+        if plan.target.as_posix() in targets:
+            return [
+                FileResult(
+                    source=plan.project,
+                    relative_path=Path(plan.target),
+                    status='unchanged',
+                )
+            ]
+    elif _matches_catalog(catalog, plan.project, Path(plan.identity), source):
         return [
             FileResult(
                 source=plan.project, relative_path=Path(plan.target), status='unchanged'
@@ -427,6 +468,8 @@ def _materialize_and_upload(
             catalog, plan.project, Path(plan.identity), str(error), dry_run
         )
     stat = source.stat()
+    if sync:
+        remote_targets[destination_id].add(plan.target.as_posix())
     if not uploaded:
         catalog.append(
             {
@@ -573,6 +616,33 @@ def _destination_identity(destination: Destination) -> str:
     if isinstance(destination, SshDestination):
         return destination.url
     return f's3://{destination.bucket}/{destination.prefix}'
+
+
+def _remote_targets(destination: Destination) -> set[str]:
+    if isinstance(destination, SshDestination):
+        host, _, base = destination.url.partition(':')
+        result = subprocess.run(
+            ['ssh', *_SSH_OPTIONS, host, f'find {shlex.quote(base)} -type f -print'],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode:
+            return set()
+        prefix = f'{base.rstrip("/")}/'
+        return {
+            path.removeprefix(prefix)
+            for path in result.stdout.decode(errors='replace').splitlines()
+            if path.startswith(prefix)
+        }
+    client = boto3.client('s3')
+    prefix = destination.prefix.rstrip('/')
+    values: set[str] = set()
+    paginator = client.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=destination.bucket, Prefix=prefix):
+        for value in page.get('Contents', []):
+            if isinstance(key := value.get('Key'), str):
+                values.add(key.removeprefix(f'{prefix}/'))
+    return values
 
 
 def _record_failure(
