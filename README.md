@@ -214,6 +214,22 @@ preserved. For an individual session, baccy derives `YEAR/MONTH/DAY` from the
 session's `started_at` header and keeps its timestamp directory name. After the
 import, baccy applies any configured upload rules to the imported sessions.
 
+## Sync publication
+
+Reconcile every publishable session, or only selected project/directory paths
+below the backup root:
+
+```sh
+uv run baccy sync
+uv run baccy sync concert
+uv run baccy sync concert/2026/09
+```
+
+`sync` lists each configured remote destination once and uploads only target
+names absent from that listing. It assumes files are immutable under their
+target names, so it neither hashes local files nor compares bytes with remote
+objects.
+
 ## Watch in the foreground
 
 Run repeated scans in the current terminal:

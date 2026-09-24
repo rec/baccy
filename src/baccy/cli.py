@@ -14,6 +14,7 @@ from .config import default_config_path, load_or_default
 from .importer import import_recs
 from .models import BackupSummary, Settings
 from .network import NetworkDiscovery
+from .sync import sync
 from .watch import watch
 
 
@@ -35,6 +36,12 @@ class ImportCommand(ConfigCommand):
     directories: Annotated[list[Path], tyro.conf.Positional]
     copy_directories: Annotated[bool, tyro.conf.arg(name='copy')] = False
     project: str | None = None
+
+
+class SyncCommand(ConfigCommand):
+    directories: Annotated[list[Path], tyro.conf.Positional] = Field(
+        default_factory=list
+    )
 
 
 class InstallCommand(ConfigCommand):
@@ -72,6 +79,9 @@ def main(argv: list[str] | None = None) -> int:
     if command == 'import':
         value = tyro.cli(ImportCommand, args=rest, prog='baccy import')
         return _import(value)
+    if command == 'sync':
+        value = tyro.cli(SyncCommand, args=rest, prog='baccy sync')
+        return _sync(value)
     if command == 'service':
         return _service(rest)
     print(f'unknown command: {command}', file=sys.stderr)
@@ -138,6 +148,14 @@ def _import(command: ImportCommand) -> int:
     return 1 if summary.failed else 0
 
 
+def _sync(command: SyncCommand) -> int:
+    settings = load_or_default(command.config)
+    directories = command.directories or [settings.backup_root]
+    summary = sync(directories, settings)
+    _print_summary(summary, settings.verbose)
+    return 1 if summary.failed else 0
+
+
 def _service(arguments: list[str]) -> int:
     if not arguments or arguments[0] in {'-h', '--help'}:
         print(_service_usage())
@@ -199,7 +217,7 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 
 
 def _usage() -> str:
-    return 'Usage: baccy {backup,watch,import,service} ...'
+    return 'Usage: baccy {backup,watch,import,sync,service} ...'
 
 
 def _service_usage() -> str:
