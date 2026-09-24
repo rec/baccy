@@ -37,7 +37,7 @@ def import_recs(
                     settings.backup_root
                     / 'audio'
                     / project_name
-                    / _session_relative(directory, session)
+                    / _session_relative(directory, session, project_name)
                 )
                 if destination.exists():
                     raise FileExistsError(
@@ -98,7 +98,7 @@ def _preview_import(
                 settings.backup_root
                 / 'audio'
                 / project_name
-                / _session_relative(directory, session)
+                / _session_relative(directory, session, project_name)
             )
             if destination.exists():
                 raise FileExistsError(
@@ -167,9 +167,12 @@ def _directory_project(directory: Path, session: Path) -> str | None:
     return name
 
 
-def _session_relative(directory: Path, session: Path) -> Path:
+def _session_relative(directory: Path, session: Path, project: str) -> Path:
     if session != directory:
-        return session.relative_to(directory)
+        relative = session.relative_to(directory)
+        if relative.parts[0] == project:
+            return Path(*relative.parts[1:])
+        return relative
     try:
         with (session / 'session-record.jsonl').open() as file:
             header = json.loads(file.readline())
