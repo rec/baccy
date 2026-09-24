@@ -37,15 +37,12 @@ def test_load_reads_upload_rules(tmp_path: Path) -> None:
         '[destinations.server]\n'
         'kind = "ssh"\n'
         'url = "user@example.org:/srv/recs"\n'
-        '[access.listeners]\n'
-        'ssh_mode = "0644"\n'
         '[[uploads]]\n'
         'name = "main"\n'
         'match = "main and duration > 90"\n'
         'encoding = { format = "mp3", bitrate_kbps = 128 }\n'
         'filename = "{timestamp}.{extension}"\n'
         'destination = "server"\n'
-        'access = { profile = "listeners" }\n'
     )
 
     settings = load(path)

@@ -44,7 +44,6 @@ def test_upload_reports_every_missing_source_before_contacting_destinations(
         {
             'backup_root': tmp_path / 'backup',
             'destinations': {'archive': {'kind': 's3', 'bucket': 'archive'}},
-            'access': {'private': {}},
             'uploads': [
                 {
                     'name': 'archive',
@@ -52,7 +51,6 @@ def test_upload_reports_every_missing_source_before_contacting_destinations(
                     'encoding': {'format': 'source'},
                     'filename': '{timestamp}.{extension}',
                     'destination': 'archive',
-                    'access': {'profile': 'private'},
                 }
             ],
         }
