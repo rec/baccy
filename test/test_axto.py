@@ -1,4 +1,3 @@
-import json
 import shutil
 from pathlib import Path
 
@@ -29,19 +28,17 @@ def test_axto_config_dry_run_imports_recs_results_layout(
         ]
     )
 
-    output = json.loads(capsys.readouterr().out)
+    paths = capsys.readouterr().out.splitlines()
     assert exit_code == 0
     settings = load(config)
     destination = settings.destinations['axto']
     assert isinstance(destination, S3Destination)
     assert destination.endpoint_url is None
     assert settings.backup_root == tmp_path / 'baccy'
-    assert output['would_copy'] == 61
-    paths = {result['relative_path'] for result in output['results']}
+    assert len(paths) == 61
     assert 'audio/totm/2017/01/01/00-00-02' in paths
     assert 'audio/oderg in duo/2026/03/28/10-45-52' in paths
-    sources = {result['source'] for result in output['results']}
-    assert sources == {'oderg in duo', 'totm'}
+    assert all(not path.startswith('audio/results/') for path in paths)
     assert not (settings.backup_root / 'events.jsonl').exists()
 
 
