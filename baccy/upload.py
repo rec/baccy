@@ -177,13 +177,14 @@ def _completed_segments(journal: Path) -> list[Segment]:
             if record_type == 'file_started':
                 starts[identity] = value
             elif (start := starts.get(identity)) is not None:
-                segments.append(_segment(start, value, journal))
+                if (segment := _segment(start, value, journal)) is not None:
+                    segments.append(segment)
     return segments
 
 
 def _segment(
     start: dict[str, object], finish: dict[str, object], journal: Path
-) -> Segment:
+) -> Segment | None:
     path = start.get('path')
     timestamp = start.get('timestamp')
     source = start.get('source')
@@ -199,7 +200,6 @@ def _segment(
         or not isinstance(timestamp, str)
         or not isinstance(source, str)
         or not isinstance(channels, list)
-        or not channels
         or not all(isinstance(channel, int) and channel > 0 for channel in channels)
         or not isinstance(frames, int)
         or frames < 0
@@ -208,6 +208,8 @@ def _segment(
         or not isinstance(format_name, str)
     ):
         raise ValueError(f'invalid completed audio record in {journal}')
+    if not channels:
+        return None
     return Segment(
         path=Path(path),
         timestamp=timestamp,

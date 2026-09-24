@@ -23,6 +23,7 @@ def test_repair_reports_a_unique_audio_basename(tmp_path: Path) -> None:
         }
     ]
     assert '"path": "audio/recording.flac"' in report['proposed_journal']
+    assert '"source": "device"' in report['proposed_journal']
     assert (session / 'session-record.jsonl').read_text() == '{"type":"import"}\n'
 
 
@@ -58,8 +59,9 @@ def _session(root: Path) -> Path:
     (session / 'session-record.jsonl').write_text('{"type":"import"}\n')
     (session / 'evidence' / 'session-record-v3.jsonl').write_text(
         '{"type":"file_started","media_type":"audio",'
-        '"stream_id":"stream","path":"old-layout/recording.flac"}\n'
-        '{"type":"file_finished","stream_id":"stream",'
+        '"stream_id":"audio:device:1",'
+        '"path":"old-layout/recording.flac"}\n'
+        '{"type":"file_finished","stream_id":"audio:device:1",'
         '"path":"old-layout/recording.flac",'
         '"frame_count":1,"sample_rate":1}\n'
     )
