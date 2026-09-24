@@ -42,8 +42,6 @@ def test_axto_config_dry_run_plans_main_mp3_and_all_flac(tmp_path: Path) -> None
     destination = settings.destinations['axto']
     assert isinstance(destination, S3Destination)
     assert destination.endpoint_url == 'TODO'
-    assert destination.access_key_id == 'TODO'
-    assert destination.secret_access_key == 'TODO'
     source = ResolvedSource(
         source=PathSource(kind='path', name='audio', path=backup / 'audio'),
         root=backup / 'audio',

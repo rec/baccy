@@ -11,15 +11,11 @@ path = "TODO"
 kind = "s3"
 bucket = "axto"
 endpoint_url = "TODO"
-access_key_id = "TODO"
-secret_access_key = "TODO"
 
 [destinations.axto-private]
 kind = "s3"
 bucket = "axto-private"
 endpoint_url = "TODO"
-access_key_id = "TODO"
-secret_access_key = "TODO"
 
 [access.axto-public]
 

@@ -641,8 +641,6 @@ def _s3_client(destination: S3Destination) -> BaseClient:
     return boto3.client(
         's3',
         endpoint_url=destination.endpoint_url,
-        aws_access_key_id=destination.access_key_id,
-        aws_secret_access_key=destination.secret_access_key,
     )
 
 
