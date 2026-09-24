@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from .application import Application
 from .backup import run_backup
 from .config import default_config_path, load_or_default
+from .importer import import_recs
 from .models import BackupSummary, Settings
 from .network import NetworkDiscovery
 from .watch import watch
@@ -28,6 +29,12 @@ class BackupCommand(ConfigCommand):
 
 class WatchCommand(BackupCommand):
     """Run backup passes until interrupted."""
+
+
+class ImportCommand(ConfigCommand):
+    directories: Annotated[list[Path], tyro.conf.Positional]
+    copy_directories: Annotated[bool, tyro.conf.arg(name='copy')] = False
+    project: str | None = None
 
 
 class InstallCommand(ConfigCommand):
@@ -62,6 +69,9 @@ def main(argv: list[str] | None = None) -> int:
     if command == 'watch':
         value = tyro.cli(WatchCommand, args=rest, prog='baccy watch')
         return _watch(value)
+    if command == 'import':
+        value = tyro.cli(ImportCommand, args=rest, prog='baccy import')
+        return _import(value)
     if command == 'service':
         return _service(rest)
     print(f'unknown command: {command}', file=sys.stderr)
@@ -117,6 +127,15 @@ def _watch(command: WatchCommand) -> int:
             report=reporter.print,
         )
     return 0
+
+
+def _import(command: ImportCommand) -> int:
+    settings = load_or_default(command.config)
+    summary = import_recs(
+        command.directories, settings, command.copy_directories, command.project
+    )
+    _print_summary(summary, settings.verbose)
+    return 1 if summary.failed else 0
 
 
 def _service(arguments: list[str]) -> int:
@@ -180,7 +199,7 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 
 
 def _usage() -> str:
-    return 'Usage: baccy {backup,watch,service} ...'
+    return 'Usage: baccy {backup,watch,import,service} ...'
 
 
 def _service_usage() -> str:

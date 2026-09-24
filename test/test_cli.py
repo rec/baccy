@@ -180,3 +180,58 @@ def test_backup_command_without_configuration_uses_main_drive(
     assert exit_code == 0
     assert output['copied'] == 1
     assert destination.read_text() == '{"type":"header"}\n'
+
+
+def test_import_command_moves_project_sessions_from_their_header(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    source = tmp_path / 'incoming-project'
+    session = source / '2026' / '09' / '24' / '20-00-00'
+    session.mkdir(parents=True)
+    (session / 'session-record.jsonl').write_text(
+        '{"type":"header","project_name":"concert"}\n'
+    )
+    backup = tmp_path / 'backup'
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{backup}"\n')
+
+    assert main(['import', str(source), '--config', str(config)]) == 0
+
+    output = json.loads(capsys.readouterr().out)
+    destination = backup / 'concert' / '2026' / '09' / '24' / '20-00-00'
+    assert output['copied'] == 1
+    assert (destination / 'session-record.jsonl').exists()
+    assert not session.exists()
+
+
+def test_import_command_copies_direct_session_with_project_override(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    session = tmp_path / '20-00-00'
+    session.mkdir()
+    (session / 'session-record.jsonl').write_text(
+        '{"type":"header","started_at":"2026-09-24T20:00:00Z"}\n'
+    )
+    backup = tmp_path / 'backup'
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{backup}"\n')
+
+    assert (
+        main(
+            [
+                'import',
+                str(session),
+                '--copy',
+                '--project',
+                'concert',
+                '--config',
+                str(config),
+            ]
+        )
+        == 0
+    )
+
+    assert session.exists()
+    assert (
+        backup / 'concert' / '2026' / '09' / '24' / '20-00-00' / 'session-record.jsonl'
+    ).exists()
