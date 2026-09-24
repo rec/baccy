@@ -31,4 +31,7 @@ def _test_destination(destination: Destination) -> None:
 
 
 def _test_s3(destination: S3Destination) -> None:
-    boto3.client('s3').list_objects_v2(Bucket=destination.bucket, MaxKeys=1)
+    boto3.client(
+        's3',
+        endpoint_url=destination.endpoint_url,
+    ).list_objects_v2(Bucket=destination.bucket, MaxKeys=1)

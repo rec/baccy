@@ -1,0 +1,40 @@
+backup_root = "TODO"
+stability_seconds = 0
+discover_removable = false
+
+[[sources]]
+kind = "path"
+name = "recs-results"
+path = "TODO"
+
+[destinations.axto]
+kind = "s3"
+bucket = "axto"
+endpoint_url = "TODO"
+
+[destinations.axto-private]
+kind = "s3"
+bucket = "axto-private"
+endpoint_url = "TODO"
+
+[access.axto-public]
+
+[access.axto-private]
+
+[projects."TODO"]
+
+[[projects."TODO".uploads]]
+name = "main-mp3"
+match = "main and duration > 120"
+encoding = { format = "mp3", bitrate_kbps = 128 }
+filename = "{session}/{timestamp}.{extension}"
+destination = "axto"
+access = { profile = "axto-public" }
+
+[[projects."TODO".uploads]]
+name = "all-flac"
+match = "True"
+encoding = { format = "flac" }
+filename = "{session}/{device}/{channels}/{timestamp}.{extension}"
+destination = "axto-private"
+access = { profile = "axto-private" }

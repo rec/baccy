@@ -78,6 +78,7 @@ class SshDestination(BaseModel, frozen=True):
 class S3Destination(BaseModel, frozen=True):
     kind: Literal['s3']
     bucket: str
+    endpoint_url: str | None = None
     prefix: str = ''
 
     @field_validator('bucket')
