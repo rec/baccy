@@ -1,0 +1,61 @@
+The top-level session-record.jsonl does not list these files. Each has a
+same-name audio record in evidence/session-record-v3.jsonl, whose path still
+uses the pre-import session layout. These are likely path-metadata mismatches,
+not duplicate or untracked recordings.
+
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 1-2 + 20260904-150158.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 3-4 + 20260904-150216.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-150206.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-150320.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-150658.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-151217.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-151338.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-151411.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-151554.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-152457.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-155737.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-160453.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-160947.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-162244.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-163011.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-163252.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-163319.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 5-6 + 20260904-163533.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-150206.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-150320.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-150658.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-151217.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-151338.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-151411.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-151554.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-155743.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-162244.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-163011.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-163253.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-163319.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 7-8 + 20260904-163533.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 9-10 + 20260904-150206.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 9-10 + 20260904-150544.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 9-10 + 20260904-155743.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 9-10 + 20260904-162204.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 9-10 + 20260904-163006.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 9-10 + 20260904-163253.flac
+oderg in duo/2026/09/04/15-01-57/audio/FLOW 8 (Recording) + 9-10 + 20260904-163944.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-150158.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-150752.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-151300.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-151859.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-151919.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-152152.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-152850.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-153446.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-153820.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-154751.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-155307.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-155632.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-155719.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-160409.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-161508.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-162739.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-162821.flac
+oderg in duo/2026/09/04/15-01-57/audio/MacBook Pro Microphone + 1 + 20260904-163619.flac
