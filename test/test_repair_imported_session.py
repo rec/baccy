@@ -53,6 +53,55 @@ def test_repair_apply_refuses_a_missing_audio_file(tmp_path: Path) -> None:
     assert (session / 'session-record.jsonl').read_text() == '{"type":"import"}\n'
 
 
+def test_repair_discards_missing_audio_when_requested(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    (session / 'audio').mkdir()
+
+    result = _run(session, '--discard-missing-audio')
+
+    assert result.returncode == 0
+    report = json.loads(result.stdout)
+    assert report['report'] == [
+        {'path': 'old-layout/recording.flac', 'status': 'discarded'}
+    ]
+
+
+def test_repair_matches_channels_and_adds_unrecorded_audio(tmp_path: Path) -> None:
+    session = tmp_path / 'session'
+    (session / 'audio').mkdir(parents=True)
+    (session / 'session-record.jsonl').write_text('{"type":"import"}\n')
+    (session / 'evidence').mkdir()
+    (session / 'evidence' / 'session-record-v3.jsonl').write_text(
+        '{"type":"file_started","media_type":"audio",'
+        '"stream_id":"audio:LiveTrak L-12:TRACK01",'
+        '"path":"old/LiveTrak L-12 + TRACK01 + 20170101-000002.WAV",'
+        '"source_channels":[1],"timestamp":"2017-01-01T00:00:02Z",'
+        '"format":"wav","frame_count":0,"sample_rate":48000}\n'
+        '{"type":"file_finished","stream_id":"audio:LiveTrak L-12:TRACK01",'
+        '"path":"old/LiveTrak L-12 + TRACK01 + 20170101-000002.WAV",'
+        '"frame_count":1,"sample_rate":48000}\n'
+    )
+    (session / 'audio' / '1 + 20170101-000002.flac').touch()
+    (session / 'audio' / 'master + 20170101-000002.flac').touch()
+
+    result = _run(session, '--include-unrecorded-audio')
+
+    assert result.returncode == 0
+    report = json.loads(result.stdout)
+    assert report['report'] == [
+        {
+            'path': 'old/LiveTrak L-12 + TRACK01 + 20170101-000002.WAV',
+            'status': 'repaired',
+            'resolved_path': 'audio/1 + 20170101-000002.flac',
+        },
+        {
+            'path': 'audio/master + 20170101-000002.flac',
+            'status': 'added',
+            'resolved_path': 'audio/master + 20170101-000002.flac',
+        },
+    ]
+
+
 def _session(root: Path) -> Path:
     session = root / 'session'
     (session / 'evidence').mkdir(parents=True)
