@@ -193,6 +193,27 @@ Use `-d` or `--dry-run` to print the same summary with `would_copy` and
 artifact cache, temporary files, or network connections.
 `baccy watch -d` repeatedly performs the same non-writing preview.
 
+## Import recs sessions
+
+Import one or more recs project directories or individual session directories:
+
+```sh
+uv run baccy import /Volumes/Recordings/concert
+uv run baccy import /Volumes/Recordings/2026/09/24/20-00-00 --project concert
+uv run baccy import /Volumes/Recordings/concert --copy
+```
+
+By default `import` moves each session into its canonical location under the
+backup root. `--copy` leaves the original directory unchanged. It uses a
+session header's `project_name` first; `--project NAME` overrides it. For a
+project directory whose session headers omit the project, its directory name is
+used. An individual session without a header project requires `--project`.
+
+For a project directory, the existing `YEAR/MONTH/DAY/TIMESTAMP` layout is
+preserved. For an individual session, baccy derives `YEAR/MONTH/DAY` from the
+session's `started_at` header and keeps its timestamp directory name. After the
+import, baccy applies any configured upload rules to the imported sessions.
+
 ## Watch in the foreground
 
 Run repeated scans in the current terminal:
