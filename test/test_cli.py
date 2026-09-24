@@ -120,6 +120,36 @@ def test_service_commands_print_toml(
     }
 
 
+def test_test_command_prints_ok_for_reachable_destinations(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
+    monkeypatch.setattr('baccy.cli.test_destinations', lambda settings: [])
+
+    assert main(['test', '--config', str(config)]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == 'ok\n'
+    assert captured.err == ''
+
+
+def test_test_command_reports_unreachable_destinations(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
+    monkeypatch.setattr(
+        'baccy.cli.test_destinations', lambda settings: ['archive: access denied']
+    )
+
+    assert main(['test', '--config', str(config)]) == -1
+
+    captured = capsys.readouterr()
+    assert captured.out == ''
+    assert captured.err == 'archive: access denied\n'
+
+
 @pytest.mark.parametrize('flag', ['-d', '--dry-run'])
 def test_backup_command_dry_run_does_not_write(
     tmp_path: Path, capsys: CaptureFixture[str], flag: str
