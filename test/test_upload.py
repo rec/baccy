@@ -40,7 +40,7 @@ def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
                     'media_type': 'audio',
                     'stream_id': str(channel),
                     'path': path,
-                    'frame_count': 5_808_000,
+                    'frame_count': 0 if channel == 1 else 5_808_000,
                     'sample_rate': 48_000,
                 },
             ]

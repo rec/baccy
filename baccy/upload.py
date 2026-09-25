@@ -340,17 +340,23 @@ def _artifact_plans(
         for segment in segments
         if segment.track.casefold().startswith(('master', 'main'))
     }
+    session_duration = max((segment.duration for segment in segments), default=0.0)
     main, main_error = (
         _main_channels(segments) if not named_main_tracks else (None, None)
     )
     for segment in segments:
-        is_main = (segment.source, segment.track) in named_main_tracks or (
+        named_main = (segment.source, segment.track) in named_main_tracks
+        is_main = named_main or (
             main is not None
             and segment.source == main[0]
             and set(segment.channels).issubset(main[1])
         )
         values = {
-            'duration': segment.duration,
+            'duration': (
+                session_duration
+                if named_main and segment.frame_count == 0
+                else segment.duration
+            ),
             'main': is_main,
             'device': segment.source,
             'channels': segment.channels,
