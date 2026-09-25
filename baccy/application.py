@@ -2,10 +2,12 @@ import logging
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
 from pydantic import PrivateAttr
+from reccy.protocol import ipc, rpc
 from reccy.reccy import Reccy, ReccyStatus
 from reccy.services import models, spec
 
@@ -33,6 +35,11 @@ class Application(Reccy):
     _recognized_sources: dict[str, RecognizedSource] = PrivateAttr(default_factory=dict)
     _recognized_machines: set[str] = PrivateAttr(default_factory=set)
     _pending_completions: set[str] = PrivateAttr(default_factory=set)
+    _sync_requested: threading.Event = PrivateAttr(default_factory=threading.Event)
+
+    @property
+    def sync_requested(self) -> threading.Event:
+        return self._sync_requested
 
     def service_metadata(
         self, daemon_argv: list[str], executable: Path | None = None
@@ -104,12 +111,22 @@ class Application(Reccy):
         self._pending_completions.difference_update(self._recognized_sources)
         self.publish_status()
 
+    def rpc_command(self, request: rpc.Request) -> rpc.Result:
+        if request.command == 'sync':
+            self._sync_requested.set()
+            return {'scheduled': True}
+        return ipc.Error(type='error', message=f'unknown command {request.command}')
+
     def status_snapshot(self) -> BaccyStatus:
         return BaccyStatus(
             running=self._started,
             errors=self._errors.copy(),
             summary=self._summary,
         )
+
+
+class DaemonApplication(Application):
+    rpc_enabled = True
 
 
 def _install_service_release(home: Path) -> Path:

@@ -9,8 +9,9 @@ from typing import Annotated
 import tomlkit
 import tyro
 from pydantic import BaseModel, Field
+from reccy.protocol import rpc
 
-from .application import Application
+from .application import Application, DaemonApplication
 from .backup import run_backup
 from .config import default_config_path, load_or_default
 from .importer import import_recs
@@ -83,7 +84,7 @@ class DaemonLogFormatter(logging.Formatter):
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     try:
-        config, arguments = _config(arguments)
+        config, daemon, arguments = _config(arguments)
     except ValueError as error:
         print(error, file=sys.stderr)
         return 2
@@ -103,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         return _import(value, config, dry_run)
     if command == 'sync':
         value = tyro.cli(SyncCommand, args=rest, prog='baccy sync')
-        return _sync(value, config, dry_run)
+        return _sync(value, config, dry_run, daemon)
     if command == 'test':
         value = tyro.cli(TestCommand, args=rest, prog='baccy test')
         return _test(value, config, dry_run)
@@ -127,7 +128,7 @@ def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
     reporter = SummaryReporter(settings.verbose)
 
     if os.environ.get('BACCY_DAEMON') == '1':
-        application = Application()
+        application = DaemonApplication()
         _configure_daemon_logging()
 
         def action(value: Settings) -> BackupSummary:
@@ -147,6 +148,7 @@ def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
         try:
             watch(
                 settings,
+                trigger=application.sync_requested,
                 action=action,
                 report=lambda summary: _report(application, summary),
             )
@@ -178,7 +180,17 @@ def _import(command: ImportCommand, config: Path, dry_run: bool) -> int:
     return 1 if summary.failed else 0
 
 
-def _sync(command: SyncCommand, config: Path, dry_run: bool) -> int:
+def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> int:
+    if daemon and not dry_run:
+        if command.directories:
+            print('--daemon sync does not accept directories', file=sys.stderr)
+            return 2
+        try:
+            rpc.Client(Application().control_endpoint, role='baccy-cli').call('sync')
+        except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as error:
+            print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
+            return 1
+        return 0
     settings = load_or_default(config)
     summary = sync(command.directories, settings, dry_run)
     _print_summary(summary, settings.verbose)
@@ -240,7 +252,7 @@ def _dry_run(arguments: list[str]) -> tuple[bool, list[str]]:
     ]
 
 
-def _config(arguments: list[str]) -> tuple[Path, list[str]]:
+def _config(arguments: list[str]) -> tuple[Path, bool, list[str]]:
     config: Path | None = None
     daemon = False
     values: list[str] = []
@@ -260,8 +272,8 @@ def _config(arguments: list[str]) -> tuple[Path, list[str]]:
     if daemon:
         if config is not None:
             raise ValueError('--daemon cannot be used with --config')
-        return _daemon_config(), values
-    return config or default_config_path(), values
+        return _daemon_config(), True, values
+    return config or default_config_path(), False, values
 
 
 def _daemon_config() -> Path:
