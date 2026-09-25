@@ -493,6 +493,7 @@ def _materialize_and_upload(
                 source=plan.project,
                 relative_path=Path(plan.target),
                 status='would_upload',
+                destination=_display_destination(plan.destination),
             )
         ]
     if sync:
@@ -505,6 +506,7 @@ def _materialize_and_upload(
                     source=plan.project,
                     relative_path=Path(plan.target),
                     status='unchanged',
+                    destination=_display_destination(plan.destination),
                 )
             ]
     elif _matches_catalog(catalog, plan.project, Path(plan.identity), source):
@@ -539,6 +541,7 @@ def _materialize_and_upload(
                 source=plan.project,
                 relative_path=Path(plan.target),
                 status='unchanged',
+                destination=_display_destination(plan.destination),
             )
         ]
     catalog.append(
@@ -557,7 +560,10 @@ def _materialize_and_upload(
     )
     return [
         FileResult(
-            source=plan.project, relative_path=Path(plan.target), status='uploaded'
+            source=plan.project,
+            relative_path=Path(plan.target),
+            status='uploaded',
+            destination=_display_destination(plan.destination),
         )
     ]
 
@@ -654,6 +660,12 @@ def _destination_identity(destination: Destination) -> str:
         return destination.url
     endpoint = s3_endpoint_url(destination) or 'aws'
     return f'{endpoint}/{destination.bucket}/{destination.prefix}'
+
+
+def _display_destination(destination: Destination) -> str:
+    if isinstance(destination, S3Destination):
+        return destination.bucket
+    return destination.url
 
 
 def _remote_targets(destination: Destination) -> set[str]:
