@@ -227,7 +227,7 @@ def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
     paths = [
         result.relative_path.as_posix()
         for result in value.results
-        if result.relative_path is not None
+        if result.relative_path is not None and result.status != 'deferred'
     ]
     print('\n'.join(paths) if paths else '(no files)')
 

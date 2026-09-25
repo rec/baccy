@@ -52,6 +52,9 @@ def test_axto_config_dry_run_syncs_all_expected_transfers(
 
     scheduled = sorted(capsys.readouterr().out.splitlines())
     assert exit_code == 0
+    assert len(scheduled) > 500
+    assert all(not path.startswith('audio/') for path in scheduled)
+    assert 'totm/2017/01/01/01-39-50/audio/1 + 20170101-013950.WAV' in scheduled
     assert scheduled == (FIXTURES / 'transfers.txt').read_text().splitlines()
     assert not (backup / 'events.jsonl').exists()
 
