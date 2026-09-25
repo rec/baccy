@@ -38,8 +38,7 @@ This makes `baccy backup`, `baccy watch`, and a normally installed service
 useful without creating a configuration file. A missing path supplied
 explicitly with `--config` remains an error.
 
-Pass `--config PATH` to any backup, watch, or service-install command to use a
-different file.
+Pass `--config PATH` before the command to use a different file.
 
 ```toml
 backup_root = "/path/to/baccy"
@@ -147,7 +146,7 @@ Run one complete scan and exit:
 
 ```sh
 uv run baccy backup
-uv run baccy backup --config /path/to/baccy.toml
+uv run baccy --config /path/to/baccy.toml backup
 uv run baccy backup --dry-run
 ```
 
@@ -214,7 +213,7 @@ without scanning or uploading files:
 
 ```sh
 uv run baccy test
-uv run baccy test --config /path/to/baccy.toml
+uv run baccy --config /path/to/baccy.toml test
 ```
 
 It prints `ok` on success. On failure, it prints each inaccessible destination
@@ -267,7 +266,7 @@ failures are reported once until they recover or change.
 Install the per-user LaunchAgent:
 
 ```sh
-uv run baccy service install
+uv run baccy --config /path/to/baccy.toml service install
 uv run baccy service status
 ```
 
