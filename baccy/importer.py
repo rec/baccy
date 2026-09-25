@@ -5,8 +5,7 @@ from pathlib import Path
 
 from .backup import BackupLock
 from .catalog import Catalog
-from .models import BackupSummary, FileResult, PathSource, ResolvedSource, Settings
-from .upload import publish_sessions
+from .models import BackupSummary, FileResult, Settings
 
 
 def import_recs(
@@ -65,15 +64,8 @@ def import_recs(
                         status='copied',
                     )
                 )
-        source = ResolvedSource(
-            source=PathSource(
-                kind='path', name='audio', path=settings.backup_root / 'audio'
-            ),
-            root=settings.backup_root / 'audio',
-        )
-        uploads = publish_sessions([source], settings, False)
     summary = BackupSummary()
-    for result in [*imported, *uploads]:
+    for result in imported:
         summary = summary.with_result(result)
     return summary
 

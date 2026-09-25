@@ -187,8 +187,9 @@ used. An individual session without a header project requires `--project`.
 
 For a project directory, the existing `YEAR/MONTH/DAY/TIMESTAMP` layout is
 preserved. For an individual session, baccy derives `YEAR/MONTH/DAY` from the
-session's `started_at` header and keeps its timestamp directory name. After the
-import, baccy applies any configured upload rules to the imported sessions.
+session's `started_at` header and keeps its timestamp directory name. Import
+does not publish anything. Run `baccy sync` after import to apply configured
+upload rules.
 
 ## Sync publication
 
