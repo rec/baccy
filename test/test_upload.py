@@ -69,11 +69,13 @@ def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
         }
     )
 
-    first = publish_sessions([source], settings, False)
+    writes = []
+    first = publish_sessions([source], settings, False, on_write=writes.append)
     second = publish_sessions([source], settings, False)
 
     assert [result.status for result in first] == ['uploaded']
     assert [result.status for result in second] == ['unchanged']
+    assert [result.status for result in writes] == ['writing']
     assert [call[0] for call in calls].count('scp') == 1
     assert [call[0] for call in calls].count('ssh') == 1
     warning = (

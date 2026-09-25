@@ -29,6 +29,7 @@ def run_backup(
     network: NetworkDiscovery | None = None,
     recognize: Callable[[list[RecognizedSource]], None] | None = None,
     recognize_machines: Callable[[list[RecognizedSource]], None] | None = None,
+    on_write: Callable[[FileResult], None] | None = None,
 ) -> BackupSummary:
     _validate_config_roots(settings)
     resolved, unavailable = resolve_sources(settings.sources)
@@ -71,11 +72,23 @@ def run_backup(
         )
     if dry_run:
         return _run_candidates(
-            settings, resolved, unavailable, network_sources, discovery, dry_run=True
+            settings,
+            resolved,
+            unavailable,
+            network_sources,
+            discovery,
+            dry_run=True,
+            on_write=on_write,
         )
     with BackupLock(settings.backup_root):
         return _run_candidates(
-            settings, resolved, unavailable, network_sources, discovery, dry_run=False
+            settings,
+            resolved,
+            unavailable,
+            network_sources,
+            discovery,
+            dry_run=False,
+            on_write=on_write,
         )
 
 
@@ -86,6 +99,7 @@ def _run_candidates(
     network_sources: list[NetworkRecsSource],
     network: NetworkDiscovery,
     dry_run: bool,
+    on_write: Callable[[FileResult], None] | None,
 ) -> BackupSummary:
     summary = BackupSummary()
     for source in unavailable:
@@ -166,6 +180,7 @@ def _run_candidates(
         _upload_sources(settings.backup_root),
         settings,
         dry_run,
+        on_write=on_write,
     ):
         summary = summary.with_result(result)
         if (
