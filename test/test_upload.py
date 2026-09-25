@@ -93,7 +93,8 @@ def test_upload_rules_include_main_tracks_on_dry_run(tmp_path: Path) -> None:
     root = tmp_path / 'recs'
     session = root / 'project' / 'session'
     session.mkdir(parents=True)
-    (session / 'audio.wav').write_bytes(b'audio')
+    (session / 'audio/master + 20260920-120000.wav').parent.mkdir()
+    (session / 'audio/master + 20260920-120000.wav').write_bytes(b'audio')
     (session / 'session-record.jsonl').write_text(
         '\n'.join(
             [
@@ -106,7 +107,7 @@ def test_upload_rules_include_main_tracks_on_dry_run(tmp_path: Path) -> None:
                         'format': 'wav',
                         'source': 'device',
                         'source_channels': [1],
-                        'path': 'audio.wav',
+                        'path': 'audio/master + 20260920-120000.wav',
                     }
                 ),
                 json.dumps(
@@ -114,7 +115,7 @@ def test_upload_rules_include_main_tracks_on_dry_run(tmp_path: Path) -> None:
                         'type': 'file_finished',
                         'media_type': 'audio',
                         'stream_id': 'mic',
-                        'path': 'audio.wav',
+                        'path': 'audio/master + 20260920-120000.wav',
                         'frame_count': 48_000,
                         'sample_rate': 48_000,
                     }
@@ -143,7 +144,9 @@ def test_upload_rules_include_main_tracks_on_dry_run(tmp_path: Path) -> None:
 
     results = publish_sessions([source], settings, True)
 
-    assert [result.status for result in results] == ['would_upload']
+    assert [(result.relative_path, result.status) for result in results] == [
+        (Path('project/20260920-120000.mp3'), 'would_upload')
+    ]
     assert not (tmp_path / 'backup').exists()
 
 

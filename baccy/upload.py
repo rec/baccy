@@ -434,6 +434,11 @@ def _expression_uses_main(expression: MatchExpression) -> bool:
 
 
 def _render_target(rule: UploadRule, session: Path, segment: Segment) -> PurePosixPath:
+    if rule.encoding.format == 'mp3':
+        filename = Path(segment.path.name.rsplit(' + ', maxsplit=1)[-1]).with_suffix(
+            '.mp3'
+        )
+        return PurePosixPath(session.parts[0]) / PurePosixPath(filename.as_posix())
     suffix = (
         segment.path.suffix
         if rule.encoding.format == 'source'
