@@ -851,8 +851,8 @@ def _destination_identity(destination: Destination) -> str:
 
 def _display_destination(destination: Destination) -> str:
     if isinstance(destination, S3Destination):
-        return destination.bucket
-    return destination.url
+        return f's3:{destination.bucket}'
+    return f'ssh:{destination.url}'
 
 
 def _remote_targets(destination: Destination) -> set[str]:

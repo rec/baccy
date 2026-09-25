@@ -53,14 +53,16 @@ def test_axto_config_dry_run_syncs_all_expected_transfers(
     assert len(scheduled) > 500
     assert all(not path.startswith('audio/') for path in scheduled)
     assert all(
-        path.startswith(('axto:', 'axto-private:', 'root@ax.to:/home/ax/public_html:'))
+        path.startswith(
+            ('s3:axto/', 's3:axto-private/', 'ssh:root@ax.to:/home/ax/public_html/')
+        )
         for path in scheduled
     )
     assert (
-        'axto-private:totm/2017/01/01/01-39-50/audio/1 + 20170101-013950.flac'
+        's3:axto-private/totm/2017/01/01/01-39-50/audio/1 + 20170101-013950.flac'
     ) in scheduled
-    assert 'axto:totm/20250906-180118.mp3' in scheduled
-    assert 'root@ax.to:/home/ax/public_html:totm/index.html' in scheduled
+    assert 's3:axto/totm/20250906-180118.mp3' in scheduled
+    assert 'ssh:root@ax.to:/home/ax/public_html/totm/index.html' in scheduled
     assert scheduled == (FIXTURES / 'transfers.txt').read_text().splitlines()
     assert not (backup / 'events.jsonl').exists()
 
