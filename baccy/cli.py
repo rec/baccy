@@ -18,13 +18,7 @@ from .sync import sync
 from .watch import watch
 
 
-class ConfigCommand(BaseModel, frozen=True):
-    config: Annotated[
-        Path, tyro.conf.arg(help='Path to the baccy TOML configuration.')
-    ] = Field(default_factory=default_config_path)
-
-
-class BackupCommand(ConfigCommand):
+class BackupCommand(BaseModel, frozen=True):
     pass
 
 
@@ -32,23 +26,23 @@ class WatchCommand(BackupCommand):
     """Run backup passes until interrupted."""
 
 
-class ImportCommand(ConfigCommand):
+class ImportCommand(BaseModel, frozen=True):
     directories: Annotated[list[Path], tyro.conf.Positional]
     copy_directories: Annotated[bool, tyro.conf.arg(name='copy')] = False
     project: str | None = None
 
 
-class SyncCommand(ConfigCommand):
+class SyncCommand(BaseModel, frozen=True):
     directories: Annotated[list[Path], tyro.conf.Positional] = Field(
         default_factory=list
     )
 
 
-class TestCommand(ConfigCommand):
+class TestCommand(BaseModel, frozen=True):
     """Test access to configured upload destinations."""
 
 
-class InstallCommand(ConfigCommand):
+class InstallCommand(BaseModel, frozen=True):
     """Install the per-user baccy LaunchAgent."""
 
 
@@ -70,6 +64,11 @@ class SummaryReporter:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
+    try:
+        config, arguments = _config(arguments)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return 2
     dry_run, arguments = _dry_run(arguments)
     if not arguments or arguments[0] in {'-h', '--help'}:
         print(_usage())
@@ -77,35 +76,35 @@ def main(argv: list[str] | None = None) -> int:
     command, rest = arguments[0], arguments[1:]
     if command == 'backup':
         value = tyro.cli(BackupCommand, args=rest, prog='baccy backup')
-        return _backup(value, dry_run)
+        return _backup(value, config, dry_run)
     if command == 'watch':
         value = tyro.cli(WatchCommand, args=rest, prog='baccy watch')
-        return _watch(value, dry_run)
+        return _watch(value, config, dry_run)
     if command == 'import':
         value = tyro.cli(ImportCommand, args=rest, prog='baccy import')
-        return _import(value, dry_run)
+        return _import(value, config, dry_run)
     if command == 'sync':
         value = tyro.cli(SyncCommand, args=rest, prog='baccy sync')
-        return _sync(value, dry_run)
+        return _sync(value, config, dry_run)
     if command == 'test':
         value = tyro.cli(TestCommand, args=rest, prog='baccy test')
-        return _test(value, dry_run)
+        return _test(value, config, dry_run)
     if command == 'service':
-        return _service(rest, dry_run)
+        return _service(rest, config, dry_run)
     print(f'unknown command: {command}', file=sys.stderr)
     print(_usage(), file=sys.stderr)
     return 2
 
 
-def _backup(command: BackupCommand, dry_run: bool) -> int:
-    settings = load_or_default(command.config)
+def _backup(command: BackupCommand, config: Path, dry_run: bool) -> int:
+    settings = load_or_default(config)
     summary = run_backup(settings, dry_run=dry_run)
     _print_summary(summary, settings.verbose)
     return 1 if summary.failed or summary.unavailable else 0
 
 
-def _watch(command: WatchCommand, dry_run: bool) -> int:
-    settings = load_or_default(command.config)
+def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
+    settings = load_or_default(config)
     network = NetworkDiscovery(verbose=settings.verbose)
     reporter = SummaryReporter(settings.verbose)
 
@@ -147,8 +146,8 @@ def _watch(command: WatchCommand, dry_run: bool) -> int:
     return 0
 
 
-def _import(command: ImportCommand, dry_run: bool) -> int:
-    settings = load_or_default(command.config)
+def _import(command: ImportCommand, config: Path, dry_run: bool) -> int:
+    settings = load_or_default(config)
     summary = import_recs(
         command.directories,
         settings,
@@ -160,15 +159,15 @@ def _import(command: ImportCommand, dry_run: bool) -> int:
     return 1 if summary.failed else 0
 
 
-def _sync(command: SyncCommand, dry_run: bool) -> int:
-    settings = load_or_default(command.config)
+def _sync(command: SyncCommand, config: Path, dry_run: bool) -> int:
+    settings = load_or_default(config)
     summary = sync(command.directories, settings, dry_run)
     _print_summary(summary, settings.verbose)
     return 1 if summary.failed else 0
 
 
-def _test(command: TestCommand, dry_run: bool) -> int:
-    failures = test_destinations(load_or_default(command.config))
+def _test(command: TestCommand, config: Path, dry_run: bool) -> int:
+    failures = test_destinations(load_or_default(config))
     if failures:
         print('\n'.join(failures), file=sys.stderr)
         return -1
@@ -176,7 +175,7 @@ def _test(command: TestCommand, dry_run: bool) -> int:
     return 0
 
 
-def _service(arguments: list[str], dry_run: bool) -> int:
+def _service(arguments: list[str], config: Path, dry_run: bool) -> int:
     if not arguments or arguments[0] in {'-h', '--help'}:
         print(_service_usage())
         return 0
@@ -186,8 +185,8 @@ def _service(arguments: list[str], dry_run: bool) -> int:
         return 0
     application = Application()
     if command == 'install':
-        value = tyro.cli(InstallCommand, args=rest, prog='baccy service install')
-        result = application.install_service(['watch', '--config', str(value.config)])
+        tyro.cli(InstallCommand, args=rest, prog='baccy service install')
+        result = application.install_service(['watch', '--config', str(config)])
     elif command == 'uninstall':
         _parse_service_command(rest, command)
         result = application.uninstall_service()
@@ -220,6 +219,23 @@ def _dry_run(arguments: list[str]) -> tuple[bool, list[str]]:
     return any(argument in flags for argument in arguments), [
         argument for argument in arguments if argument not in flags
     ]
+
+
+def _config(arguments: list[str]) -> tuple[Path, list[str]]:
+    config = default_config_path()
+    values: list[str] = []
+    iterator = iter(arguments)
+    for value in iterator:
+        if value == '--config':
+            try:
+                config = Path(next(iterator))
+            except StopIteration as error:
+                raise ValueError('--config requires a path') from error
+        elif value.startswith('--config='):
+            config = Path(value.removeprefix('--config='))
+        else:
+            values.append(value)
+    return config, values
 
 
 def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
@@ -256,7 +272,10 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 
 
 def _usage() -> str:
-    return 'Usage: baccy [--dry-run|-d] {backup,watch,import,sync,test,service} ...'
+    return (
+        'Usage: baccy [--config PATH] [--dry-run|-d] '
+        '{backup,watch,import,sync,test,service} ...'
+    )
 
 
 def _service_usage() -> str:

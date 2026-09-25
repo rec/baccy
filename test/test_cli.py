@@ -27,7 +27,7 @@ def disable_network_discovery(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr('baccy.backup.NetworkDiscovery', NoNetworkDiscovery)
 
 
-def test_backup_command_runs_one_pass(
+def test_global_config_selects_backup_settings(
     tmp_path: Path, capsys: CaptureFixture[str]
 ) -> None:
     source = tmp_path / 'source'
@@ -45,12 +45,12 @@ def test_backup_command_runs_one_pass(
         f'path = "{source}"\n'
     )
 
-    exit_code = main(['backup', '--config', str(config)])
+    exit_code = main(['--config', str(config), 'backup'])
 
     assert exit_code == 0
     assert capsys.readouterr().out == 'recording.toml\n'
 
-    exit_code = main(['backup', '--config', str(config)])
+    exit_code = main(['--config', str(config), 'backup'])
 
     assert exit_code == 0
     assert capsys.readouterr().out == '(no files)\n'
