@@ -41,7 +41,6 @@ def test_load_reads_upload_rules(tmp_path: Path) -> None:
         'name = "main"\n'
         'match = "main and duration > 90"\n'
         'encoding = { format = "mp3", bitrate_kbps = 128 }\n'
-        'filename = "{timestamp}.{extension}"\n'
         'destination = "server"\n'
     )
 

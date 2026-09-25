@@ -49,7 +49,6 @@ def test_upload_reports_every_missing_source_before_contacting_destinations(
                     'name': 'archive',
                     'match': 'True',
                     'encoding': {'format': 'source'},
-                    'filename': '{timestamp}.{extension}',
                     'destination': 'archive',
                 }
             ],

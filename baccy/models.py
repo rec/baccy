@@ -4,7 +4,6 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .match import validate_match
-from .naming import validate_filename_template
 
 
 class PathSource(BaseModel, frozen=True):
@@ -121,7 +120,6 @@ class UploadRule(BaseModel, frozen=True):
     name: str
     match: str
     encoding: Encoding
-    filename: str
     destination: str
 
     @field_validator('name', 'destination')
@@ -132,11 +130,6 @@ class UploadRule(BaseModel, frozen=True):
                 'upload rule names and destinations must be path components'
             )
         return value
-
-    @field_validator('filename')
-    @classmethod
-    def validate_filename(cls, value: str) -> str:
-        return validate_filename_template(value)
 
     @field_validator('match')
     @classmethod

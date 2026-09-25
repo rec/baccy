@@ -315,7 +315,6 @@ def test_network_recs_backup_is_available_for_project_upload(
                     'name': 'archive',
                     'match': 'True',
                     'encoding': {'format': 'source'},
-                    'filename': '{timestamp}.{extension}',
                     'destination': 'server',
                 }
             ],
