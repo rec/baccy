@@ -48,6 +48,7 @@ backup_root = "/path/to/baccy"
 discover_removable = true
 poll_seconds = 60
 stability_seconds = 60
+s3_max_bandwidth = 1_000_000
 verbose = true
 
 [[uploads]]
@@ -141,7 +142,8 @@ encoder or upload.
 SSH destinations use the existing non-interactive SSH configuration and keys.
 S3 destinations use boto3 and the host's normal AWS credential chain. Baccy
 records an artifact identity in S3 object metadata and skips an object with the
-same identity. Credentials never appear in the TOML or event log.
+same identity. `s3_max_bandwidth` limits all S3 uploads in bytes per second.
+Credentials never appear in the TOML or event log.
 
 ## Run once
 

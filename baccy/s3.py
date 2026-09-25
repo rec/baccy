@@ -2,6 +2,7 @@ from configparser import ConfigParser
 from pathlib import Path
 
 import boto3
+from boto3.s3.transfer import TransferConfig
 from botocore.client import BaseClient
 
 from .models import S3Destination
@@ -9,6 +10,10 @@ from .models import S3Destination
 
 def s3_client(destination: S3Destination) -> BaseClient:
     return boto3.client('s3', endpoint_url=s3_endpoint_url(destination))
+
+
+def s3_transfer_config(destination: S3Destination) -> TransferConfig:
+    return TransferConfig(max_bandwidth=destination.max_bandwidth)
 
 
 def s3_endpoint_url(destination: S3Destination) -> str | None:
