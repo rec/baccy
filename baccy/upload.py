@@ -3,6 +3,7 @@ import hashlib
 import json
 import shlex
 import subprocess
+import sys
 import tempfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
@@ -112,7 +113,7 @@ def _missing_sources(
             if not relative_session.parts:
                 continue
             try:
-                segments = _completed_segments(journal)
+                segments = _completed_segments(journal, warn_zero_frames=False)
             except OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError:
                 continue
             for segment in segments:
@@ -184,7 +185,7 @@ def _publish_session(
     return results
 
 
-def _completed_segments(journal: Path) -> list[Segment]:
+def _completed_segments(journal: Path, warn_zero_frames: bool = True) -> list[Segment]:
     starts: dict[tuple[str, str], dict[str, object]] = {}
     source_details: dict[str, tuple[str, int]] = {}
     segments: list[Segment] = []
@@ -212,7 +213,9 @@ def _completed_segments(journal: Path) -> list[Segment]:
                 starts[identity] = value
             elif (start := starts.get(identity)) is not None:
                 if (
-                    segment := _segment(start, value, journal, source_details)
+                    segment := _segment(
+                        start, value, journal, source_details, warn_zero_frames
+                    )
                 ) is not None:
                     segments.append(segment)
     return segments
@@ -245,6 +248,7 @@ def _segment(
     finish: dict[str, object],
     journal: Path,
     source_details: dict[str, tuple[str, int]],
+    warn_zero_frames: bool,
 ) -> Segment | None:
     path = start.get('path')
     timestamp = start.get('timestamp')
@@ -286,6 +290,9 @@ def _segment(
         raise ValueError(f'invalid completed audio record in {journal}')
     if not channels:
         return None
+    if frames == 0 and warn_zero_frames:
+        message = 'warning: ignoring zero frame count in completed audio record'
+        print(f'{message}: {journal / path}', file=sys.stderr)
     return Segment(
         path=Path(path),
         timestamp=timestamp,
