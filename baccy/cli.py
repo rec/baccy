@@ -226,7 +226,7 @@ def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
     value = _visible_summary(summary, verbose)
     paths = [
         (
-            f'{result.destination}:{result.relative_path.as_posix()}'
+            f'{result.destination}/{result.relative_path.as_posix()}'
             if result.destination is not None
             else result.relative_path.as_posix()
         )
