@@ -5,6 +5,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote
 
@@ -73,6 +74,7 @@ def publish_sessions(
     dry_run: bool,
     sync: bool = False,
     directories: list[Path] | None = None,
+    on_write: Callable[[FileResult], None] | None = None,
 ) -> list[FileResult]:
     catalog = Catalog(settings.backup_root)
     results: list[FileResult] = []
@@ -107,11 +109,12 @@ def publish_sessions(
                     sync,
                     remote_targets,
                     artifacts,
+                    on_write,
                 )
             )
     results.extend(
         _publish_landing_pages(
-            artifacts, settings, catalog, dry_run, sync, remote_targets
+            artifacts, settings, catalog, dry_run, sync, remote_targets, on_write
         )
     )
     return results
@@ -162,6 +165,7 @@ def _publish_session(
     sync: bool,
     remote_targets: dict[str, set[str]],
     artifacts: list[ArtifactPlan],
+    on_write: Callable[[FileResult], None] | None,
 ) -> list[FileResult]:
     try:
         segments = _completed_segments(session_root / 'session-record.jsonl')
@@ -202,7 +206,7 @@ def _publish_session(
             continue
         results.extend(
             _materialize_and_upload(
-                plan, session_root, catalog, dry_run, sync, remote_targets
+                plan, session_root, catalog, dry_run, sync, remote_targets, on_write
             )
         )
     return results
@@ -479,13 +483,14 @@ def _publish_landing_pages(
     dry_run: bool,
     sync: bool,
     remote_targets: dict[str, set[str]],
+    on_write: Callable[[FileResult], None] | None,
 ) -> list[FileResult]:
     results: list[FileResult] = []
     for landing_page in settings.landing_pages:
         for plan in _landing_page_plans(artifacts, landing_page, settings):
             results.extend(
                 _materialize_and_upload_landing_page(
-                    plan, catalog, dry_run, sync, remote_targets
+                    plan, catalog, dry_run, sync, remote_targets, on_write
                 )
             )
     return results
@@ -559,6 +564,7 @@ def _materialize_and_upload_landing_page(
     dry_run: bool,
     sync: bool,
     remote_targets: dict[str, set[str]],
+    on_write: Callable[[FileResult], None] | None,
 ) -> list[FileResult]:
     if not plan.identity:
         return [_landing_page_result(plan, 'failed', plan.content)]
@@ -572,6 +578,8 @@ def _materialize_and_upload_landing_page(
             return [_landing_page_result(plan, 'unchanged')]
     elif catalog.latest(plan.project, Path(plan.identity), 'landing_page') is not None:
         return [_landing_page_result(plan, 'unchanged')]
+    if on_write is not None:
+        on_write(_landing_page_result(plan, 'writing'))
     path = _materialize_landing_page(plan, catalog.path.parent)
     try:
         uploaded = _upload_landing_page(plan, path)
@@ -663,6 +671,7 @@ def _materialize_and_upload(
     dry_run: bool,
     sync: bool,
     remote_targets: dict[str, set[str]],
+    on_write: Callable[[FileResult], None] | None,
 ) -> list[FileResult]:
     source = session_root / plan.segment.path
     if not source.is_file():
@@ -702,6 +711,15 @@ def _materialize_and_upload(
                 source=plan.project, relative_path=Path(plan.target), status='unchanged'
             )
         ]
+    if on_write is not None:
+        on_write(
+            FileResult(
+                source=plan.project,
+                relative_path=Path(plan.target),
+                status='writing',
+                destination=_display_destination(plan.destination),
+            )
+        )
     try:
         artifact = _materialize(plan, source, catalog.path.parent)
         uploaded = _upload(plan, artifact)
