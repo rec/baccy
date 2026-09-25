@@ -292,7 +292,7 @@ def _segment(
         return None
     if frames == 0 and warn_zero_frames:
         message = 'warning: ignoring zero frame count in completed audio record'
-        print(f'{message}: {journal / path}', file=sys.stderr)
+        print(f'{message}: {journal.parent / path}', file=sys.stderr)
     return Segment(
         path=Path(path),
         timestamp=timestamp,

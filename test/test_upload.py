@@ -77,12 +77,11 @@ def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
     assert [result.status for result in second] == ['unchanged']
     assert [call[0] for call in calls].count('scp') == 1
     assert [call[0] for call in calls].count('ssh') == 1
-    assert (
-        capsys.readouterr().err.count(
-            'warning: ignoring zero frame count in completed audio record'
-        )
-        == 2
+    warning = (
+        'warning: ignoring zero frame count in completed audio record: '
+        f'{session / "audio/1.flac"}\n'
     )
+    assert capsys.readouterr().err == warning * 2
     events = [
         json.loads(line)
         for line in (tmp_path / 'backup' / 'events.jsonl').read_text().splitlines()
