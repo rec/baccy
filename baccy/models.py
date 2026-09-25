@@ -79,6 +79,7 @@ class S3Destination(BaseModel, frozen=True):
     bucket: str
     endpoint_url: str | None = None
     prefix: str = ''
+    max_bandwidth: int = Field(default=1_000_000, gt=0)
 
     @field_validator('bucket')
     @classmethod
@@ -101,10 +102,10 @@ class S3Destination(BaseModel, frozen=True):
 Destination = Annotated[SshDestination | S3Destination, Field(discriminator='kind')]
 
 
-def parse_destination(value: str) -> Destination:
+def parse_destination(value: str, max_bandwidth: int = 1_000_000) -> Destination:
     kind, separator, address = value.partition(':')
     if kind == 's3' and separator:
-        return S3Destination(kind='s3', bucket=address)
+        return S3Destination(kind='s3', bucket=address, max_bandwidth=max_bandwidth)
     if kind == 'ssh' and separator:
         return SshDestination(kind='ssh', url=address)
     raise ValueError('destination must be s3:BUCKET or ssh:HOST:PATH')
@@ -179,6 +180,7 @@ class Settings(BaseModel, frozen=True):
     discover_removable: bool = True
     poll_seconds: float = Field(default=60.0, gt=0)
     stability_seconds: float = Field(default=60.0, ge=0)
+    s3_max_bandwidth: int = Field(default=1_000_000, gt=0)
     verbose: bool = True
     uploads: list[UploadRule] = Field(default_factory=list)
     landing_pages: list[LandingPageUpload] = Field(default_factory=list)

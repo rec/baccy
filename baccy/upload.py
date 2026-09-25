@@ -25,7 +25,7 @@ from .models import (
     UploadRule,
     parse_destination,
 )
-from .s3 import s3_client, s3_endpoint_url
+from .s3 import s3_client, s3_endpoint_url, s3_transfer_config
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
 _DEFAULT_LANDING_PAGE_TEMPLATE = (
@@ -409,7 +409,7 @@ def _artifact_plans(
                 continue
             if not expression.matches(values):
                 continue
-            destination = parse_destination(rule.destination)
+            destination = parse_destination(rule.destination, settings.s3_max_bandwidth)
             try:
                 target = _render_target(rule, relative_session, segment)
                 identity = _artifact_identity(
@@ -502,7 +502,7 @@ def _landing_page_plans(
             grouped.setdefault((artifact.project, artifact.target.parent), []).append(
                 artifact
             )
-    destination = parse_destination(landing_page.destination)
+    destination = parse_destination(landing_page.destination, settings.s3_max_bandwidth)
     plans: list[LandingPagePlan] = []
     for (project_name, directory), values in grouped.items():
         try:
@@ -820,7 +820,13 @@ def _upload_s3(
             return False
     extra = {'Metadata': {'baccy-identity': identity}}
     arguments = {'ExtraArgs': extra}
-    client.upload_file(str(path), destination.bucket, key, **arguments)
+    client.upload_file(
+        str(path),
+        destination.bucket,
+        key,
+        Config=s3_transfer_config(destination),
+        **arguments,
+    )
     return True
 
 
