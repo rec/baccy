@@ -166,6 +166,11 @@ def test_daemon_watch_logs_each_file_as_json(
             BackupSummary(
                 results=[
                     FileResult(
+                        source='source',
+                        relative_path=Path('unchanged.wav'),
+                        status='unchanged',
+                    ),
+                    FileResult(
                         source='source', relative_path=Path('one.wav'), status='copied'
                     ),
                     FileResult(
@@ -173,6 +178,17 @@ def test_daemon_watch_logs_each_file_as_json(
                         relative_path=Path('two.wav'),
                         status='uploaded',
                     ),
+                ]
+            )
+        )
+        report(
+            BackupSummary(
+                results=[
+                    FileResult(
+                        source='source',
+                        relative_path=Path('unchanged.wav'),
+                        status='unchanged',
+                    )
                 ]
             )
         )
@@ -197,7 +213,8 @@ def test_daemon_watch_logs_each_file_as_json(
                     source='source', relative_path=Path('two.wav'), status='uploaded'
                 ),
             ]
-        )
+        ),
+        BackupSummary(),
     ]
 
 

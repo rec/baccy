@@ -298,9 +298,10 @@ def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
 
 
 def _report(application: Application, summary: BackupSummary) -> None:
+    summary = _visible_summary(summary, False)
     for result in summary.results:
         print(result.model_dump_json(exclude_none=True))
-    application.record_summary(_visible_summary(summary, False))
+    application.record_summary(summary)
 
 
 def _configure_daemon_logging() -> None:
