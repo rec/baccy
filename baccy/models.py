@@ -139,6 +139,29 @@ class UploadRule(BaseModel, frozen=True):
     model_config = {'extra': 'forbid'}
 
 
+class LandingPageUpload(BaseModel, frozen=True):
+    upload: str
+    destination: str
+    url_prefix: str
+    template: str | None = None
+
+    @field_validator('upload', 'destination')
+    @classmethod
+    def validate_identifier(cls, value: str) -> str:
+        if not value or '/' in value or value in {'.', '..'}:
+            raise ValueError('upload and destination must be path components')
+        return value
+
+    @field_validator('url_prefix')
+    @classmethod
+    def validate_url_prefix(cls, value: str) -> str:
+        if not value:
+            raise ValueError('landing page URL prefix must not be empty')
+        return value.rstrip('/')
+
+    model_config = {'extra': 'forbid'}
+
+
 class Settings(BaseModel, frozen=True):
     backup_root: Path = Field(default_factory=lambda: Path.home() / 'baccy')
     sources: list[Source] = Field(default_factory=list)
@@ -148,6 +171,7 @@ class Settings(BaseModel, frozen=True):
     verbose: bool = True
     destinations: dict[str, Destination] = Field(default_factory=dict)
     uploads: list[UploadRule] = Field(default_factory=list)
+    landing_pages: list[LandingPageUpload] = Field(default_factory=list)
 
     @model_validator(mode='after')
     def validate_source_names(self) -> Settings:
@@ -155,12 +179,19 @@ class Settings(BaseModel, frozen=True):
         if len(names) != len(set(names)):
             raise ValueError('source names must be unique')
         destination_names = set(self.destinations)
-        names = [r.name for r in self.uploads]
-        if len(names) != len(set(names)):
+        upload_names = [r.name for r in self.uploads]
+        if len(upload_names) != len(set(upload_names)):
             raise ValueError('upload rule names must be unique')
         for rule in self.uploads:
             if rule.destination not in destination_names:
                 raise ValueError(f'unknown upload destination: {rule.destination}')
+        for landing_page in self.landing_pages:
+            if landing_page.upload not in upload_names:
+                raise ValueError(f'unknown landing page upload: {landing_page.upload}')
+            if landing_page.destination not in destination_names:
+                raise ValueError(
+                    f'unknown landing page destination: {landing_page.destination}'
+                )
         return self
 
     model_config = {'extra': 'forbid'}

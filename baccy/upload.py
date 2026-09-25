@@ -6,9 +6,10 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path, PurePosixPath
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 from botocore.exceptions import BotoCoreError, ClientError
+from jinja2 import Template
 from pydantic import BaseModel
 
 from .catalog import Catalog
@@ -16,6 +17,7 @@ from .match import MatchExpression
 from .models import (
     Destination,
     FileResult,
+    LandingPageUpload,
     ResolvedSource,
     S3Destination,
     Settings,
@@ -25,6 +27,18 @@ from .models import (
 from .s3 import s3_client, s3_endpoint_url
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
+_DEFAULT_LANDING_PAGE_TEMPLATE = """<!doctype html>
+<html>
+<head><title>{{ name }}</title></head>
+<body>
+<ul>
+{% for url in urls %}
+<li><a href="{{ url }}">{{ url }}</a></li>
+{% endfor %}
+</ul>
+</body>
+</html>
+"""
 
 
 class Segment(BaseModel, frozen=True):
@@ -53,6 +67,14 @@ class ArtifactPlan(BaseModel, frozen=True):
     identity: str
 
 
+class LandingPagePlan(BaseModel, frozen=True):
+    project: str
+    destination: Destination
+    target: PurePosixPath
+    identity: str
+    content: str
+
+
 def publish_sessions(
     sources: list[ResolvedSource],
     settings: Settings,
@@ -64,6 +86,7 @@ def publish_sessions(
     results: list[FileResult] = []
     expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
     remote_targets: dict[str, set[str]] = {}
+    artifacts: list[ArtifactPlan] = []
     missing = _missing_sources(sources, directories)
     if missing:
         return missing
@@ -91,8 +114,14 @@ def publish_sessions(
                     dry_run,
                     sync,
                     remote_targets,
+                    artifacts,
                 )
             )
+    results.extend(
+        _publish_landing_pages(
+            artifacts, settings, catalog, dry_run, sync, remote_targets
+        )
+    )
     return results
 
 
@@ -140,6 +169,7 @@ def _publish_session(
     dry_run: bool,
     sync: bool,
     remote_targets: dict[str, set[str]],
+    artifacts: list[ArtifactPlan],
 ) -> list[FileResult]:
     try:
         segments = _completed_segments(session_root / 'session-record.jsonl')
@@ -161,6 +191,7 @@ def _publish_session(
         expressions,
         sync,
     )
+    artifacts.extend(plans)
     targets = [
         (_destination_identity(plan.destination), plan.target.as_posix())
         for plan in plans
@@ -447,6 +478,165 @@ def _render_target(rule: UploadRule, session: Path, segment: Segment) -> PurePos
     return PurePosixPath(session.as_posix()) / PurePosixPath(
         segment.path.with_suffix(suffix).as_posix()
     )
+
+
+def _publish_landing_pages(
+    artifacts: list[ArtifactPlan],
+    settings: Settings,
+    catalog: Catalog,
+    dry_run: bool,
+    sync: bool,
+    remote_targets: dict[str, set[str]],
+) -> list[FileResult]:
+    results: list[FileResult] = []
+    for landing_page in settings.landing_pages:
+        for plan in _landing_page_plans(artifacts, landing_page, settings):
+            results.extend(
+                _materialize_and_upload_landing_page(
+                    plan, catalog, dry_run, sync, remote_targets
+                )
+            )
+    return results
+
+
+def _landing_page_plans(
+    artifacts: list[ArtifactPlan],
+    landing_page: LandingPageUpload,
+    settings: Settings,
+) -> list[LandingPagePlan]:
+    grouped: dict[tuple[str, PurePosixPath], list[ArtifactPlan]] = {}
+    for artifact in artifacts:
+        if artifact.rule.name == landing_page.upload:
+            grouped.setdefault((artifact.project, artifact.target.parent), []).append(
+                artifact
+            )
+    destination = settings.destinations[landing_page.destination]
+    plans: list[LandingPagePlan] = []
+    for (project_name, directory), values in grouped.items():
+        try:
+            project = _load_project(project_name)
+            templates = project.get('templates', {})
+            if not isinstance(templates, dict):
+                raise ValueError('recording project templates must be a dictionary')
+            template = (
+                _DEFAULT_LANDING_PAGE_TEMPLATE
+                if landing_page.template is None
+                else templates[landing_page.template]
+            )
+        except (KeyError, ValueError) as error:
+            plans.append(
+                LandingPagePlan(
+                    project=project_name,
+                    destination=destination,
+                    target=directory / 'index.html',
+                    identity='',
+                    content=str(error),
+                )
+            )
+            continue
+        urls = [
+            f'{landing_page.url_prefix}/{quote(value.target.as_posix())}'
+            for value in sorted(values, key=lambda value: value.target)
+        ]
+        content = Template(template).render(**project, urls=urls)
+        identity = hashlib.sha256(
+            json.dumps(
+                {
+                    'landing_page': landing_page.model_dump(mode='json'),
+                    'project': project,
+                    'urls': urls,
+                },
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        plans.append(
+            LandingPagePlan(
+                project=project_name,
+                destination=destination,
+                target=directory / 'index.html',
+                identity=identity,
+                content=content,
+            )
+        )
+    return plans
+
+
+def _materialize_and_upload_landing_page(
+    plan: LandingPagePlan,
+    catalog: Catalog,
+    dry_run: bool,
+    sync: bool,
+    remote_targets: dict[str, set[str]],
+) -> list[FileResult]:
+    if not plan.identity:
+        return [_landing_page_result(plan, 'failed', plan.content)]
+    if dry_run:
+        return [_landing_page_result(plan, 'would_upload')]
+    destination_id = _destination_identity(plan.destination)
+    if sync:
+        if destination_id not in remote_targets:
+            remote_targets[destination_id] = _remote_targets(plan.destination)
+        if plan.target.as_posix() in remote_targets[destination_id]:
+            return [_landing_page_result(plan, 'unchanged')]
+    elif catalog.latest(plan.project, Path(plan.identity), 'landing_page') is not None:
+        return [_landing_page_result(plan, 'unchanged')]
+    path = _materialize_landing_page(plan, catalog.path.parent)
+    try:
+        uploaded = _upload_landing_page(plan, path)
+    except (BotoCoreError, ClientError, OSError, subprocess.SubprocessError) as error:
+        return [_landing_page_result(plan, 'failed', str(error))]
+    if sync:
+        remote_targets[destination_id].add(plan.target.as_posix())
+    if uploaded:
+        catalog.append(
+            {
+                'operation': 'landing_page',
+                'source': plan.project,
+                'relative_path': plan.identity,
+                'result': 'uploaded',
+                'destination': destination_id,
+                'target': plan.target.as_posix(),
+            }
+        )
+        return [_landing_page_result(plan, 'uploaded')]
+    return [_landing_page_result(plan, 'unchanged')]
+
+
+def _landing_page_result(
+    plan: LandingPagePlan, status: str, detail: str | None = None
+) -> FileResult:
+    return FileResult(
+        source=plan.project,
+        relative_path=Path(plan.target),
+        status=status,
+        destination=_display_destination(plan.destination),
+        detail=detail,
+    )
+
+
+def _load_project(name: str) -> dict[str, object]:
+    path = Path.home() / '.config' / 'recs' / 'projects' / f'{name}.json'
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f'could not read recording project {name}: {error}') from error
+    if not isinstance(value, dict):
+        raise ValueError(f'invalid recording project: {path}')
+    return value
+
+
+def _materialize_landing_page(plan: LandingPagePlan, backup_root: Path) -> Path:
+    output = backup_root / 'artifacts' / plan.identity / 'index.html'
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(plan.content)
+    return output
+
+
+def _upload_landing_page(plan: LandingPagePlan, path: Path) -> bool:
+    if isinstance(plan.destination, SshDestination):
+        _upload_ssh(path, plan.target, plan.destination)
+        return True
+    return _upload_s3(path, plan.target, plan.destination, plan.identity)
 
 
 def _artifact_identity(

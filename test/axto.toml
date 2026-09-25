@@ -6,6 +6,10 @@ bucket = "axto"
 kind = "s3"
 bucket = "axto-private"
 
+[destinations.axto-html]
+kind = "ssh"
+url = "TODO:/TODO"
+
 [[uploads]]
 name = "main-mp3"
 match = "main and duration > 120"
@@ -17,3 +21,8 @@ name = "all-flac"
 match = "True"
 encoding = { format = "source" }
 destination = "axto-private"
+
+[[landing_pages]]
+upload = "main-mp3"
+destination = "axto-html"
+url_prefix = "TODO"
