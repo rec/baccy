@@ -199,6 +199,7 @@ class FileResult(BaseModel, frozen=True):
     source: str
     relative_path: Path | None = None
     status: str
+    destination: str | None = None
     detail: str | None = None
 
 
