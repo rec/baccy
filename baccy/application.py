@@ -117,7 +117,7 @@ def _install_service_release(home: Path) -> Path:
     release = release_root / str(time.time_ns())
     environment = release / 'venv'
     executable = environment / 'bin' / 'python'
-    project_root = Path(__file__).parents[2]
+    project_root = Path(__file__).parents[1]
     reccy_root = project_root.parent / 'reccy'
     release_root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as temporary_directory:

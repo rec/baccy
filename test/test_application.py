@@ -75,6 +75,8 @@ def test_install_service_release_builds_isolated_wheels(
         / 'python'
     )
     assert [command[1] for command in commands] == ['build', 'build', 'venv', 'pip']
+    assert Path(commands[0][-1]) == Path(__file__).parents[2] / 'reccy'
+    assert Path(commands[1][-1]) == Path(__file__).parents[1]
     assert commands[-1][2] == 'install'
     assert '--no-sources' in commands[-1]
 
