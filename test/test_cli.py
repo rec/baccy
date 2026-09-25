@@ -1,5 +1,6 @@
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from pytest import CaptureFixture, MonkeyPatch
@@ -10,6 +11,7 @@ from baccy.models import (
     BackupSummary,
     FileResult,
     ResolvedSource,
+    Settings,
     SourceSelection,
     VolumeSource,
 )
@@ -54,6 +56,36 @@ def test_global_config_selects_backup_settings(
 
     assert exit_code == 0
     assert capsys.readouterr().out == '(no files)\n'
+
+
+def test_daemon_uses_its_recorded_configuration(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
+    metadata = tmp_path / 'daemon.json'
+    metadata.write_text('{"argv": ["watch", "--config", "' + str(config) + '"]}')
+    monkeypatch.setattr(
+        'baccy.cli.Application',
+        lambda: SimpleNamespace(paths=SimpleNamespace(metadata=metadata)),
+    )
+    received: list[Path] = []
+
+    def backup(settings: Settings, dry_run: bool) -> BackupSummary:
+        received.append(settings.backup_root)
+        return BackupSummary()
+
+    monkeypatch.setattr('baccy.cli.run_backup', backup)
+
+    assert main(['--daemon', 'backup']) == 0
+    assert received == [tmp_path / 'backup']
+
+
+def test_daemon_and_config_are_mutually_exclusive(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    assert main(['--daemon', '--config', str(tmp_path / 'baccy.toml'), 'backup']) == 2
+    assert capsys.readouterr().err == '--daemon cannot be used with --config\n'
 
 
 def test_backup_command_verbose_includes_unchanged_files(

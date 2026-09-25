@@ -40,6 +40,9 @@ explicitly with `--config` remains an error.
 
 Pass `--config PATH` before the command to use a different file.
 
+Pass `--daemon` to use the configuration recorded by the installed daemon.
+It cannot be combined with `--config`.
+
 ```toml
 backup_root = "/path/to/baccy"
 discover_removable = true
