@@ -3,10 +3,23 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from reccy.protocol import rpc
 from reccy.services import models, renderers
 
-from baccy.application import BACCY_SERVICE, Application, _install_service_release
+from baccy.application import (
+    BACCY_SERVICE,
+    Application,
+    DaemonApplication,
+    _install_service_release,
+)
 from baccy.models import BackupSummary, FileResult, RecognizedSource
+
+
+def test_application_schedules_sync_request(tmp_path: Path) -> None:
+    application = DaemonApplication(home=tmp_path, platform=models.Platform.macos)
+
+    assert application.rpc_command(rpc.Request(command='sync')) == {'scheduled': True}
+    assert application.sync_requested.is_set()
 
 
 def test_application_renders_launch_agent(tmp_path: Path) -> None:
