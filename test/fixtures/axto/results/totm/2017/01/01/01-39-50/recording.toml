@@ -97,8 +97,8 @@ kind = "relative_file"
 path = "session-record.jsonl"
 
 [assets.content]
-byte_length = 9918
-sha256 = "f9af6966fc79015fdedb8afdee91f044331aa343e8dca79d1abeb5ace4c501d4"
+byte_length = 8017
+sha256 = "a03697f76ac68013e19f0f68a9af1ff22ce56a9187217f6035d610fd21d63bd5"
 
 [[assets]]
 name = "asset-30f3ed0a76ab542b"
