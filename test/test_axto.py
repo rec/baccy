@@ -6,7 +6,6 @@ from pytest import CaptureFixture, MonkeyPatch
 
 from baccy.cli import main
 from baccy.config import load
-from baccy.models import S3Destination
 
 FIXTURES = Path(__file__).parent / 'fixtures' / 'axto'
 
@@ -32,9 +31,7 @@ def test_axto_config_dry_run_imports_recs_results_layout(
     paths = capsys.readouterr().out.splitlines()
     assert exit_code == 0
     settings = load(config)
-    destination = settings.destinations['axto']
-    assert isinstance(destination, S3Destination)
-    assert destination.endpoint_url is None
+    assert settings.uploads[0].destination == 's3:axto'
     assert settings.backup_root == tmp_path / 'baccy'
     assert paths == (FIXTURES / 'imports.txt').read_text().splitlines()
     assert not (settings.backup_root / 'events.jsonl').exists()
@@ -56,13 +53,14 @@ def test_axto_config_dry_run_syncs_all_expected_transfers(
     assert len(scheduled) > 500
     assert all(not path.startswith('audio/') for path in scheduled)
     assert all(
-        path.startswith(('axto:', 'axto-private:', 'TODO:/TODO:')) for path in scheduled
+        path.startswith(('axto:', 'axto-private:', 'root@ax.to:/home/ax/public_html:'))
+        for path in scheduled
     )
     assert (
         'axto-private:totm/2017/01/01/01-39-50/audio/1 + 20170101-013950.flac'
     ) in scheduled
     assert 'axto:totm/20250906-180118.mp3' in scheduled
-    assert 'TODO:/TODO:totm/index.html' in scheduled
+    assert 'root@ax.to:/home/ax/public_html:totm/index.html' in scheduled
     assert scheduled == (FIXTURES / 'transfers.txt').read_text().splitlines()
     assert not (backup / 'events.jsonl').exists()
 

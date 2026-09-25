@@ -1,5 +1,3 @@
-TODO:/TODO:oderg in duo/index.html
-TODO:/TODO:totm/index.html
 axto-private:oderg in duo/2026/03/28/10-45-52/audio/5-6 + 20260328-104552.flac
 axto-private:oderg in duo/2026/03/28/14-17-04/audio/1-2 + 20260328-141704.flac
 axto-private:oderg in duo/2026/03/28/14-17-04/audio/3-4 + 20260328-141704.flac
@@ -556,3 +554,5 @@ axto:totm/20251122-214852.mp3
 axto:totm/20251122-222602.mp3
 axto:totm/20251123-180803.mp3
 axto:totm/20251123-194828.mp3
+root@ax.to:/home/ax/public_html:oderg in duo/index.html
+root@ax.to:/home/ax/public_html:totm/index.html

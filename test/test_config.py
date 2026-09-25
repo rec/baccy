@@ -34,14 +34,11 @@ def test_load_reads_upload_rules(tmp_path: Path) -> None:
     path = tmp_path / 'baccy.toml'
     path.write_text(
         'backup_root = "/backup"\n'
-        '[destinations.server]\n'
-        'kind = "ssh"\n'
-        'url = "user@example.org:/srv/recs"\n'
         '[[uploads]]\n'
         'name = "main"\n'
         'match = "main and duration > 90"\n'
         'encoding = { format = "mp3", bitrate_kbps = 128 }\n'
-        'destination = "server"\n'
+        'destination = "ssh:user@example.org:/srv/recs"\n'
     )
 
     settings = load(path)
@@ -49,7 +46,7 @@ def test_load_reads_upload_rules(tmp_path: Path) -> None:
     rule = settings.uploads[0]
     assert rule.match == 'main and duration > 90'
     assert rule.encoding.format == 'mp3'
-    assert settings.destinations['server'].kind == 'ssh'
+    assert rule.destination == 'ssh:user@example.org:/srv/recs'
 
 
 def test_settings_rejects_project_upload_tables(tmp_path: Path) -> None:

@@ -48,26 +48,17 @@ poll_seconds = 60
 stability_seconds = 60
 verbose = true
 
-[destinations.show_server]
-kind = "ssh"
-url = "user@example.org:/srv/shows"
-
-[destinations.archive]
-kind = "s3"
-bucket = "show-recordings"
-prefix = "upcoming-shows"
-
 [[uploads]]
 name = "main-mp3"
 match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
-destination = "show_server"
+destination = "ssh:user@example.org:/srv/shows"
 
 [[uploads]]
 name = "channel-archive"
 match = "True"
 encoding = { format = "flac" }
-destination = "archive"
+destination = "s3:show-recordings"
 
 [[sources]]
 kind = "path"

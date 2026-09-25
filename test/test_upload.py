@@ -58,13 +58,12 @@ def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
     settings = Settings.model_validate(
         {
             'backup_root': tmp_path / 'backup',
-            'destinations': {'server': {'kind': 'ssh', 'url': 'user@host:/srv/recs'}},
             'uploads': [
                 {
                     'name': 'main',
                     'match': 'main and duration > 120',
                     'encoding': {'format': 'source'},
-                    'destination': 'server',
+                    'destination': 'ssh:user@host:/srv/recs',
                 }
             ],
         }
@@ -127,13 +126,12 @@ def test_upload_rules_include_main_tracks_on_dry_run(tmp_path: Path) -> None:
     settings = Settings.model_validate(
         {
             'backup_root': tmp_path / 'backup',
-            'destinations': {'server': {'kind': 'ssh', 'url': 'host:/srv/recs'}},
             'uploads': [
                 {
                     'name': 'main',
                     'match': 'True',
                     'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
-                    'destination': 'server',
+                    'destination': 'ssh:host:/srv/recs',
                 }
             ],
         }
@@ -197,13 +195,12 @@ def test_upload_accepts_compact_recs_v5_audio_records(tmp_path: Path) -> None:
     settings = Settings.model_validate(
         {
             'backup_root': tmp_path / 'backup',
-            'destinations': {'archive': {'kind': 's3', 'bucket': 'archive'}},
             'uploads': [
                 {
                     'name': 'archive',
                     'match': 'format == "flac" and device == "Mic"',
                     'encoding': {'format': 'source'},
-                    'destination': 'archive',
+                    'destination': 's3:archive',
                 }
             ],
         }
@@ -260,20 +257,18 @@ def test_landing_page_upload_uses_default_template_and_mp3_urls(
     settings = Settings.model_validate(
         {
             'backup_root': tmp_path / 'backup',
-            'destinations': {'site': {'kind': 'ssh', 'url': 'host:/srv/site'}},
             'uploads': [
                 {
                     'name': 'main-mp3',
                     'match': 'main and duration > 120',
                     'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
-                    'destination': 'site',
+                    'destination': 'ssh:host:/srv/site',
                 }
             ],
             'landing_pages': [
                 {
                     'upload': 'main-mp3',
-                    'destination': 'site',
-                    'url_prefix': 'https://audio.example',
+                    'destination': 'ssh:host:/srv/site',
                 }
             ],
         }
@@ -365,13 +360,12 @@ def test_sync_uses_remote_names_without_hashing_sources(
     settings = Settings.model_validate(
         {
             'backup_root': backup,
-            'destinations': {'server': {'kind': 'ssh', 'url': 'host:/srv/recs'}},
             'uploads': [
                 {
                     'name': 'archive',
                     'match': 'True',
                     'encoding': {'format': 'source'},
-                    'destination': 'server',
+                    'destination': 'ssh:host:/srv/recs',
                 }
             ],
         }

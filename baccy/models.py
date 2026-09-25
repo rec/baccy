@@ -101,6 +101,15 @@ class S3Destination(BaseModel, frozen=True):
 Destination = Annotated[SshDestination | S3Destination, Field(discriminator='kind')]
 
 
+def parse_destination(value: str) -> Destination:
+    kind, separator, address = value.partition(':')
+    if kind == 's3' and separator:
+        return S3Destination(kind='s3', bucket=address)
+    if kind == 'ssh' and separator:
+        return SshDestination(kind='ssh', url=address)
+    raise ValueError('destination must be s3:BUCKET or ssh:HOST:PATH')
+
+
 class Encoding(BaseModel, frozen=True):
     format: Literal['source', 'flac', 'mp3']
     bitrate_kbps: int | None = Field(default=None, gt=0)
@@ -122,13 +131,17 @@ class UploadRule(BaseModel, frozen=True):
     encoding: Encoding
     destination: str
 
-    @field_validator('name', 'destination')
+    @field_validator('name')
     @classmethod
-    def validate_identifier(cls, value: str) -> str:
+    def validate_name(cls, value: str) -> str:
         if not value or '/' in value or value in {'.', '..'}:
-            raise ValueError(
-                'upload rule names and destinations must be path components'
-            )
+            raise ValueError('upload rule names must be path components')
+        return value
+
+    @field_validator('destination')
+    @classmethod
+    def validate_destination(cls, value: str) -> str:
+        parse_destination(value)
         return value
 
     @field_validator('match')
@@ -142,22 +155,20 @@ class UploadRule(BaseModel, frozen=True):
 class LandingPageUpload(BaseModel, frozen=True):
     upload: str
     destination: str
-    url_prefix: str
     template: str | None = None
 
-    @field_validator('upload', 'destination')
+    @field_validator('upload')
     @classmethod
-    def validate_identifier(cls, value: str) -> str:
+    def validate_upload(cls, value: str) -> str:
         if not value or '/' in value or value in {'.', '..'}:
-            raise ValueError('upload and destination must be path components')
+            raise ValueError('upload must be a path component')
         return value
 
-    @field_validator('url_prefix')
+    @field_validator('destination')
     @classmethod
-    def validate_url_prefix(cls, value: str) -> str:
-        if not value:
-            raise ValueError('landing page URL prefix must not be empty')
-        return value.rstrip('/')
+    def validate_destination(cls, value: str) -> str:
+        parse_destination(value)
+        return value
 
     model_config = {'extra': 'forbid'}
 
@@ -169,7 +180,6 @@ class Settings(BaseModel, frozen=True):
     poll_seconds: float = Field(default=60.0, gt=0)
     stability_seconds: float = Field(default=60.0, ge=0)
     verbose: bool = True
-    destinations: dict[str, Destination] = Field(default_factory=dict)
     uploads: list[UploadRule] = Field(default_factory=list)
     landing_pages: list[LandingPageUpload] = Field(default_factory=list)
 
@@ -178,20 +188,12 @@ class Settings(BaseModel, frozen=True):
         names = [s.name for s in self.sources]
         if len(names) != len(set(names)):
             raise ValueError('source names must be unique')
-        destination_names = set(self.destinations)
         upload_names = [r.name for r in self.uploads]
         if len(upload_names) != len(set(upload_names)):
             raise ValueError('upload rule names must be unique')
-        for rule in self.uploads:
-            if rule.destination not in destination_names:
-                raise ValueError(f'unknown upload destination: {rule.destination}')
         for landing_page in self.landing_pages:
             if landing_page.upload not in upload_names:
                 raise ValueError(f'unknown landing page upload: {landing_page.upload}')
-            if landing_page.destination not in destination_names:
-                raise ValueError(
-                    f'unknown landing page destination: {landing_page.destination}'
-                )
         return self
 
     model_config = {'extra': 'forbid'}
