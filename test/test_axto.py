@@ -45,6 +45,7 @@ def test_axto_config_dry_run_syncs_all_expected_transfers(
 ) -> None:
     monkeypatch.setattr(Path, 'home', lambda: tmp_path)
     backup = tmp_path / 'baccy'
+    _write_projects()
     _write_results(backup / 'audio')
     config = Path(__file__).parent / 'axto.toml'
 
@@ -54,11 +55,14 @@ def test_axto_config_dry_run_syncs_all_expected_transfers(
     assert exit_code == 0
     assert len(scheduled) > 500
     assert all(not path.startswith('audio/') for path in scheduled)
-    assert all(path.startswith(('axto:', 'axto-private:')) for path in scheduled)
+    assert all(
+        path.startswith(('axto:', 'axto-private:', 'TODO:/TODO:')) for path in scheduled
+    )
     assert (
         'axto-private:totm/2017/01/01/01-39-50/audio/1 + 20170101-013950.flac'
     ) in scheduled
     assert 'axto:totm/20250906-180118.mp3' in scheduled
+    assert 'TODO:/TODO:totm/index.html' in scheduled
     assert scheduled == (FIXTURES / 'transfers.txt').read_text().splitlines()
     assert not (backup / 'events.jsonl').exists()
 
@@ -82,3 +86,10 @@ def _write_audio_stubs(journal: Path) -> None:
                 audio = journal.parent / path
                 audio.parent.mkdir(parents=True, exist_ok=True)
                 audio.touch()
+
+
+def _write_projects() -> None:
+    for name in ['oderg in duo', 'totm']:
+        path = Path.home() / '.config' / 'recs' / 'projects' / f'{name}.json'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({'name': name, 'templates': {}}))
