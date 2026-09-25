@@ -3,7 +3,7 @@ from pathlib import Path
 from pytest import MonkeyPatch
 
 from baccy.models import S3Destination
-from baccy.s3 import s3_client
+from baccy.s3 import s3_client, s3_transfer_config
 
 
 def test_s3_client_reads_default_endpoint_from_aws_config(
@@ -49,3 +49,9 @@ def test_s3_client_prefers_a_configured_endpoint(monkeypatch: MonkeyPatch) -> No
     assert calls == [
         {'service': 's3', 'endpoint_url': 'https://configured.example.com'}
     ]
+
+
+def test_s3_transfer_config_limits_bandwidth() -> None:
+    config = s3_transfer_config(S3Destination(kind='s3', bucket='axto'))
+
+    assert config.max_bandwidth == 1_000_000
