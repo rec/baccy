@@ -4,7 +4,6 @@ import json
 import shlex
 import subprocess
 import tempfile
-from datetime import datetime
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
 
@@ -373,7 +372,7 @@ def _artifact_plans(
                 continue
             destination = settings.destinations[rule.destination]
             try:
-                target = _render_target(rule, project_name, relative_session, segment)
+                target = _render_target(rule, relative_session, segment)
                 identity = _artifact_identity(
                     session=relative_session,
                     source_hash=(
@@ -418,41 +417,15 @@ def _expression_uses_main(expression: MatchExpression) -> bool:
     )
 
 
-def _render_target(
-    rule: UploadRule, project: str, session: Path, segment: Segment
-) -> PurePosixPath:
-    if rule.encoding.format == 'source':
-        return PurePosixPath(session.as_posix()) / PurePosixPath(
-            segment.path.as_posix()
-        )
-    extension = rule.encoding.format
-    values = {
-        'project': project,
-        'session': session.as_posix(),
-        'device': segment.source,
-        'track': segment.track,
-        'channels': '-'.join(str(channel) for channel in segment.channels),
-        'timestamp': _timestamp_name(segment.timestamp),
-        'rule': rule.name,
-        'extension': extension,
-    }
-    rendered = rule.filename.format_map(values)
-    path = PurePosixPath(rendered)
-    if (
-        path.is_absolute()
-        or not rendered
-        or any(part in {'', '.', '..'} for part in path.parts)
-    ):
-        raise ValueError('upload filename must render to a safe relative path')
-    return path
-
-
-def _timestamp_name(value: str) -> str:
-    try:
-        timestamp = datetime.fromisoformat(value.replace('Z', '+00:00'))
-    except ValueError as error:
-        raise ValueError(f'invalid recs segment timestamp: {value}') from error
-    return timestamp.strftime('%Y-%m-%dT%H-%M-%S.%fZ')
+def _render_target(rule: UploadRule, session: Path, segment: Segment) -> PurePosixPath:
+    suffix = (
+        segment.path.suffix
+        if rule.encoding.format == 'source'
+        else f'.{rule.encoding.format}'
+    )
+    return PurePosixPath(session.as_posix()) / PurePosixPath(
+        segment.path.with_suffix(suffix).as_posix()
+    )
 
 
 def _artifact_identity(

@@ -10,12 +10,10 @@ bucket = "axto-private"
 name = "main-mp3"
 match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
-filename = "{session}/{timestamp}.{extension}"
 destination = "axto"
 
 [[uploads]]
 name = "all-flac"
 match = "True"
 encoding = { format = "source" }
-filename = "{session}/{device}/{channels}/{timestamp}.{extension}"
 destination = "axto-private"

@@ -61,7 +61,6 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
                     'name': 'main',
                     'match': 'main and duration > 120',
                     'encoding': {'format': 'source'},
-                    'filename': '{channels}/{timestamp}.{extension}',
                     'destination': 'server',
                 }
             ],
@@ -125,7 +124,6 @@ def test_upload_rules_include_main_tracks_on_dry_run(tmp_path: Path) -> None:
                     'name': 'main',
                     'match': 'True',
                     'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
-                    'filename': '{timestamp}.{extension}',
                     'destination': 'server',
                 }
             ],
@@ -194,7 +192,6 @@ def test_upload_accepts_compact_recs_v5_audio_records(tmp_path: Path) -> None:
                     'name': 'archive',
                     'match': 'format == "flac" and device == "Mic"',
                     'encoding': {'format': 'source'},
-                    'filename': '{timestamp}.{extension}',
                     'destination': 'archive',
                 }
             ],
@@ -280,7 +277,6 @@ def test_sync_uses_remote_names_without_hashing_sources(
                     'name': 'archive',
                     'match': 'True',
                     'encoding': {'format': 'source'},
-                    'filename': '{timestamp}.{extension}',
                     'destination': 'server',
                 }
             ],

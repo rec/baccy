@@ -61,14 +61,12 @@ prefix = "upcoming-shows"
 name = "main-mp3"
 match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
-filename = "{timestamp}.{extension}"
 destination = "show_server"
 
 [[uploads]]
 name = "channel-archive"
 match = "True"
 encoding = { format = "flac" }
-filename = "{session}/{device}/{track}/{timestamp}.{extension}"
 destination = "archive"
 
 [[sources]]
@@ -143,9 +141,8 @@ Derived FLAC and MP3 files are written atomically to `artifacts/` under the
 backup root, keyed by source content and the complete rule definition. The
 cache is disposable: the permanent source backup remains authoritative.
 
-`filename` accepts only `{project}`, `{session}`, `{device}`, `{track}`,
-`{channels}`, `{timestamp}`, `{rule}`, and `{extension}`. It must render a
-safe relative path. Baccy rejects every colliding target before it starts an
+Uploads preserve their session-relative paths. Encoded derivatives change only
+the file extension. Baccy rejects every colliding target before it starts an
 encoder or upload.
 
 SSH destinations use the existing non-interactive SSH configuration and keys.
