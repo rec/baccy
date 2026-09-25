@@ -219,7 +219,7 @@ def test_upload_accepts_compact_recs_v5_audio_records(tmp_path: Path) -> None:
     ]
 
 
-def test_landing_page_upload_uses_project_template_and_mp3_urls(
+def test_landing_page_upload_uses_default_template_and_mp3_urls(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = tmp_path / 'recs'
@@ -274,7 +274,6 @@ def test_landing_page_upload_uses_project_template_and_mp3_urls(
                     'upload': 'main-mp3',
                     'destination': 'site',
                     'url_prefix': 'https://audio.example',
-                    'template': 'index',
                 }
             ],
         }
@@ -284,22 +283,7 @@ def test_landing_page_upload_uses_project_template_and_mp3_urls(
     )
     monkeypatch.setattr(
         'baccy.upload._load_project',
-        lambda name: {
-            'name': name,
-            'templates': {
-                'index': """<!doctype html>
-<html>
-<head><title>{{ name }}</title></head>
-<body>
-<ul>
-{% for url in urls %}
-<li><a href="{{ url }}">{{ url.rsplit('/', 1)[-1] }}</a></li>
-{% endfor %}
-</ul>
-</body>
-</html>"""
-            },
-        },
+        lambda name: {'name': name},
     )
     monkeypatch.setattr(
         'baccy.upload._materialize',

@@ -27,18 +27,9 @@ from .models import (
 from .s3 import s3_client, s3_endpoint_url
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
-_DEFAULT_LANDING_PAGE_TEMPLATE = """<!doctype html>
-<html>
-<head><title>{{ name }}</title></head>
-<body>
-<ul>
-{% for url in urls %}
-<li><a href="{{ url }}">{{ url.rsplit('/', 1)[-1] }}</a></li>
-{% endfor %}
-</ul>
-</body>
-</html>
-"""
+_DEFAULT_LANDING_PAGE_TEMPLATE = (
+    Path(__file__).parent / 'templates' / '_default.html'
+).read_text()
 
 
 class Segment(BaseModel, frozen=True):
