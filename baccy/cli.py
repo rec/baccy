@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 from pathlib import Path
@@ -222,7 +223,8 @@ def _dry_run(arguments: list[str]) -> tuple[bool, list[str]]:
 
 
 def _config(arguments: list[str]) -> tuple[Path, list[str]]:
-    config = default_config_path()
+    config: Path | None = None
+    daemon = False
     values: list[str] = []
     iterator = iter(arguments)
     for value in iterator:
@@ -233,9 +235,34 @@ def _config(arguments: list[str]) -> tuple[Path, list[str]]:
                 raise ValueError('--config requires a path') from error
         elif value.startswith('--config='):
             config = Path(value.removeprefix('--config='))
+        elif value == '--daemon':
+            daemon = True
         else:
             values.append(value)
-    return config, values
+    if daemon:
+        if config is not None:
+            raise ValueError('--daemon cannot be used with --config')
+        return _daemon_config(), values
+    return config or default_config_path(), values
+
+
+def _daemon_config() -> Path:
+    path = Application().paths.metadata
+    try:
+        metadata = json.loads(path.read_text())
+    except FileNotFoundError as error:
+        raise ValueError(f'baccy daemon metadata does not exist: {path}') from error
+    except json.JSONDecodeError as error:
+        raise ValueError(f'invalid baccy daemon metadata: {path}') from error
+    argv = metadata.get('argv')
+    if not isinstance(argv, list) or not all(isinstance(value, str) for value in argv):
+        raise ValueError(f'invalid baccy daemon metadata: {path}')
+    for index, value in enumerate(argv):
+        if value == '--config' and index + 1 < len(argv):
+            return Path(argv[index + 1])
+        if value.startswith('--config='):
+            return Path(value.removeprefix('--config='))
+    raise ValueError(f'baccy daemon configuration is missing: {path}')
 
 
 def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
@@ -273,7 +300,7 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 
 def _usage() -> str:
     return (
-        'Usage: baccy [--config PATH] [--dry-run|-d] '
+        'Usage: baccy [--config PATH|--daemon] [--dry-run|-d] '
         '{backup,watch,import,sync,test,service} ...'
     )
 
