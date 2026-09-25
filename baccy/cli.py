@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
@@ -185,12 +186,21 @@ def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> in
         if command.directories:
             print('--daemon sync does not accept directories', file=sys.stderr)
             return 2
-        try:
-            rpc.Client(Application().control_endpoint, role='baccy-cli').call('sync')
-        except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as error:
-            print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
-            return 1
-        return 0
+        endpoint = Application().control_endpoint
+        for attempt in range(20):
+            try:
+                rpc.Client(endpoint, role='baccy-cli').call('sync')
+                return 0
+            except FileNotFoundError as error:
+                if attempt == 19:
+                    print(
+                        f'could not request baccy daemon sync: {error}', file=sys.stderr
+                    )
+                    return 1
+                time.sleep(0.1)
+            except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as error:
+                print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
+                return 1
     settings = load_or_default(config)
     summary = sync(command.directories, settings, dry_run)
     _print_summary(summary, settings.verbose)

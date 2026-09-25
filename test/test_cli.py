@@ -129,6 +129,41 @@ def test_daemon_sync_rejects_directories(
     assert capsys.readouterr().err == '--daemon sync does not accept directories\n'
 
 
+def test_daemon_sync_waits_for_newly_installed_daemon(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    metadata = tmp_path / 'daemon.json'
+    metadata.write_text('{"argv": ["watch", "--config", "' + str(config) + '"]}')
+    endpoint = tmp_path / 'gui.sock'
+    monkeypatch.setattr(
+        'baccy.cli.Application',
+        lambda: SimpleNamespace(
+            paths=SimpleNamespace(metadata=metadata), control_endpoint=endpoint
+        ),
+    )
+    attempts = 0
+    sleeps: list[float] = []
+
+    class Client:
+        def __init__(self, value: Path, *, role: str) -> None:
+            pass
+
+        def call(self, command: str) -> dict[str, bool]:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                raise FileNotFoundError()
+            return {'scheduled': True}
+
+    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+    monkeypatch.setattr('baccy.cli.time.sleep', sleeps.append)
+
+    assert main(['--daemon', 'sync']) == 0
+    assert attempts == 2
+    assert sleeps == [0.1]
+
+
 def test_daemon_and_config_are_mutually_exclusive(
     tmp_path: Path, capsys: CaptureFixture[str]
 ) -> None:
