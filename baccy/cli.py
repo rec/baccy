@@ -1,6 +1,8 @@
 import json
+import logging
 import os
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
@@ -63,6 +65,21 @@ class SummaryReporter:
             self.previous = value
 
 
+class DaemonLogFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        value: dict[str, object] = {
+            'timestamp': datetime.fromtimestamp(record.created, UTC).strftime(
+                '%Y-%m-%dT%H:%M:%SZ'
+            ),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': record.getMessage(),
+        }
+        if record.exc_info is not None:
+            value['exception'] = self.formatException(record.exc_info)
+        return json.dumps(value, separators=(',', ':'))
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     try:
@@ -111,6 +128,7 @@ def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
 
     if os.environ.get('BACCY_DAEMON') == '1':
         application = Application()
+        _configure_daemon_logging()
 
         def action(value: Settings) -> BackupSummary:
             return run_backup(
@@ -130,7 +148,7 @@ def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
             watch(
                 settings,
                 action=action,
-                report=lambda summary: _report(application, reporter, summary),
+                report=lambda summary: _report(application, summary),
             )
         finally:
             application.close()
@@ -279,11 +297,16 @@ def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
     print('\n'.join(paths) if paths else '(no files)')
 
 
-def _report(
-    application: Application, reporter: SummaryReporter, summary: BackupSummary
-) -> None:
-    reporter.print(summary)
-    application.record_summary(_visible_summary(summary, reporter.verbose))
+def _report(application: Application, summary: BackupSummary) -> None:
+    for result in summary.results:
+        print(result.model_dump_json(exclude_none=True))
+    application.record_summary(_visible_summary(summary, False))
+
+
+def _configure_daemon_logging() -> None:
+    formatter = DaemonLogFormatter()
+    for handler in logging.getLogger().handlers:
+        handler.setFormatter(formatter)
 
 
 def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:

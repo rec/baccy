@@ -1,3 +1,4 @@
+import json
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -139,6 +140,65 @@ def test_watch_command_prints_only_changed_summaries(
     assert main(['watch', '--config', str(config)]) == 0
 
     assert capsys.readouterr().out == '(no files)\nrecording.toml\n'
+
+
+def test_daemon_watch_logs_each_file_as_json(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
+    summaries: list[BackupSummary] = []
+
+    class DaemonApplication:
+        def start(self) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+        def record_summary(self, summary: BackupSummary) -> None:
+            summaries.append(summary)
+
+    def run_watch(settings: object, **kwargs: object) -> None:
+        report = kwargs['report']
+        assert callable(report)
+        report(
+            BackupSummary(
+                results=[
+                    FileResult(
+                        source='source', relative_path=Path('one.wav'), status='copied'
+                    ),
+                    FileResult(
+                        source='source',
+                        relative_path=Path('two.wav'),
+                        status='uploaded',
+                    ),
+                ]
+            )
+        )
+
+    monkeypatch.setenv('BACCY_DAEMON', '1')
+    monkeypatch.setattr('baccy.cli.Application', DaemonApplication)
+    monkeypatch.setattr('baccy.cli._configure_daemon_logging', lambda: None)
+    monkeypatch.setattr('baccy.cli.watch', run_watch)
+
+    assert main(['--config', str(config), 'watch']) == 0
+    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+        {'source': 'source', 'relative_path': 'one.wav', 'status': 'copied'},
+        {'source': 'source', 'relative_path': 'two.wav', 'status': 'uploaded'},
+    ]
+    assert summaries == [
+        BackupSummary(
+            results=[
+                FileResult(
+                    source='source', relative_path=Path('one.wav'), status='copied'
+                ),
+                FileResult(
+                    source='source', relative_path=Path('two.wav'), status='uploaded'
+                ),
+            ]
+        )
+    ]
 
 
 def test_service_commands_print_toml(
