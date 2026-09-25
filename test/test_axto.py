@@ -56,7 +56,7 @@ def test_axto_config_dry_run_syncs_all_expected_transfers(
     assert all(not path.startswith('audio/') for path in scheduled)
     assert all(path.startswith(('axto:', 'axto-private:')) for path in scheduled)
     assert (
-        'axto-private:totm/2017/01/01/01-39-50/audio/1 + 20170101-013950.WAV'
+        'axto-private:totm/2017/01/01/01-39-50/audio/1 + 20170101-013950.flac'
     ) in scheduled
     assert scheduled == (FIXTURES / 'transfers.txt').read_text().splitlines()
     assert not (backup / 'events.jsonl').exists()
@@ -72,9 +72,12 @@ def _write_audio_stubs(journal: Path) -> None:
     with journal.open() as source:
         for line in source:
             record = json.loads(line)
-            if record.get('media_type') != 'audio':
+            stream_id = record.get('stream_id')
+            if record.get('media_type') != 'audio' and (
+                not isinstance(stream_id, str) or not stream_id.startswith('audio:')
+            ):
                 continue
-            if (path := record.get('path')) is not None:
+            if isinstance(path := record.get('path'), str):
                 audio = journal.parent / path
                 audio.parent.mkdir(parents=True, exist_ok=True)
                 audio.touch()
