@@ -293,7 +293,7 @@ def test_landing_page_upload_uses_project_template_and_mp3_urls(
 <body>
 <ul>
 {% for url in urls %}
-<li><a href="{{ url }}">{{ url }}</a></li>
+<li><a href="{{ url }}">{{ url.rsplit('/', 1)[-1] }}</a></li>
 {% endfor %}
 </ul>
 </body>

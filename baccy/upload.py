@@ -33,7 +33,7 @@ _DEFAULT_LANDING_PAGE_TEMPLATE = """<!doctype html>
 <body>
 <ul>
 {% for url in urls %}
-<li><a href="{{ url }}">{{ url }}</a></li>
+<li><a href="{{ url }}">{{ url.rsplit('/', 1)[-1] }}</a></li>
 {% endfor %}
 </ul>
 </body>
