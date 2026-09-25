@@ -302,9 +302,8 @@ def test_landing_page_upload_uses_project_template_and_mp3_urls(
         (Path('project/index.html'), 'uploaded'),
     ]
     page = next((tmp_path / 'backup' / 'artifacts').glob('*/index.html'))
-    assert page.read_text() == (
-        '<h1>project</h1><p>https://audio.example/project/20260920-120000.mp3</p>'
-    )
+    expected = Path(__file__).parent / 'fixtures' / 'landing.html'
+    assert page.read_text() == expected.read_text()
 
 
 @pytest.mark.parametrize(
