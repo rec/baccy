@@ -82,6 +82,53 @@ def test_daemon_uses_its_recorded_configuration(
     assert received == [tmp_path / 'backup']
 
 
+def test_daemon_sync_requests_daemon(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    metadata = tmp_path / 'daemon.json'
+    metadata.write_text('{"argv": ["watch", "--config", "' + str(config) + '"]}')
+    endpoint = tmp_path / 'gui.sock'
+    monkeypatch.setattr(
+        'baccy.cli.Application',
+        lambda: SimpleNamespace(
+            paths=SimpleNamespace(metadata=metadata), control_endpoint=endpoint
+        ),
+    )
+    calls: list[tuple[Path, str, str]] = []
+
+    class Client:
+        def __init__(self, value: Path, *, role: str) -> None:
+            calls.append((value, role, 'created'))
+
+        def call(self, command: str) -> dict[str, bool]:
+            calls.append((endpoint, 'baccy-cli', command))
+            return {'scheduled': True}
+
+    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+
+    assert main(['--daemon', 'sync']) == 0
+    assert capsys.readouterr().out == ''
+    assert calls == [
+        (endpoint, 'baccy-cli', 'created'),
+        (endpoint, 'baccy-cli', 'sync'),
+    ]
+
+
+def test_daemon_sync_rejects_directories(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    metadata = tmp_path / 'daemon.json'
+    metadata.write_text('{"argv": ["watch", "--config", "' + str(tmp_path) + '"]}')
+    monkeypatch.setattr(
+        'baccy.cli.Application',
+        lambda: SimpleNamespace(paths=SimpleNamespace(metadata=metadata)),
+    )
+
+    assert main(['--daemon', 'sync', 'totm']) == 2
+    assert capsys.readouterr().err == '--daemon sync does not accept directories\n'
+
+
 def test_daemon_and_config_are_mutually_exclusive(
     tmp_path: Path, capsys: CaptureFixture[str]
 ) -> None:
@@ -150,6 +197,8 @@ def test_daemon_watch_logs_each_file_as_json(
     summaries: list[BackupSummary] = []
 
     class DaemonApplication:
+        sync_requested = None
+
         def start(self) -> None:
             pass
 
@@ -194,7 +243,7 @@ def test_daemon_watch_logs_each_file_as_json(
         )
 
     monkeypatch.setenv('BACCY_DAEMON', '1')
-    monkeypatch.setattr('baccy.cli.Application', DaemonApplication)
+    monkeypatch.setattr('baccy.cli.DaemonApplication', DaemonApplication)
     monkeypatch.setattr('baccy.cli._configure_daemon_logging', lambda: None)
     monkeypatch.setattr('baccy.cli.watch', run_watch)
 
