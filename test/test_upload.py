@@ -10,8 +10,10 @@ from baccy.sync import sync
 from baccy.upload import publish_sessions
 
 
-def test_upload_rules_select_main_channels_and_skip_unchanged(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = tmp_path / 'recs'
     session = root / 'project' / '2026-09-20' / '12-00-00'
@@ -31,6 +33,7 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
                     'timestamp': '2026-09-20T12:00:00Z',
                     'format': 'flac',
                     'source': 'device',
+                    'track_name': 'master mix' if channel == 1 else f'track {channel}',
                     'source_channels': [channel],
                     'path': path,
                 },
@@ -39,7 +42,7 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
                     'media_type': 'audio',
                     'stream_id': str(channel),
                     'path': path,
-                    'frame_count': 5_808_000,
+                    'frame_count': 0 if channel == 1 else 5_808_000,
                     'sample_rate': 48_000,
                 },
             ]
@@ -70,10 +73,15 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
     first = publish_sessions([source], settings, False)
     second = publish_sessions([source], settings, False)
 
-    assert [result.status for result in first] == ['uploaded'] * 2
-    assert [result.status for result in second] == ['unchanged'] * 2
-    assert [call[0] for call in calls].count('scp') == 2
-    assert [call[0] for call in calls].count('ssh') == 2
+    assert [result.status for result in first] == ['uploaded']
+    assert [result.status for result in second] == ['unchanged']
+    assert [call[0] for call in calls].count('scp') == 1
+    assert [call[0] for call in calls].count('ssh') == 1
+    warning = (
+        'warning: ignoring zero frame count in completed audio record: '
+        f'{session / "audio/1.flac"}\n'
+    )
+    assert capsys.readouterr().err == warning * 2
     events = [
         json.loads(line)
         for line in (tmp_path / 'backup' / 'events.jsonl').read_text().splitlines()
