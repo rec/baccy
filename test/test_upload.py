@@ -10,7 +10,7 @@ from baccy.sync import sync
 from baccy.upload import publish_sessions
 
 
-def test_upload_rules_select_main_channels_and_skip_unchanged(
+def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = tmp_path / 'recs'
@@ -31,6 +31,7 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
                     'timestamp': '2026-09-20T12:00:00Z',
                     'format': 'flac',
                     'source': 'device',
+                    'track_name': 'master mix' if channel == 1 else f'track {channel}',
                     'source_channels': [channel],
                     'path': path,
                 },
@@ -70,10 +71,10 @@ def test_upload_rules_select_main_channels_and_skip_unchanged(
     first = publish_sessions([source], settings, False)
     second = publish_sessions([source], settings, False)
 
-    assert [result.status for result in first] == ['uploaded'] * 2
-    assert [result.status for result in second] == ['unchanged'] * 2
-    assert [call[0] for call in calls].count('scp') == 2
-    assert [call[0] for call in calls].count('ssh') == 2
+    assert [result.status for result in first] == ['uploaded']
+    assert [result.status for result in second] == ['unchanged']
+    assert [call[0] for call in calls].count('scp') == 1
+    assert [call[0] for call in calls].count('ssh') == 1
     events = [
         json.loads(line)
         for line in (tmp_path / 'backup' / 'events.jsonl').read_text().splitlines()

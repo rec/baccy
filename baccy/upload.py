@@ -150,7 +150,6 @@ def _publish_session(
             str(error),
             dry_run,
         )
-    main, main_error = _main_channels(segments)
     plans, results = _artifact_plans(
         segments,
         source_name,
@@ -159,8 +158,6 @@ def _publish_session(
         project_name,
         settings,
         expressions,
-        main,
-        main_error,
         sync,
     )
     targets = [
@@ -334,14 +331,20 @@ def _artifact_plans(
     project_name: str,
     settings: Settings,
     expressions: dict[str, MatchExpression],
-    main: tuple[str, set[int]] | None,
-    main_error: str | None,
     sync: bool,
 ) -> tuple[list[ArtifactPlan], list[FileResult]]:
     plans: list[ArtifactPlan] = []
     results: list[FileResult] = []
+    named_main_tracks = {
+        (segment.source, segment.track)
+        for segment in segments
+        if segment.track.casefold().startswith(('master', 'main'))
+    }
+    main, main_error = (
+        _main_channels(segments) if not named_main_tracks else (None, None)
+    )
     for segment in segments:
-        is_main = (
+        is_main = (segment.source, segment.track) in named_main_tracks or (
             main is not None
             and segment.source == main[0]
             and set(segment.channels).issubset(main[1])
