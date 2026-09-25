@@ -16,7 +16,7 @@ from .application import Application, DaemonApplication
 from .backup import run_backup
 from .config import default_config_path, load_or_default
 from .importer import import_recs
-from .models import BackupSummary, Settings
+from .models import BackupSummary, FileResult, Settings
 from .network import NetworkDiscovery
 from .server_test import test_destinations
 from .sync import sync
@@ -143,6 +143,7 @@ def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
                 recognize_machines=(
                     application.record_recognized_machines if value.verbose else None
                 ),
+                on_write=_report_write,
             )
 
         application.start()
@@ -324,6 +325,10 @@ def _report(application: Application, summary: BackupSummary) -> None:
     for result in summary.results:
         print(result.model_dump_json(exclude_none=True))
     application.record_summary(summary)
+
+
+def _report_write(result: FileResult) -> None:
+    print(result.model_dump_json(exclude_none=True))
 
 
 def _configure_daemon_logging() -> None:
