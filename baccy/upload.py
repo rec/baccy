@@ -3,6 +3,7 @@ import hashlib
 import json
 import shlex
 import subprocess
+import sys
 import tempfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
@@ -112,7 +113,7 @@ def _missing_sources(
             if not relative_session.parts:
                 continue
             try:
-                segments = _completed_segments(journal)
+                segments = _completed_segments(journal, warn_zero_frames=False)
             except OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError:
                 continue
             for segment in segments:
@@ -150,7 +151,6 @@ def _publish_session(
             str(error),
             dry_run,
         )
-    main, main_error = _main_channels(segments)
     plans, results = _artifact_plans(
         segments,
         source_name,
@@ -159,8 +159,6 @@ def _publish_session(
         project_name,
         settings,
         expressions,
-        main,
-        main_error,
         sync,
     )
     targets = [
@@ -187,7 +185,7 @@ def _publish_session(
     return results
 
 
-def _completed_segments(journal: Path) -> list[Segment]:
+def _completed_segments(journal: Path, warn_zero_frames: bool = True) -> list[Segment]:
     starts: dict[tuple[str, str], dict[str, object]] = {}
     source_details: dict[str, tuple[str, int]] = {}
     segments: list[Segment] = []
@@ -215,7 +213,9 @@ def _completed_segments(journal: Path) -> list[Segment]:
                 starts[identity] = value
             elif (start := starts.get(identity)) is not None:
                 if (
-                    segment := _segment(start, value, journal, source_details)
+                    segment := _segment(
+                        start, value, journal, source_details, warn_zero_frames
+                    )
                 ) is not None:
                     segments.append(segment)
     return segments
@@ -248,6 +248,7 @@ def _segment(
     finish: dict[str, object],
     journal: Path,
     source_details: dict[str, tuple[str, int]],
+    warn_zero_frames: bool,
 ) -> Segment | None:
     path = start.get('path')
     timestamp = start.get('timestamp')
@@ -289,6 +290,9 @@ def _segment(
         raise ValueError(f'invalid completed audio record in {journal}')
     if not channels:
         return None
+    if frames == 0 and warn_zero_frames:
+        message = 'warning: ignoring zero frame count in completed audio record'
+        print(f'{message}: {journal.parent / path}', file=sys.stderr)
     return Segment(
         path=Path(path),
         timestamp=timestamp,
@@ -334,20 +338,32 @@ def _artifact_plans(
     project_name: str,
     settings: Settings,
     expressions: dict[str, MatchExpression],
-    main: tuple[str, set[int]] | None,
-    main_error: str | None,
     sync: bool,
 ) -> tuple[list[ArtifactPlan], list[FileResult]]:
     plans: list[ArtifactPlan] = []
     results: list[FileResult] = []
+    named_main_tracks = {
+        (segment.source, segment.track)
+        for segment in segments
+        if segment.track.casefold().startswith(('master', 'main'))
+    }
+    session_duration = max((segment.duration for segment in segments), default=0.0)
+    main, main_error = (
+        _main_channels(segments) if not named_main_tracks else (None, None)
+    )
     for segment in segments:
-        is_main = (
+        named_main = (segment.source, segment.track) in named_main_tracks
+        is_main = named_main or (
             main is not None
             and segment.source == main[0]
             and set(segment.channels).issubset(main[1])
         )
         values = {
-            'duration': segment.duration,
+            'duration': (
+                session_duration
+                if named_main and segment.frame_count == 0
+                else segment.duration
+            ),
             'main': is_main,
             'device': segment.source,
             'channels': segment.channels,
