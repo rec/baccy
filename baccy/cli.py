@@ -225,8 +225,11 @@ def _dry_run(arguments: list[str]) -> tuple[bool, list[str]]:
 def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
     value = _visible_summary(summary, verbose)
     paths = [
-        result.relative_path.as_posix()
-        + (f' -> {result.destination}' if result.destination is not None else '')
+        (
+            f'{result.destination}:{result.relative_path.as_posix()}'
+            if result.destination is not None
+            else result.relative_path.as_posix()
+        )
         for result in value.results
         if result.relative_path is not None and result.status != 'deferred'
     ]
