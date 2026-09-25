@@ -321,6 +321,113 @@ def test_service_commands_print_toml(
     }
 
 
+def test_service_install_waits_for_daemon_and_schedules_sync(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    endpoint = tmp_path / 'gui.sock'
+    installed: list[list[str]] = []
+    calls: list[str] = []
+
+    class ServiceApplication:
+        control_endpoint = endpoint
+
+        def install_service(self, arguments: list[str]) -> StatusResult:
+            installed.append(arguments)
+            return StatusResult(installed=True)
+
+        def service_status(self) -> StatusResult:
+            raise AssertionError('running daemon should not need a status check')
+
+    class Client:
+        def __init__(self, value: Path, *, role: str) -> None:
+            assert value == endpoint
+            assert role == 'baccy-cli'
+
+        def call(self, command: str) -> dict[str, bool]:
+            calls.append(command)
+            return {'running': True} if command == 'status' else {'scheduled': True}
+
+    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+
+    assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 0
+    assert installed == [['watch', '--config', str(tmp_path / 'baccy.toml')]]
+    assert calls == ['status', 'sync']
+    assert tomllib.loads(capsys.readouterr().out) == {
+        'installed': True,
+        'details': '',
+    }
+
+
+def test_service_install_reports_daemon_start_failure(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    endpoint = tmp_path / 'gui.sock'
+
+    class ServiceApplication:
+        control_endpoint = endpoint
+
+        def install_service(self, arguments: list[str]) -> StatusResult:
+            return StatusResult(installed=True)
+
+        def service_status(self) -> StatusResult:
+            return StatusResult(installed=True, running=False, details='exited')
+
+    class Client:
+        def __init__(self, value: Path, *, role: str) -> None:
+            pass
+
+        def call(self, command: str) -> dict[str, bool]:
+            raise FileNotFoundError('socket missing')
+
+    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+
+    assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 1
+    assert capsys.readouterr().err == 'baccy daemon failed to start: exited\n'
+
+
+def test_service_install_can_skip_sync(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    endpoint = tmp_path / 'gui.sock'
+    calls: list[str] = []
+
+    class ServiceApplication:
+        control_endpoint = endpoint
+
+        def install_service(self, arguments: list[str]) -> StatusResult:
+            return StatusResult(installed=True)
+
+        def service_status(self) -> StatusResult:
+            raise AssertionError('running daemon should not need a status check')
+
+    class Client:
+        def __init__(self, value: Path, *, role: str) -> None:
+            pass
+
+        def call(self, command: str) -> dict[str, bool]:
+            calls.append(command)
+            return {'running': True}
+
+    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+
+    assert (
+        main(
+            [
+                '--config',
+                str(tmp_path / 'baccy.toml'),
+                'service',
+                'install',
+                '--no-sync',
+            ]
+        )
+        == 0
+    )
+    assert calls == ['status']
+
+
 def test_test_command_prints_ok_for_reachable_destinations(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
 ) -> None:

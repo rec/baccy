@@ -50,6 +50,8 @@ class TestCommand(BaseModel, frozen=True):
 class InstallCommand(BaseModel, frozen=True):
     """Install the per-user baccy LaunchAgent."""
 
+    sync: bool = True
+
 
 class ServiceCommand(BaseModel, frozen=True):
     """Manage the per-user baccy LaunchAgent."""
@@ -187,21 +189,10 @@ def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> in
         if command.directories:
             print('--daemon sync does not accept directories', file=sys.stderr)
             return 2
-        endpoint = Application().control_endpoint
-        for attempt in range(20):
-            try:
-                rpc.Client(endpoint, role='baccy-cli').call('sync')
-                return 0
-            except FileNotFoundError as error:
-                if attempt == 19:
-                    print(
-                        f'could not request baccy daemon sync: {error}', file=sys.stderr
-                    )
-                    return 1
-                time.sleep(0.1)
-            except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as error:
-                print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
-                return 1
+        if error := _request_daemon_sync(Application().control_endpoint):
+            print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
+            return 1
+        return 0
     settings = load_or_default(config)
     summary = sync(command.directories, settings, dry_run)
     _print_summary(summary, settings.verbose)
@@ -227,8 +218,16 @@ def _service(arguments: list[str], config: Path, dry_run: bool) -> int:
         return 0
     application = Application()
     if command == 'install':
-        tyro.cli(InstallCommand, args=rest, prog='baccy service install')
+        install = tyro.cli(InstallCommand, args=rest, prog='baccy service install')
         result = application.install_service(['watch', '--config', str(config)])
+        if error := _wait_for_daemon(application):
+            print(f'baccy daemon failed to start: {error}', file=sys.stderr)
+            return 1
+        if install.sync and (
+            error := _request_daemon_sync(application.control_endpoint, attempts=1)
+        ):
+            print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
+            return 1
     elif command == 'uninstall':
         _parse_service_command(rest, command)
         result = application.uninstall_service()
@@ -304,6 +303,43 @@ def _daemon_config() -> Path:
         if value.startswith('--config='):
             return Path(value.removeprefix('--config='))
     raise ValueError(f'baccy daemon configuration is missing: {path}')
+
+
+def _wait_for_daemon(application: Application) -> str | None:
+    error = 'daemon control socket did not appear'
+    for attempt in range(50):
+        try:
+            status = rpc.Client(application.control_endpoint, role='baccy-cli').call(
+                'status'
+            )
+        except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as value:
+            error = str(value)
+            service = application.service_status()
+            if service.running is False:
+                return service.details or error
+            if attempt < 49:
+                time.sleep(0.1)
+            continue
+        if isinstance(status, dict) and status.get('running') is True:
+            return None
+        return 'daemon reported that it is not running'
+    return error
+
+
+def _request_daemon_sync(endpoint: Path | str, attempts: int = 20) -> str | None:
+    error = 'daemon control socket did not appear'
+    for attempt in range(attempts):
+        try:
+            rpc.Client(endpoint, role='baccy-cli').call('sync')
+            return None
+        except FileNotFoundError as value:
+            error = str(value)
+            if attempt == attempts - 1:
+                return error
+            time.sleep(0.1)
+        except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as value:
+            return str(value)
+    return error
 
 
 def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
