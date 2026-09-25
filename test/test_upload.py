@@ -286,7 +286,19 @@ def test_landing_page_upload_uses_project_template_and_mp3_urls(
         'baccy.upload._load_project',
         lambda name: {
             'name': name,
-            'templates': {'index': '<h1>{{ name }}</h1><p>{{ urls[0] }}</p>'},
+            'templates': {
+                'index': """<!doctype html>
+<html>
+<head><title>{{ name }}</title></head>
+<body>
+<ul>
+{% for url in urls %}
+<li><a href="{{ url }}">{{ url }}</a></li>
+{% endfor %}
+</ul>
+</body>
+</html>"""
+            },
         },
     )
     monkeypatch.setattr(
