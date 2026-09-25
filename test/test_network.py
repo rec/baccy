@@ -309,13 +309,12 @@ def test_network_recs_backup_is_available_for_project_upload(
         Settings(
             backup_root=tmp_path / 'backup',
             discover_removable=False,
-            destinations={'server': {'kind': 'ssh', 'url': 'user@host:/srv/recs'}},
             uploads=[
                 {
                     'name': 'archive',
                     'match': 'True',
                     'encoding': {'format': 'source'},
-                    'destination': 'server',
+                    'destination': 'ssh:user@host:/srv/recs',
                 }
             ],
         ),

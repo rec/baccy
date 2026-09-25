@@ -43,13 +43,12 @@ def test_upload_reports_every_missing_source_before_contacting_destinations(
     settings = Settings.model_validate(
         {
             'backup_root': tmp_path / 'backup',
-            'destinations': {'archive': {'kind': 's3', 'bucket': 'archive'}},
             'uploads': [
                 {
                     'name': 'archive',
                     'match': 'True',
                     'encoding': {'format': 'source'},
-                    'destination': 'archive',
+                    'destination': 's3:archive',
                 }
             ],
         }

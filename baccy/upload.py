@@ -23,22 +23,14 @@ from .models import (
     Settings,
     SshDestination,
     UploadRule,
+    parse_destination,
 )
 from .s3 import s3_client, s3_endpoint_url
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
-_DEFAULT_LANDING_PAGE_TEMPLATE = """<!doctype html>
-<html>
-<head><title>{{ name }}</title></head>
-<body>
-<ul>
-{% for url in urls %}
-<li><a href="{{ url }}">{{ url }}</a></li>
-{% endfor %}
-</ul>
-</body>
-</html>
-"""
+_DEFAULT_LANDING_PAGE_TEMPLATE = (
+    Path(__file__).parent / 'templates' / '_default.html'
+).read_text()
 
 
 class Segment(BaseModel, frozen=True):
@@ -417,7 +409,7 @@ def _artifact_plans(
                 continue
             if not expression.matches(values):
                 continue
-            destination = settings.destinations[rule.destination]
+            destination = parse_destination(rule.destination)
             try:
                 target = _render_target(rule, relative_session, segment)
                 identity = _artifact_identity(
@@ -510,7 +502,7 @@ def _landing_page_plans(
             grouped.setdefault((artifact.project, artifact.target.parent), []).append(
                 artifact
             )
-    destination = settings.destinations[landing_page.destination]
+    destination = parse_destination(landing_page.destination)
     plans: list[LandingPagePlan] = []
     for (project_name, directory), values in grouped.items():
         try:
@@ -535,7 +527,7 @@ def _landing_page_plans(
             )
             continue
         urls = [
-            f'{landing_page.url_prefix}/{quote(value.target.as_posix())}'
+            quote(value.target.name)
             for value in sorted(values, key=lambda value: value.target)
         ]
         content = Template(template).render(**project, urls=urls)
@@ -859,8 +851,8 @@ def _destination_identity(destination: Destination) -> str:
 
 def _display_destination(destination: Destination) -> str:
     if isinstance(destination, S3Destination):
-        return destination.bucket
-    return destination.url
+        return f's3:{destination.bucket}'
+    return f'ssh:{destination.url}'
 
 
 def _remote_targets(destination: Destination) -> set[str]:

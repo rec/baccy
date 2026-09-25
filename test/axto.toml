@@ -1,28 +1,15 @@
-[destinations.axto]
-kind = "s3"
-bucket = "axto"
-
-[destinations.axto-private]
-kind = "s3"
-bucket = "axto-private"
-
-[destinations.axto-html]
-kind = "ssh"
-url = "TODO:/TODO"
-
 [[uploads]]
 name = "main-mp3"
 match = "main and duration > 120"
 encoding = { format = "mp3", bitrate_kbps = 128 }
-destination = "axto"
+destination = "s3:axto"
 
 [[uploads]]
 name = "all-flac"
 match = "True"
 encoding = { format = "source" }
-destination = "axto-private"
+destination = "s3:axto-private"
 
 [[landing_pages]]
 upload = "main-mp3"
-destination = "axto-html"
-url_prefix = "TODO"
+destination = "ssh:root@ax.to:/home/ax/public_html"
