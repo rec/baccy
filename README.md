@@ -275,6 +275,9 @@ uv run baccy --config /path/to/baccy.toml service install
 uv run baccy service status
 ```
 
+Installation waits for the daemon to start, then schedules a sync. Pass
+`--no-sync` to install without scheduling that initial sync.
+
 The agent uses `launchd` with `RunAtLoad` and `KeepAlive`. Installation builds
 an isolated release environment under `~/Library/Application Support/baccy/`,
 so the service does not run code from this checkout. It starts after the user
