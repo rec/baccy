@@ -501,7 +501,8 @@ def test_rename_dry_run_does_not_rename(
         destinations=[],
     )
     monkeypatch.setattr(
-        'baccy.cli.renamed_files', lambda settings, pattern, replacement: [file]
+        'baccy.cli.renamed_files',
+        lambda settings, pattern, replacement, regular_expression: [file],
     )
     monkeypatch.setattr(
         'baccy.cli.rename_files',
