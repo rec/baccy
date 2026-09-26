@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 from .models import S3Destination, Settings
 from .s3 import s3_client
 from .upload import planned_source_uploads
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class RenameFile(BaseModel, frozen=True):
@@ -112,4 +115,4 @@ def _rewrite_session(path: Path, files: list[RenameFile]) -> None:
 
 def _log(value: dict[str, object]) -> None:
     timestamp = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
-    print(json.dumps({'timestamp': timestamp} | value))
+    _LOGGER.info(json.dumps({'timestamp': timestamp} | value))

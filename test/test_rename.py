@@ -1,9 +1,10 @@
+import json
 from pathlib import Path
 
-from pytest import MonkeyPatch
+from pytest import CaptureFixture, MonkeyPatch
 
 from baccy.models import Encoding, S3Destination, Settings, UploadRule
-from baccy.rename import renamed_files
+from baccy.rename import _log, renamed_files
 from baccy.upload import ArtifactPlan, Segment
 
 
@@ -93,3 +94,15 @@ def test_rename_uses_regular_expressions_only_when_requested(
 
     assert files[0].replacement.name == 'Mic.flac'
     assert renamed_files(Settings(), 'Microphone + 1', 'Mic', True) == []
+
+
+def test_rename_logs_without_writing_to_standard_output(
+    monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    messages: list[str] = []
+    monkeypatch.setattr('baccy.rename._LOGGER.info', messages.append)
+
+    _log({'ok': True})
+
+    assert capsys.readouterr().out == ''
+    assert json.loads(messages[0])['ok'] is True
