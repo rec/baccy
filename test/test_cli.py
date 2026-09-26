@@ -461,6 +461,28 @@ def test_test_command_reports_unreachable_destinations(
     assert captured.err == 'archive: access denied\n'
 
 
+def test_list_command_prints_uploaded_files(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
+    monkeypatch.setattr(
+        'baccy.cli.list_uploaded',
+        lambda settings: [
+            's3:archive/totm/audio.flac',
+            'ssh:user@example.org:/srv/a.html',
+        ],
+    )
+
+    assert main(['list', '--config', str(config)]) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == (
+        's3:archive/totm/audio.flac\nssh:user@example.org:/srv/a.html\n'
+    )
+    assert captured.err == ''
+
+
 @pytest.mark.parametrize('flag', ['-d', '--dry-run'])
 def test_backup_command_dry_run_does_not_write(
     tmp_path: Path, capsys: CaptureFixture[str], flag: str
