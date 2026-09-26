@@ -6,35 +6,51 @@ from pathlib import Path, PurePosixPath
 from botocore.exceptions import ClientError
 
 from .models import (
-    Destination,
+    FileResult,
+    PathSource,
+    ResolvedSource,
     S3Destination,
     Settings,
     SshDestination,
     parse_destination,
 )
 from .s3 import s3_client
-from .sync import sync
+from .upload import publish_sessions
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
 
 
 def list_uploaded(settings: Settings) -> list[str]:
+    s3_files: list[tuple[str, S3Destination, Path]] = []
+    ssh_files: dict[str, tuple[SshDestination, list[tuple[str, Path]]]] = {}
+    for result in _planned_uploads(settings):
+        if (
+            result.status != 'would_upload'
+            or result.destination is None
+            or result.relative_path is None
+        ):
+            continue
+        destination = parse_destination(result.destination, settings.s3_max_bandwidth)
+        path = f'{result.destination}/{result.relative_path.as_posix()}'
+        if isinstance(destination, SshDestination):
+            ssh_files.setdefault(destination.url, (destination, []))[1].append(
+                (path, result.relative_path)
+            )
+        else:
+            s3_files.append((path, destination, result.relative_path))
     values = [
         (path, modified, size)
-        for result in sync([], settings, dry_run=True).results
-        if result.status == 'would_upload'
-        and result.destination is not None
-        and result.relative_path is not None
-        and (
-            remote := _remote_file(
-                parse_destination(result.destination, settings.s3_max_bandwidth),
-                result.relative_path,
-            )
-        )
-        is not None
-        for path in [f'{result.destination}/{result.relative_path.as_posix()}']
+        for path, destination, target in s3_files
+        if (remote := _s3_file(destination, target)) is not None
         for modified, size in [remote]
     ]
+    for destination, files in ssh_files.values():
+        remote_files = _ssh_files(destination, [target for _, target in files])
+        values.extend(
+            (path, *remote_files[target.as_posix()])
+            for path, target in files
+            if target.as_posix() in remote_files
+        )
     width = max((len(path) for path, _, _ in values), default=0)
     return [
         f'{path:<{width}}  {_time(modified)}  {_size(size)}'
@@ -42,32 +58,40 @@ def list_uploaded(settings: Settings) -> list[str]:
     ]
 
 
-def _remote_file(destination: Destination, target: Path) -> tuple[datetime, int] | None:
-    if isinstance(destination, SshDestination):
-        return _ssh_file(destination, target)
-    return _s3_file(destination, target)
+def _planned_uploads(settings: Settings) -> list[FileResult]:
+    root = settings.backup_root / 'audio'
+    source = ResolvedSource(
+        source=PathSource(kind='path', name='backup', path=root), root=root
+    )
+    return publish_sessions([source], settings, dry_run=True, sync=True)
 
 
-def _ssh_file(destination: SshDestination, target: Path) -> tuple[datetime, int] | None:
+def _ssh_files(
+    destination: SshDestination, targets: list[Path]
+) -> dict[str, tuple[datetime, int]]:
     host, _, base = destination.url.partition(':')
-    path = PurePosixPath(base) / target.as_posix()
+    paths = [str(PurePosixPath(base) / target.as_posix()) for target in targets]
+    command = '; '.join(_ssh_stat(path) for path in paths)
     result = subprocess.run(
-        [
-            'ssh',
-            *_SSH_OPTIONS,
-            host,
-            f"stat -c '%Y %s' {shlex.quote(path.as_posix())}",
-        ],
+        ['ssh', *_SSH_OPTIONS, host, command],
         capture_output=True,
-        check=False,
+        check=True,
         text=True,
     )
-    if result.returncode:
-        if 'No such file or directory' in result.stderr:
-            return None
-        raise OSError(result.stderr.strip())
-    modified, size = result.stdout.split()
-    return datetime.fromtimestamp(int(modified)).astimezone(), int(size)
+    values: dict[str, tuple[datetime, int]] = {}
+    prefix = f'{base.rstrip("/")}/'
+    for line in result.stdout.splitlines():
+        modified, size, path = line.split('\t', maxsplit=2)
+        values[path.removeprefix(prefix)] = (
+            datetime.fromtimestamp(int(modified)).astimezone(),
+            int(size),
+        )
+    return values
+
+
+def _ssh_stat(path: str) -> str:
+    quoted = shlex.quote(path)
+    return f"if [ -f {quoted} ]; then stat -c '%Y\\t%s\\t%n' {quoted}; fi"
 
 
 def _s3_file(destination: S3Destination, target: Path) -> tuple[datetime, int] | None:
