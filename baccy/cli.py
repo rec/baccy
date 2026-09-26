@@ -57,6 +57,7 @@ class ListCommand(BaseModel, frozen=True):
 class RenameCommand(BaseModel, frozen=True):
     pattern: Annotated[str, tyro.conf.Positional]
     replacement: Annotated[str, tyro.conf.Positional]
+    regular_expression: Annotated[bool, tyro.conf.arg(name='re')] = False
     quiet: bool = False
     yes: bool = False
 
@@ -236,7 +237,10 @@ def _list(command: ListCommand, config: Path, dry_run: bool) -> int:
 def _rename(command: RenameCommand, config: Path, dry_run: bool) -> int:
     try:
         files = renamed_files(
-            load_or_default(config), command.pattern, command.replacement
+            load_or_default(config),
+            command.pattern,
+            command.replacement,
+            command.regular_expression,
         )
     except (OSError, ValueError, re.error) as error:
         print(error, file=sys.stderr)
