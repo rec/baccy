@@ -10,9 +10,6 @@ The local backup is archival data.  Its audio filenames and
 `session-record.jsonl` paths remain unchanged.  Only the remote target names,
 including links rendered into landing pages, are normalized.
 
-This is a remote namespace migration.  It must neither delete local audio nor
-rewrite recs session records.
-
 ## Target-path rule
 
 1. Continue producing an artifact's current, relative target path from its
@@ -48,43 +45,6 @@ different source names can normalize to the same URL.  Such a collision is a
 configuration/data error: report each colliding artifact as deferred and do no
 upload for that target.
 
-## Existing remote objects
-
-Add a dedicated migration command after the new-write behavior is covered:
-
-```sh
-baccy relocate-urls
-baccy relocate-urls --dry-run
-baccy relocate-urls --yes
-```
-
-The exact command spelling can be settled with the CLI implementation, but it
-must have this behavior:
-
-1. Build both the legacy target and normalized target for every current upload
-   plan.  Only plans whose names differ are candidates.
-2. Group candidates by destination and reject normalized-target collisions
-   before changing anything.
-3. Without `--yes`, print the complete `old -> new` preview and ask for one
-   confirmation.  `--dry-run` prints the same plan and performs no remote
-   queries or writes.
-4. For each candidate, cheaply inspect only the legacy and normalized remote
-   names.  Do not download objects or calculate content hashes.
-5. If only the legacy name exists, relocate it on the remote service.  S3 uses
-   server-side copy followed by deletion only after copy succeeds.  SSH creates
-   the new parent directory and uses a same-server rename.  The local backup
-   and session record are never renamed.
-6. If only the normalized name exists, report it as already migrated.  If both
-   exist, stop with a conflict and keep both objects.  If neither exists,
-   report it as absent and leave it for the next normal sync to upload.
-7. Stop at the first remote failure.  Do not delete a legacy object when its
-   replacement is uncertain.
-
-The migration will emit timestamped structured records to the daemon log, one
-record when an object starts and one terminal record for that object.  Its
-interactive output is limited to the preview, confirmation, errors, and final
-summary.
-
 ## Ordering
 
 Implement and release in these stages:
@@ -95,24 +55,5 @@ Implement and release in these stages:
    upload presence checks, event records, and `baccy list`.
 3. Add regression fixtures with spaces and every character changed by
    `legal_url_path`.  Verify matching S3 keys, SSH paths, and HTML links.
-4. Add the migration planner and test its no-network preview, collision,
-   already-migrated, absent, S3 copy/delete, SSH rename, and failure behavior.
-5. Run `relocate-urls --dry-run` against the production configuration, inspect
-   every proposed mapping, then run it with `--yes` while the daemon is stopped.
-6. Restart the daemon and run a normal sync.  Confirm that `baccy list` shows
+4. Run a normal sync. Confirm that `baccy list` shows
    only normalized targets and that every landing-page link resolves.
-
-## Verification and rollback
-
-Before migration, save the dry-run mapping as an operator artifact.  It is the
-rollback map from normalized target to legacy target.
-
-For each relocation, verify remote metadata available without downloading
-content: S3 object size and copy success, and SSH `stat` size after rename.
-Preserve the legacy object on any uncertainty.  If an already migrated object
-must be rolled back, use the saved mapping to perform the reverse server-side
-copy/rename, again preserving the source until the destination is confirmed.
-
-Unit tests must keep local filenames and session-record paths unchanged while
-asserting normalized remote targets.  They must also demonstrate that a
-collision prevents every remote mutation for that target.
