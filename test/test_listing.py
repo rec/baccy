@@ -1,62 +1,51 @@
-import json
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from pytest import MonkeyPatch
 
 from baccy.listing import list_uploaded
-from baccy.models import Encoding, LandingPageUpload, Settings, UploadRule
+from baccy.models import BackupSummary, FileResult, Settings
 
 
-def test_list_uploaded_lists_only_baccy_uploads(
-    tmp_path: Path, monkeypatch: MonkeyPatch
+def test_list_uploaded_lists_existing_planned_uploads(
+    monkeypatch: MonkeyPatch,
 ) -> None:
-    settings = Settings(
-        backup_root=tmp_path / 'backup',
-        uploads=[
-            UploadRule(
-                name='audio',
-                match='True',
-                encoding=Encoding(format='source'),
-                destination='s3:audio',
-            ),
-        ],
-        landing_pages=[
-            LandingPageUpload(
-                upload='audio', destination='ssh:user@example.org:/srv/public'
-            )
-        ],
-    )
-    events = settings.backup_root / 'events.jsonl'
-    events.parent.mkdir()
-    events.write_text(
-        '\n'.join(
-            json.dumps(value)
-            for value in [
-                {
-                    'operation': 'upload',
-                    'result': 'uploaded',
-                    'destination': 'aws/audio/',
-                    'target': 'totm/recording.flac',
-                },
-                {
-                    'operation': 'landing_page',
-                    'result': 'uploaded',
-                    'destination': 'user@example.org:/srv/public',
-                    'target': 'totm/index.html',
-                },
-                {
-                    'operation': 'backup',
-                    'result': 'copied',
-                    'destination': 'aws/audio/',
-                    'target': 'not-published.flac',
-                },
+    settings = Settings()
+    monkeypatch.setattr(
+        'baccy.listing.sync',
+        lambda directories, settings, dry_run: BackupSummary(
+            results=[
+                FileResult(
+                    source='totm',
+                    relative_path=Path('totm/a.flac'),
+                    status='would_upload',
+                    destination='s3:audio',
+                ),
+                FileResult(
+                    source='totm',
+                    relative_path=Path('totm/recording.flac'),
+                    status='would_upload',
+                    destination='s3:audio',
+                ),
+                FileResult(
+                    source='totm',
+                    relative_path=Path('totm/index.html'),
+                    status='would_upload',
+                    destination='ssh:user@example.org:/srv/public',
+                ),
             ]
-        )
-        + '\n'
+        ),
     )
-    monkeypatch.setattr('baccy.listing.s3_endpoint_url', lambda destination: None)
+    modified = datetime(2026, 9, 26, 10, 40, 8, tzinfo=ZoneInfo('Europe/Paris'))
+    monkeypatch.setattr(
+        'baccy.listing._remote_file',
+        lambda destination, target: (
+            (modified, 53 * 1024**2) if target.suffix == '.flac' else None
+        ),
+    )
 
     assert list_uploaded(settings) == [
-        's3:audio/totm/recording.flac',
-        'ssh:user@example.org:/srv/public/totm/index.html',
+        's3:audio/totm/a.flac          Sat Sep 26 10:40:08 CEST 2026  53M',
+        's3:audio/totm/recording.flac  Sat Sep 26 10:40:08 CEST 2026  53M',
     ]
