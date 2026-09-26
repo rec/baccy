@@ -78,7 +78,7 @@ def test_daemon_uses_its_recorded_configuration(
 
     monkeypatch.setattr('baccy.cli.run_backup', backup)
 
-    assert main(['--daemon', 'backup']) == 0
+    assert main(['backup']) == 0
     assert received == [tmp_path / 'backup']
 
 
@@ -306,9 +306,14 @@ def test_daemon_watch_logs_each_file_as_json(
 
 
 def test_service_commands_print_toml(
-    capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
 ) -> None:
+    metadata = tmp_path / 'daemon.json'
+    metadata.write_text('{"argv": ["watch", "--config", "baccy.toml"]}')
+
     class ServiceApplication:
+        paths = SimpleNamespace(metadata=metadata)
+
         def service_status(self) -> StatusResult:
             return StatusResult(installed=True, running=True, details='ready')
 
@@ -528,8 +533,10 @@ def test_backup_command_without_configuration_uses_main_drive(
         'baccy.backup.discover_removable_sources',
         lambda backup_root, configured: [resolved],
     )
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
 
-    exit_code = main(['backup'])
+    exit_code = main(['--config', str(config), 'backup'])
 
     destination = tmp_path / 'baccy' / 'audio' / 'recs-session' / 'session-record.jsonl'
     assert exit_code == 0
