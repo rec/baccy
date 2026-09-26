@@ -115,7 +115,7 @@ def test_ssh_listing_ignores_a_banner(monkeypatch: MonkeyPatch) -> None:
         return subprocess.CompletedProcess(
             command,
             0,
-            stdout='Welcome to the server\n1790406008\t55574528\t/srv/totm/a.flac\n',
+            stdout='Welcome to the server\n0\t1790406008\t55574528\n',
         )
 
     monkeypatch.setattr('baccy.listing.subprocess.run', run)
@@ -124,4 +124,4 @@ def test_ssh_listing_ignores_a_banner(monkeypatch: MonkeyPatch) -> None:
         SshDestination(kind='ssh', url='user@example.org:/srv'),
         [Path('totm/a.flac')],
     ) == {'totm/a.flac': (datetime.fromtimestamp(1790406008).astimezone(), 55574528)}
-    assert "stat -f '%m\\t%z\\t%N'" in commands[0][-1]
+    assert "stat -f '%m\\t%z'" in commands[0][-1]
