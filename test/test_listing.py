@@ -1,12 +1,13 @@
 import json
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from pytest import MonkeyPatch
 
-from baccy.listing import list_uploaded
-from baccy.models import Encoding, FileResult, Settings, UploadRule
+from baccy.listing import _ssh_files, list_uploaded
+from baccy.models import Encoding, FileResult, Settings, SshDestination, UploadRule
 
 
 def test_list_uploaded_lists_existing_planned_uploads(
@@ -104,3 +105,23 @@ def test_list_uploaded_does_not_hash_audio(
     monkeypatch.setattr('baccy.listing._s3_files', lambda destination, targets: {})
 
     assert list_uploaded(settings) == []
+
+
+def test_ssh_listing_ignores_a_banner(monkeypatch: MonkeyPatch) -> None:
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(
+            command,
+            0,
+            stdout='Welcome to the server\n1790406008\t55574528\t/srv/totm/a.flac\n',
+        )
+
+    monkeypatch.setattr('baccy.listing.subprocess.run', run)
+
+    assert _ssh_files(
+        SshDestination(kind='ssh', url='user@example.org:/srv'),
+        [Path('totm/a.flac')],
+    ) == {'totm/a.flac': (datetime.fromtimestamp(1790406008).astimezone(), 55574528)}
+    assert "stat -f '%m\\t%z\\t%N'" in commands[0][-1]
