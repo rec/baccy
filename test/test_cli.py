@@ -16,6 +16,7 @@ from baccy.models import (
     SourceSelection,
     VolumeSource,
 )
+from baccy.rename import RenameFile
 
 
 class NoNetworkDiscovery:
@@ -485,6 +486,34 @@ def test_list_command_prints_uploaded_files(
     assert captured.out == (
         's3:archive/totm/audio.flac\nssh:user@example.org:/srv/a.html\n'
     )
+    assert captured.err == ''
+
+
+def test_rename_dry_run_does_not_rename(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
+    file = RenameFile(
+        session=Path('totm/session'),
+        source=Path('totm/session/audio/old.flac'),
+        replacement=Path('totm/session/audio/new.flac'),
+        destinations=[],
+    )
+    monkeypatch.setattr(
+        'baccy.cli.renamed_files', lambda settings, pattern, replacement: [file]
+    )
+    monkeypatch.setattr(
+        'baccy.cli.rename_files',
+        lambda settings, files, pattern, replacement: (_ for _ in ()).throw(
+            AssertionError()
+        ),
+    )
+
+    assert main(['--config', str(config), '--dry-run', 'rename', 'old', 'new']) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == 'totm/session/audio/old.flac -> new.flac\n'
     assert captured.err == ''
 
 
