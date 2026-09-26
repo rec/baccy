@@ -722,7 +722,11 @@ def _materialize_and_upload(
         )
     try:
         artifact = _materialize(plan, source, catalog.path.parent)
-        uploaded = _upload(plan, artifact)
+        try:
+            uploaded = _upload(plan, artifact)
+        finally:
+            if plan.rule.encoding.format == 'mp3':
+                artifact.unlink(missing_ok=True)
     except (BotoCoreError, ClientError, OSError, subprocess.SubprocessError) as error:
         return _record_failure(
             catalog, plan.project, Path(plan.identity), str(error), dry_run
@@ -777,14 +781,21 @@ def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
     if plan.rule.encoding.format == 'source':
         return source
     extension = plan.rule.encoding.format
-    output = backup_root / 'artifacts' / plan.identity / f'artifact.{extension}'
-    if output.is_file():
-        return output
-    output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile(
-        dir=output.parent, suffix=f'.{extension}', delete=False
-    ) as file:
-        temporary = Path(file.name)
+    if extension == 'mp3':
+        with tempfile.NamedTemporaryFile(
+            dir='/tmp', suffix='.mp3', delete=False
+        ) as file:
+            temporary = Path(file.name)
+        output = temporary
+    else:
+        output = backup_root / 'artifacts' / plan.identity / f'artifact.{extension}'
+        if output.is_file():
+            return output
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(
+            dir=output.parent, suffix=f'.{extension}', delete=False
+        ) as file:
+            temporary = Path(file.name)
     try:
         command = ['ffmpeg', '-y', '-i', str(source)]
         if extension == 'mp3':
@@ -793,7 +804,8 @@ def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
             command.extend(['-c:a', 'flac'])
         command.append(str(temporary))
         subprocess.run(command, capture_output=True, check=True)
-        temporary.replace(output)
+        if extension != 'mp3':
+            temporary.replace(output)
     except OSError, subprocess.SubprocessError:
         temporary.unlink(missing_ok=True)
         raise
