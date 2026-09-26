@@ -14,7 +14,7 @@ from reccy.protocol import rpc
 
 from .application import Application, DaemonApplication
 from .backup import run_backup
-from .config import default_config_path, load_or_default
+from .config import load_or_default
 from .importer import import_recs
 from .listing import list_uploaded
 from .models import BackupSummary, FileResult, Settings
@@ -296,7 +296,9 @@ def _config(arguments: list[str]) -> tuple[Path, bool, list[str]]:
         if config is not None:
             raise ValueError('--daemon cannot be used with --config')
         return _daemon_config(), True, values
-    return config or default_config_path(), False, values
+    if config is not None:
+        return config, False, values
+    return _daemon_config(), True, values
 
 
 def _daemon_config() -> Path:
