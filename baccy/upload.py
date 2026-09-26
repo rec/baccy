@@ -517,15 +517,15 @@ def _landing_page_plans(
     plans: list[LandingPagePlan] = []
     for (project_name, directory), values in grouped.items():
         try:
-            project = _load_project(project_name)
-            templates = project.get('templates', {})
-            if not isinstance(templates, dict):
-                raise ValueError('recording project templates must be a dictionary')
-            template = (
-                _DEFAULT_LANDING_PAGE_TEMPLATE
-                if landing_page.template is None
-                else templates[landing_page.template]
-            )
+            project: dict[str, object] = {'name': project_name}
+            if landing_page.template is None:
+                template = _DEFAULT_LANDING_PAGE_TEMPLATE
+            else:
+                project = _load_project(project_name)
+                templates = project.get('templates', {})
+                if not isinstance(templates, dict):
+                    raise ValueError('recording project templates must be a dictionary')
+                template = templates[landing_page.template]
         except (KeyError, ValueError) as error:
             plans.append(
                 LandingPagePlan(
