@@ -3,8 +3,6 @@ import subprocess
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 
-from botocore.exceptions import ClientError
-
 from .models import (
     FileResult,
     PathSource,
@@ -21,7 +19,7 @@ _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
 
 
 def list_uploaded(settings: Settings) -> list[str]:
-    s3_files: list[tuple[str, S3Destination, Path]] = []
+    s3_files: dict[str, tuple[S3Destination, list[tuple[str, Path]]]] = {}
     ssh_files: dict[str, tuple[SshDestination, list[tuple[str, Path]]]] = {}
     for result in _planned_uploads(settings):
         if (
@@ -37,13 +35,17 @@ def list_uploaded(settings: Settings) -> list[str]:
                 (path, result.relative_path)
             )
         else:
-            s3_files.append((path, destination, result.relative_path))
-    values = [
-        (path, modified, size)
-        for path, destination, target in s3_files
-        if (remote := _s3_file(destination, target)) is not None
-        for modified, size in [remote]
-    ]
+            s3_files.setdefault(result.destination, (destination, []))[1].append(
+                (path, result.relative_path)
+            )
+    values: list[tuple[str, datetime, int]] = []
+    for destination, files in s3_files.values():
+        remote_files = _s3_files(destination, [target for _, target in files])
+        values.extend(
+            (path, *remote_files[target.as_posix()])
+            for path, target in files
+            if target.as_posix() in remote_files
+        )
     for destination, files in ssh_files.values():
         remote_files = _ssh_files(destination, [target for _, target in files])
         values.extend(
@@ -94,19 +96,37 @@ def _ssh_stat(path: str) -> str:
     return f"if [ -f {quoted} ]; then stat -c '%Y\\t%s\\t%n' {quoted}; fi"
 
 
-def _s3_file(destination: S3Destination, target: Path) -> tuple[datetime, int] | None:
-    key = '/'.join(part for part in (destination.prefix, target.as_posix()) if part)
-    try:
-        value = s3_client(destination).head_object(Bucket=destination.bucket, Key=key)
-    except ClientError as error:
-        if error.response['Error'].get('Code') in {'404', 'NoSuchKey', 'NotFound'}:
-            return None
-        raise
-    modified = value.get('LastModified')
-    size = value.get('ContentLength')
-    if not isinstance(modified, datetime) or not isinstance(size, int):
-        raise ValueError(f'invalid S3 metadata for {key}')
-    return modified, size
+def _s3_files(
+    destination: S3Destination, targets: list[Path]
+) -> dict[str, tuple[datetime, int]]:
+    keys = {
+        '/'.join(part for part in (destination.prefix, target.as_posix()) if part)
+        for target in targets
+    }
+    prefixes = {
+        '/'.join(part for part in (destination.prefix, target.parts[0]) if part) + '/'
+        for target in targets
+        if target.parts
+    }
+    values: dict[str, tuple[datetime, int]] = {}
+    paginator = s3_client(destination).get_paginator('list_objects_v2')
+    for prefix in prefixes:
+        for page in paginator.paginate(Bucket=destination.bucket, Prefix=prefix):
+            for value in page.get('Contents', []):
+                key = value.get('Key')
+                modified = value.get('LastModified')
+                size = value.get('Size')
+                if (
+                    isinstance(key, str)
+                    and key in keys
+                    and isinstance(modified, datetime)
+                    and isinstance(size, int)
+                ):
+                    values[key.removeprefix(f'{destination.prefix.rstrip("/")}/')] = (
+                        modified,
+                        size,
+                    )
+    return values
 
 
 def _size(value: int) -> str:
