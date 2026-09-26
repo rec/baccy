@@ -82,7 +82,7 @@ def _ssh_files(
     )
     values: dict[str, tuple[datetime, int]] = {}
     for line in result.stdout.splitlines():
-        if (fields := line.split('\t', maxsplit=2)) and len(fields) == 3:
+        if (fields := line.split(maxsplit=2)) and len(fields) == 3:
             index, modified, size = fields
             try:
                 values[targets[int(index)].as_posix()] = (
@@ -98,9 +98,9 @@ def _ssh_stat(index: int, path: str) -> str:
     quoted = shlex.quote(path)
     return (
         f'if [ -f {quoted} ]; then '
-        f"value=$(stat -c '%Y\\t%s' {quoted} 2>/dev/null "
-        f"|| stat -f '%m\\t%z' {quoted}) || exit; "
-        f'printf \'%s\\t%s\\n\' {index} "$value"; fi'
+        f"value=$(stat -c '%Y %s' {quoted} 2>/dev/null "
+        f"|| stat -f '%m %z' {quoted}) || exit; "
+        f'printf \'%s %s\\n\' {index} "$value"; fi'
     )
 
 
