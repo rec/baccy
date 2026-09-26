@@ -73,7 +73,7 @@ def _ssh_files(
 ) -> dict[str, tuple[datetime, int]]:
     host, _, base = destination.url.partition(':')
     paths = [str(PurePosixPath(base) / target.as_posix()) for target in targets]
-    command = '; '.join(_ssh_stat(path) for path in paths)
+    command = '; '.join(_ssh_stat(index, path) for index, path in enumerate(paths))
     result = subprocess.run(
         ['ssh', *_SSH_OPTIONS, host, command],
         capture_output=True,
@@ -81,26 +81,26 @@ def _ssh_files(
         text=True,
     )
     values: dict[str, tuple[datetime, int]] = {}
-    prefix = f'{base.rstrip("/")}/'
     for line in result.stdout.splitlines():
         if (fields := line.split('\t', maxsplit=2)) and len(fields) == 3:
-            modified, size, path = fields
+            index, modified, size = fields
             try:
-                values[path.removeprefix(prefix)] = (
+                values[targets[int(index)].as_posix()] = (
                     datetime.fromtimestamp(int(modified)).astimezone(),
                     int(size),
                 )
-            except ValueError:
+            except IndexError, ValueError:
                 continue
     return values
 
 
-def _ssh_stat(path: str) -> str:
+def _ssh_stat(index: int, path: str) -> str:
     quoted = shlex.quote(path)
     return (
         f'if [ -f {quoted} ]; then '
-        f"(stat -c '%Y\\t%s\\t%n' {quoted} 2>/dev/null "
-        f"|| stat -f '%m\\t%z\\t%N' {quoted}) || exit; fi"
+        f"value=$(stat -c '%Y\\t%s' {quoted} 2>/dev/null "
+        f"|| stat -f '%m\\t%z' {quoted}) || exit; "
+        f'printf \'%s\\t%s\\n\' {index} "$value"; fi'
     )
 
 
