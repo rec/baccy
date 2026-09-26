@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -282,10 +283,17 @@ def test_landing_page_upload_uses_default_template_and_mp3_urls(
         'baccy.upload._load_project',
         lambda name: {'name': name},
     )
-    monkeypatch.setattr(
-        'baccy.upload._materialize',
-        lambda plan, source, backup_root: source,
-    )
+    encoded: list[Path] = []
+
+    def encode(
+        command: list[str], **kwargs: object
+    ) -> subprocess.CompletedProcess[bytes]:
+        output = Path(command[-1])
+        output.write_bytes(b'mp3')
+        encoded.append(output)
+        return subprocess.CompletedProcess(command, 0, b'', b'')
+
+    monkeypatch.setattr('baccy.upload.subprocess.run', encode)
     monkeypatch.setattr('baccy.upload._run', lambda command: None)
 
     results = publish_sessions([source], settings, dry_run=False)
@@ -294,6 +302,8 @@ def test_landing_page_upload_uses_default_template_and_mp3_urls(
         (Path('project/20260920-120000.mp3'), 'uploaded'),
         (Path('project/index.html'), 'uploaded'),
     ]
+    assert encoded[0].parent == Path('/tmp')
+    assert not encoded[0].exists()
     page = next((tmp_path / 'backup' / 'artifacts').glob('*/index.html'))
     expected = Path(__file__).parent / 'fixtures' / 'landing.html'
     assert page.read_text() == expected.read_text()

@@ -131,9 +131,10 @@ the two highest numbered channels of the device with the greatest observed
 channel number. If devices tie, rules referring to `main` are deferred.
 
 Rules encode `source`, `flac`, or `mp3`. MP3 rules require `bitrate_kbps`.
-Derived FLAC and MP3 files are written atomically to `artifacts/` under the
-backup root, keyed by source content and the complete rule definition. The
-cache is disposable: the permanent source backup remains authoritative.
+Derived FLAC files are written atomically to `artifacts/` under the backup
+root, keyed by source content and the complete rule definition. MP3 files are
+encoded in `/tmp` and deleted after each upload attempt. The permanent source
+backup remains authoritative.
 
 Uploads preserve their session-relative paths. Encoded derivatives change only
 the file extension. Baccy rejects every colliding target before it starts an
