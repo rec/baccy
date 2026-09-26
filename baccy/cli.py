@@ -20,6 +20,7 @@ from .importer import import_recs
 from .listing import list_uploaded
 from .models import BackupSummary, FileResult, Settings
 from .network import NetworkDiscovery
+from .relocate import planned_relocations, relocate_urls
 from .rename import rename_files, renamed_files
 from .server_test import test_destinations
 from .sync import sync
@@ -59,6 +60,10 @@ class RenameCommand(BaseModel, frozen=True):
     replacement: Annotated[str, tyro.conf.Positional]
     regular_expression: Annotated[bool, tyro.conf.arg(name='re')] = False
     quiet: bool = False
+    yes: bool = False
+
+
+class RelocateUrlsCommand(BaseModel, frozen=True):
     yes: bool = False
 
 
@@ -132,6 +137,9 @@ def main(argv: list[str] | None = None) -> int:
     if command == 'rename':
         value = tyro.cli(RenameCommand, args=rest, prog='baccy rename')
         return _rename(value, config, dry_run)
+    if command == 'relocate-urls':
+        value = tyro.cli(RelocateUrlsCommand, args=rest, prog='baccy relocate-urls')
+        return _relocate_urls(value, config, dry_run)
     if command == 'service':
         return _service(rest, config, dry_run)
     print(f'unknown command: {command}', file=sys.stderr)
@@ -257,6 +265,26 @@ def _rename(command: RenameCommand, config: Path, dry_run: bool) -> int:
     if not rename_files(
         load_or_default(config), files, command.pattern, command.replacement
     ):
+        return 1
+    print('Done')
+    return 0
+
+
+def _relocate_urls(command: RelocateUrlsCommand, config: Path, dry_run: bool) -> int:
+    try:
+        relocations = planned_relocations(load_or_default(config))
+    except (OSError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 2
+    for relocation in relocations:
+        print(f'{relocation.source_address} -> {relocation.target_address}')
+    if dry_run or not relocations:
+        return 0
+    if not command.yes:
+        prompt = input(f'Relocate these {len(relocations)} files? (y/N)')
+        if not prompt.startswith(('y', 'Y')):
+            return 0
+    if not relocate_urls(relocations):
         return 1
     print('Done')
     return 0
@@ -456,7 +484,7 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 def _usage() -> str:
     return (
         'Usage: baccy [--config PATH|--daemon] [--dry-run|-d] '
-        '{backup,watch,import,sync,test,list,rename,service} ...'
+        '{backup,watch,import,sync,test,list,rename,relocate-urls,service} ...'
     )
 
 

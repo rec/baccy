@@ -9,11 +9,12 @@ import sys
 import tempfile
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
-from urllib.parse import quote, unquote
+from urllib.parse import unquote
 
 from botocore.exceptions import BotoCoreError, ClientError
 from jinja2 import Template
 from pydantic import BaseModel
+from reccy.paths import legal_url_path
 
 from .catalog import Catalog
 from .match import MatchExpression
@@ -62,13 +63,24 @@ class ArtifactPlan(BaseModel, frozen=True):
     target: PurePosixPath
     identity: str
 
+    @property
+    def legacy_target(self) -> PurePosixPath:
+        return _render_legacy_target(self.rule, self.session, self.segment)
+
 
 class LandingPagePlan(BaseModel, frozen=True):
     project: str
     destination: Destination
+    legacy_target: PurePosixPath
     target: PurePosixPath
     identity: str
     content: str
+
+
+class RemoteTargetPlan(BaseModel, frozen=True):
+    destination: Destination
+    legacy_target: PurePosixPath
+    target: PurePosixPath
 
 
 def publish_sessions(
@@ -143,6 +155,50 @@ def planned_source_uploads(settings: Settings) -> list[ArtifactPlan]:
         )
         plans.extend(plan for plan in values if plan.rule.encoding.format == 'source')
     return plans
+
+
+def planned_remote_targets(settings: Settings) -> list[RemoteTargetPlan]:
+    root = settings.backup_root / 'audio'
+    expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
+    artifacts: list[ArtifactPlan] = []
+    for journal in sorted(root.glob('**/session-record.jsonl')):
+        relative_session = journal.parent.relative_to(root)
+        if not relative_session.parts:
+            continue
+        plans, _ = _artifact_plans(
+            _completed_segments(journal, warn_zero_frames=False),
+            'backup',
+            journal.parent,
+            relative_session,
+            relative_session.parts[0],
+            settings,
+            expressions,
+            True,
+        )
+        artifacts.extend(plans)
+    pages = [
+        plan
+        for landing_page in settings.landing_pages
+        for plan in _landing_page_plans(artifacts, landing_page, settings)
+    ]
+    return [
+        *[
+            RemoteTargetPlan(
+                destination=plan.destination,
+                legacy_target=plan.legacy_target,
+                target=plan.target,
+            )
+            for plan in artifacts
+        ],
+        *[
+            RemoteTargetPlan(
+                destination=plan.destination,
+                legacy_target=plan.legacy_target,
+                target=plan.target,
+            )
+            for plan in pages
+        ],
+    ]
 
 
 def _missing_sources(
@@ -489,6 +545,12 @@ def _expression_uses_main(expression: MatchExpression) -> bool:
 
 
 def _render_target(rule: UploadRule, session: Path, segment: Segment) -> PurePosixPath:
+    return _legal_target(_render_legacy_target(rule, session, segment))
+
+
+def _render_legacy_target(
+    rule: UploadRule, session: Path, segment: Segment
+) -> PurePosixPath:
     if rule.encoding.format == 'mp3':
         filename = Path(segment.path.name.rsplit(' + ', maxsplit=1)[-1]).with_suffix(
             '.mp3'
@@ -502,6 +564,13 @@ def _render_target(rule: UploadRule, session: Path, segment: Segment) -> PurePos
     return PurePosixPath(session.as_posix()) / PurePosixPath(
         segment.path.with_suffix(suffix).as_posix()
     )
+
+
+def _legal_target(path: PurePosixPath) -> PurePosixPath:
+    value = PurePosixPath(legal_url_path(Path(path.as_posix())).as_posix())
+    if value.is_absolute() or '..' in value.parts or value == PurePosixPath('.'):
+        raise ValueError(f'invalid web-safe upload target: {value}')
+    return value
 
 
 def _publish_landing_pages(
@@ -532,12 +601,14 @@ def _landing_page_plans(
     grouped: dict[tuple[str, PurePosixPath], list[ArtifactPlan]] = {}
     for artifact in artifacts:
         if artifact.rule.name == landing_page.upload:
-            grouped.setdefault((artifact.project, artifact.target.parent), []).append(
-                artifact
-            )
+            grouped.setdefault(
+                (artifact.project, artifact.legacy_target.parent), []
+            ).append(artifact)
     destination = parse_destination(landing_page.destination, settings.s3_max_bandwidth)
     plans: list[LandingPagePlan] = []
-    for (project_name, directory), values in grouped.items():
+    for (project_name, legacy_directory), values in grouped.items():
+        legacy_target = legacy_directory / 'index.html'
+        target = _legal_target(legacy_target)
         try:
             project: dict[str, object] = {'name': project_name}
             if landing_page.template is None:
@@ -553,14 +624,15 @@ def _landing_page_plans(
                 LandingPagePlan(
                     project=project_name,
                     destination=destination,
-                    target=directory / 'index.html',
+                    legacy_target=legacy_target,
+                    target=target,
                     identity='',
                     content=str(error),
                 )
             )
             continue
         urls = [
-            quote(value.target.name)
+            value.target.name
             for value in sorted(values, key=lambda value: value.target)
         ]
         content = Template(template).render(**project, urls=urls)
@@ -578,7 +650,8 @@ def _landing_page_plans(
             LandingPagePlan(
                 project=project_name,
                 destination=destination,
-                target=directory / 'index.html',
+                legacy_target=legacy_target,
+                target=target,
                 identity=identity,
                 content=content,
             )

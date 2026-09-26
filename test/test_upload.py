@@ -80,7 +80,7 @@ def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
     assert [call[0] for call in calls].count('scp') == 1
     assert [call[0] for call in calls].count('ssh') == 1
     assert next(call for call in calls if call[0] == 'scp')[-1] == (
-        'user@host:/srv/recs/project name/2026-09-20/12-00-00/audio/1.flac'
+        'user@host:/srv/recs/project-name/2026-09-20/12-00-00/audio/1.flac'
     )
     warning = (
         'warning: ignoring zero frame count in completed audio record: '
