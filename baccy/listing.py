@@ -83,17 +83,25 @@ def _ssh_files(
     values: dict[str, tuple[datetime, int]] = {}
     prefix = f'{base.rstrip("/")}/'
     for line in result.stdout.splitlines():
-        modified, size, path = line.split('\t', maxsplit=2)
-        values[path.removeprefix(prefix)] = (
-            datetime.fromtimestamp(int(modified)).astimezone(),
-            int(size),
-        )
+        if (fields := line.split('\t', maxsplit=2)) and len(fields) == 3:
+            modified, size, path = fields
+            try:
+                values[path.removeprefix(prefix)] = (
+                    datetime.fromtimestamp(int(modified)).astimezone(),
+                    int(size),
+                )
+            except ValueError:
+                continue
     return values
 
 
 def _ssh_stat(path: str) -> str:
     quoted = shlex.quote(path)
-    return f"if [ -f {quoted} ]; then stat -c '%Y\\t%s\\t%n' {quoted}; fi"
+    return (
+        f'if [ -f {quoted} ]; then '
+        f"(stat -c '%Y\\t%s\\t%n' {quoted} 2>/dev/null "
+        f"|| stat -f '%m\\t%z\\t%N' {quoted}) || exit; fi"
+    )
 
 
 def _s3_files(
