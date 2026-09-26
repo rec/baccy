@@ -281,7 +281,7 @@ def test_landing_page_upload_uses_default_template_and_mp3_urls(
     )
     monkeypatch.setattr(
         'baccy.upload._load_project',
-        lambda name: {'name': name},
+        lambda name: (_ for _ in ()).throw(AssertionError(name)),
     )
     encoded: list[Path] = []
 
