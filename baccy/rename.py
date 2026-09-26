@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +10,8 @@ from pydantic import BaseModel
 from .models import S3Destination, Settings
 from .s3 import s3_client
 from .upload import planned_source_uploads
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class RenameFile(BaseModel, frozen=True):
@@ -76,8 +79,8 @@ def rename_files(
         (root / value.source).rename(root / value.replacement)
         sessions.setdefault(value.session, []).append(value)
     for session, values in sessions.items():
-        _rewrite_session(root / session / 'session-record.jsonl', values)
-        _log({'message': f'Session {session} rename complete'})
+        if _rewrite_session(root / session / 'session-record.jsonl', values):
+            _log({'message': f'Session {session} rename complete'})
     return True
 
 
@@ -93,7 +96,7 @@ def _validate_files(root: Path, files: list[RenameFile]) -> None:
             raise ValueError(f'rename target already exists: {value.replacement}')
 
 
-def _rewrite_session(path: Path, files: list[RenameFile]) -> None:
+def _rewrite_session(path: Path, files: list[RenameFile]) -> bool:
     replacements = {
         value.source.relative_to(value.session).as_posix(): (
             value.replacement.relative_to(value.session).as_posix()
@@ -101,15 +104,19 @@ def _rewrite_session(path: Path, files: list[RenameFile]) -> None:
         for value in files
     }
     values: list[str] = []
+    changed = False
     for line in path.read_text().splitlines():
         value = json.loads(line)
         if isinstance(value, dict) and isinstance(name := value.get('path'), str):
             if name in replacements:
                 value['path'] = replacements[name]
+                changed = True
         values.append(json.dumps(value, separators=(',', ':')))
-    path.write_text('\n'.join(values) + '\n')
+    if changed:
+        path.write_text('\n'.join(values) + '\n')
+    return changed
 
 
 def _log(value: dict[str, object]) -> None:
     timestamp = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
-    print(json.dumps({'timestamp': timestamp} | value))
+    _LOGGER.info(json.dumps({'timestamp': timestamp} | value))

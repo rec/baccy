@@ -1,9 +1,10 @@
+import json
 from pathlib import Path
 
-from pytest import MonkeyPatch
+from pytest import CaptureFixture, MonkeyPatch
 
 from baccy.models import Encoding, S3Destination, Settings, UploadRule
-from baccy.rename import renamed_files
+from baccy.rename import RenameFile, _log, rename_files, renamed_files
 from baccy.upload import ArtifactPlan, Segment
 
 
@@ -93,3 +94,48 @@ def test_rename_uses_regular_expressions_only_when_requested(
 
     assert files[0].replacement.name == 'Mic.flac'
     assert renamed_files(Settings(), 'Microphone + 1', 'Mic', True) == []
+
+
+def test_rename_logs_without_writing_to_standard_output(
+    monkeypatch: MonkeyPatch, capsys: CaptureFixture[str]
+) -> None:
+    messages: list[str] = []
+    monkeypatch.setattr('baccy.rename._LOGGER.info', messages.append)
+
+    _log({'ok': True})
+
+    assert capsys.readouterr().out == ''
+    assert json.loads(messages[0])['ok'] is True
+
+
+def test_rename_does_not_complete_an_unchanged_session(
+    monkeypatch: MonkeyPatch, tmp_path: Path
+) -> None:
+    session = Path('totm/session')
+    source = session / 'audio/old.flac'
+    replacement = session / 'audio/new.flac'
+    root = tmp_path / 'audio'
+    (root / source).parent.mkdir(parents=True)
+    (root / source).write_text('audio')
+    (root / session / 'session-record.jsonl').write_text(
+        '{"path":"audio/other.flac"}\n'
+    )
+    messages: list[dict[str, object]] = []
+    monkeypatch.setattr('baccy.rename._log', messages.append)
+
+    result = rename_files(
+        Settings(backup_root=tmp_path),
+        [
+            RenameFile(
+                session=session,
+                source=source,
+                replacement=replacement,
+                destinations=[],
+            )
+        ],
+        'old',
+        'new',
+    )
+
+    assert result is True
+    assert not any('message' in value for value in messages)
