@@ -835,7 +835,7 @@ def _upload_ssh(
     remote_path = f'{base.rstrip("/")}/{target.as_posix()}'
     directory = str(PurePosixPath(remote_path).parent)
     _run(['ssh', *_SSH_OPTIONS, host, f'mkdir -p {shlex.quote(directory)}'])
-    _run(['scp', *_SSH_OPTIONS, str(path), f'{host}:{shlex.quote(remote_path)}'])
+    _run(['scp', *_SSH_OPTIONS, str(path), f'{host}:{remote_path}'])
 
 
 def _upload_s3(
