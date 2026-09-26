@@ -17,7 +17,7 @@ def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     root = tmp_path / 'recs'
-    session = root / 'project' / '2026-09-20' / '12-00-00'
+    session = root / 'project name' / '2026-09-20' / '12-00-00'
     session.mkdir(parents=True)
     records: list[dict[str, object]] = []
     for channel in range(1, 5):
@@ -79,6 +79,9 @@ def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
     assert [result.status for result in writes] == ['writing']
     assert [call[0] for call in calls].count('scp') == 1
     assert [call[0] for call in calls].count('ssh') == 1
+    assert next(call for call in calls if call[0] == 'scp')[-1] == (
+        'user@host:/srv/recs/project name/2026-09-20/12-00-00/audio/1.flac'
+    )
     warning = (
         'warning: ignoring zero frame count in completed audio record: '
         f'{session / "audio/1.flac"}\n'
