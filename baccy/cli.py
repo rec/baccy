@@ -49,7 +49,7 @@ class TestCommand(BaseModel, frozen=True):
 
 
 class ListCommand(BaseModel, frozen=True):
-    """List files uploaded to configured destinations."""
+    """List files baccy uploaded to configured destinations."""
 
 
 class InstallCommand(BaseModel, frozen=True):

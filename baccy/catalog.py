@@ -39,6 +39,24 @@ class Catalog:
     ) -> None:
         self._append_deferred('upload', source, relative_path, detail)
 
+    def uploaded(self) -> list[dict[str, object]]:
+        if not self.path.exists():
+            return []
+        values: list[dict[str, object]] = []
+        with self.path.open() as file:
+            for line in file:
+                try:
+                    value = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    isinstance(value, dict)
+                    and value.get('operation') in {'upload', 'landing_page'}
+                    and value.get('result') == 'uploaded'
+                ):
+                    values.append(value)
+        return values
+
     def _append_deferred(
         self, operation: str, source: str, relative_path: Path, detail: str | None
     ) -> None:
