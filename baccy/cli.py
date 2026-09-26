@@ -16,6 +16,7 @@ from .application import Application, DaemonApplication
 from .backup import run_backup
 from .config import default_config_path, load_or_default
 from .importer import import_recs
+from .listing import list_uploaded
 from .models import BackupSummary, FileResult, Settings
 from .network import NetworkDiscovery
 from .server_test import test_destinations
@@ -45,6 +46,10 @@ class SyncCommand(BaseModel, frozen=True):
 
 class TestCommand(BaseModel, frozen=True):
     """Test access to configured upload destinations."""
+
+
+class ListCommand(BaseModel, frozen=True):
+    """List files uploaded to configured destinations."""
 
 
 class InstallCommand(BaseModel, frozen=True):
@@ -111,6 +116,9 @@ def main(argv: list[str] | None = None) -> int:
     if command == 'test':
         value = tyro.cli(TestCommand, args=rest, prog='baccy test')
         return _test(value, config, dry_run)
+    if command == 'list':
+        value = tyro.cli(ListCommand, args=rest, prog='baccy list')
+        return _list(value, config, dry_run)
     if command == 'service':
         return _service(rest, config, dry_run)
     print(f'unknown command: {command}', file=sys.stderr)
@@ -205,6 +213,11 @@ def _test(command: TestCommand, config: Path, dry_run: bool) -> int:
         print('\n'.join(failures), file=sys.stderr)
         return -1
     print('ok')
+    return 0
+
+
+def _list(command: ListCommand, config: Path, dry_run: bool) -> int:
+    print('\n'.join(list_uploaded(load_or_default(config))))
     return 0
 
 
@@ -400,7 +413,7 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 def _usage() -> str:
     return (
         'Usage: baccy [--config PATH|--daemon] [--dry-run|-d] '
-        '{backup,watch,import,sync,test,service} ...'
+        '{backup,watch,import,sync,test,list,service} ...'
     )
 
 
