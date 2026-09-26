@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sys
 import time
 from datetime import UTC, datetime
@@ -19,6 +20,7 @@ from .importer import import_recs
 from .listing import list_uploaded
 from .models import BackupSummary, FileResult, Settings
 from .network import NetworkDiscovery
+from .rename import rename_files, renamed_files
 from .server_test import test_destinations
 from .sync import sync
 from .watch import watch
@@ -50,6 +52,13 @@ class TestCommand(BaseModel, frozen=True):
 
 class ListCommand(BaseModel, frozen=True):
     """List files baccy uploaded to configured destinations."""
+
+
+class RenameCommand(BaseModel, frozen=True):
+    pattern: Annotated[str, tyro.conf.Positional]
+    replacement: Annotated[str, tyro.conf.Positional]
+    quiet: bool = False
+    yes: bool = False
 
 
 class InstallCommand(BaseModel, frozen=True):
@@ -119,6 +128,9 @@ def main(argv: list[str] | None = None) -> int:
     if command == 'list':
         value = tyro.cli(ListCommand, args=rest, prog='baccy list')
         return _list(value, config, dry_run)
+    if command == 'rename':
+        value = tyro.cli(RenameCommand, args=rest, prog='baccy rename')
+        return _rename(value, config, dry_run)
     if command == 'service':
         return _service(rest, config, dry_run)
     print(f'unknown command: {command}', file=sys.stderr)
@@ -218,6 +230,31 @@ def _test(command: TestCommand, config: Path, dry_run: bool) -> int:
 
 def _list(command: ListCommand, config: Path, dry_run: bool) -> int:
     print('\n'.join(list_uploaded(load_or_default(config))))
+    return 0
+
+
+def _rename(command: RenameCommand, config: Path, dry_run: bool) -> int:
+    try:
+        files = renamed_files(
+            load_or_default(config), command.pattern, command.replacement
+        )
+    except (OSError, ValueError, re.error) as error:
+        print(error, file=sys.stderr)
+        return 2
+    if not command.quiet:
+        for value in files:
+            print(f'{value.source} -> {value.replacement.name}')
+    if dry_run:
+        return 0
+    if not command.yes:
+        prompt = input(f'Rename these {len(files)} files? (y/N)')
+        if not prompt.startswith(('y', 'Y')):
+            return 0
+    if not rename_files(
+        load_or_default(config), files, command.pattern, command.replacement
+    ):
+        return 1
+    print('Done')
     return 0
 
 
@@ -415,7 +452,7 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 def _usage() -> str:
     return (
         'Usage: baccy [--config PATH|--daemon] [--dry-run|-d] '
-        '{backup,watch,import,sync,test,list,service} ...'
+        '{backup,watch,import,sync,test,list,rename,service} ...'
     )
 
 

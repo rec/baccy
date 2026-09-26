@@ -123,6 +123,28 @@ def publish_sessions(
     return results
 
 
+def planned_source_uploads(settings: Settings) -> list[ArtifactPlan]:
+    root = settings.backup_root / 'audio'
+    expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
+    plans: list[ArtifactPlan] = []
+    for journal in sorted(root.glob('**/session-record.jsonl')):
+        relative_session = journal.parent.relative_to(root)
+        if not relative_session.parts:
+            continue
+        values, _ = _artifact_plans(
+            _completed_segments(journal, warn_zero_frames=False),
+            'backup',
+            journal.parent,
+            relative_session,
+            relative_session.parts[0],
+            settings,
+            expressions,
+            True,
+        )
+        plans.extend(plan for plan in values if plan.rule.encoding.format == 'source')
+    return plans
+
+
 def _missing_sources(
     sources: list[ResolvedSource], directories: list[Path] | None
 ) -> list[FileResult]:
