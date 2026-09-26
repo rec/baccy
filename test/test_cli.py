@@ -283,7 +283,10 @@ def test_daemon_watch_logs_each_file_as_json(
     monkeypatch.setattr('baccy.cli.watch', run_watch)
 
     assert main(['--config', str(config), 'watch']) == 0
-    assert [json.loads(line) for line in capsys.readouterr().out.splitlines()] == [
+    output = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    for value in output:
+        assert value.pop('timestamp').endswith('Z')
+    assert output == [
         {'source': 'source', 'relative_path': 'one.wav', 'status': 'copied'},
         {'source': 'source', 'relative_path': 'two.wav', 'status': 'uploaded'},
     ]
