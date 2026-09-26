@@ -174,6 +174,15 @@ Use `-d` or `--dry-run` to print the same summary with `would_copy` and
 artifact cache, temporary files, or network connections.
 `baccy watch -d` repeatedly performs the same non-writing preview.
 
+## Repair zero frame counts
+
+Repair historical completed-audio records whose `frame_count` is zero from the
+FLAC or WAV file headers:
+
+```sh
+uv run python scripts/repair_zero_frame_counts.py ~/baccy/audio/totm
+```
+
 ## Import recs sessions
 
 Import one or more recs project directories or individual session directories:
