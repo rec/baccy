@@ -1,6 +1,8 @@
 import ast
 import hashlib
 import json
+import logging
+import os
 import shlex
 import subprocess
 import sys
@@ -29,6 +31,7 @@ from .models import (
 from .s3 import s3_client, s3_endpoint_url, s3_transfer_config
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
+_LOGGER = logging.getLogger(__name__)
 _DEFAULT_LANDING_PAGE_TEMPLATE = (
     Path(__file__).parent / 'templates' / '_default.html'
 ).read_text()
@@ -319,7 +322,10 @@ def _segment(
         return None
     if frames == 0 and warn_zero_frames:
         message = 'warning: ignoring zero frame count in completed audio record'
-        print(f'{message}: {journal.parent / path}', file=sys.stderr)
+        if os.environ.get('BACCY_DAEMON') == '1':
+            _LOGGER.warning('%s: %s', message, journal.parent / path)
+        else:
+            print(f'{message}: {journal.parent / path}', file=sys.stderr)
     return Segment(
         path=Path(path),
         timestamp=timestamp,

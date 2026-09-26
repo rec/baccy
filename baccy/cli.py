@@ -359,12 +359,24 @@ def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
 def _report(application: Application, summary: BackupSummary) -> None:
     summary = _visible_summary(summary, False)
     for result in summary.results:
-        print(result.model_dump_json(exclude_none=True))
+        _print_daemon_result(result)
     application.record_summary(summary)
 
 
 def _report_write(result: FileResult) -> None:
-    print(result.model_dump_json(exclude_none=True))
+    _print_daemon_result(result)
+
+
+def _print_daemon_result(result: FileResult) -> None:
+    print(
+        json.dumps(
+            {
+                'timestamp': datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                **result.model_dump(mode='json', exclude_none=True),
+            },
+            separators=(',', ':'),
+        )
+    )
 
 
 def _configure_daemon_logging() -> None:
