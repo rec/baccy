@@ -38,10 +38,10 @@ def test_list_uploaded_lists_existing_planned_uploads(
     )
     modified = datetime(2026, 9, 26, 10, 40, 8, tzinfo=ZoneInfo('Europe/Paris'))
     monkeypatch.setattr(
-        'baccy.listing._s3_file',
-        lambda destination, target: (
-            (modified, 53 * 1024**2) if target.suffix == '.flac' else None
-        ),
+        'baccy.listing._s3_files',
+        lambda destination, targets: {
+            target.as_posix(): (modified, 53 * 1024**2) for target in targets
+        },
     )
     monkeypatch.setattr('baccy.listing._ssh_files', lambda destination, targets: {})
 
@@ -101,6 +101,6 @@ def test_list_uploaded_does_not_hash_audio(
         'baccy.upload._source_hash',
         lambda path: (_ for _ in ()).throw(AssertionError(path)),
     )
-    monkeypatch.setattr('baccy.listing._s3_file', lambda destination, target: None)
+    monkeypatch.setattr('baccy.listing._s3_files', lambda destination, targets: {})
 
     assert list_uploaded(settings) == []
