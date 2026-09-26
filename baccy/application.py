@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 import sys
 import tempfile
@@ -128,6 +129,13 @@ class Application(Reccy):
 class DaemonApplication(Application):
     rpc_enabled = True
 
+    def on_started(self) -> None:
+        if not _HOMEBREW_BIN.is_dir():
+            return
+        paths = os.environ.get('PATH', '').split(os.pathsep)
+        if str(_HOMEBREW_BIN) not in paths:
+            os.environ['PATH'] = os.pathsep.join([str(_HOMEBREW_BIN), *paths])
+
 
 def _install_service_release(home: Path) -> Path:
     release_root = home / 'Library' / 'Application Support' / 'baccy' / 'releases'
@@ -171,3 +179,6 @@ def _install_service_release(home: Path) -> Path:
             check=True,
         )
     return executable
+
+
+_HOMEBREW_BIN = Path('/opt/homebrew/bin')
