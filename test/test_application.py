@@ -1,3 +1,4 @@
+import os
 import plistlib
 import subprocess
 from pathlib import Path
@@ -20,6 +21,20 @@ def test_application_schedules_sync_request(tmp_path: Path) -> None:
 
     assert application.rpc_command(rpc.Request(command='sync')) == {'scheduled': True}
     assert application.sync_requested.is_set()
+
+
+def test_daemon_adds_homebrew_to_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    homebrew = tmp_path / 'homebrew'
+    homebrew.mkdir()
+    monkeypatch.setattr('baccy.application._HOMEBREW_BIN', homebrew)
+    monkeypatch.setenv('PATH', '/usr/bin:/bin')
+    application = DaemonApplication(home=tmp_path, platform=models.Platform.macos)
+
+    application.on_started()
+
+    assert os.environ['PATH'] == f'{homebrew}:/usr/bin:/bin'
 
 
 def test_application_renders_launch_agent(tmp_path: Path) -> None:
