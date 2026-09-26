@@ -31,33 +31,34 @@ def list_uploaded(settings: Settings) -> list[str]:
         destination = parse_destination(result.destination, settings.s3_max_bandwidth)
         path = f'{result.destination}/{result.relative_path.as_posix()}'
         if isinstance(destination, SshDestination):
-            ssh_files.setdefault(destination.url, (destination, []))[1].append(
+            ssh_files.setdefault(result.destination, (destination, []))[1].append(
                 (path, result.relative_path)
             )
         else:
             s3_files.setdefault(result.destination, (destination, []))[1].append(
                 (path, result.relative_path)
             )
-    values: list[tuple[str, datetime, int]] = []
-    for destination, files in s3_files.values():
+    values: list[tuple[str, datetime, int, str]] = []
+    for location, (destination, files) in s3_files.items():
         remote_files = _s3_files(destination, [target for _, target in files])
         values.extend(
-            (path, *remote_files[target.as_posix()])
+            (path, *remote_files[target.as_posix()], location)
             for path, target in files
             if target.as_posix() in remote_files
         )
-    for destination, files in ssh_files.values():
+    for location, (destination, files) in ssh_files.items():
         remote_files = _ssh_files(destination, [target for _, target in files])
         values.extend(
-            (path, *remote_files[target.as_posix()])
+            (path, *remote_files[target.as_posix()], _ssh_location(location))
             for path, target in files
             if target.as_posix() in remote_files
         )
-    width = max((len(path) for path, _, _ in values), default=0)
-    return [
+    width = max((len(path) for path, _, _, _ in values), default=0)
+    rows = [
         f'{path:<{width}}  {_time(modified)}  {_size(size)}'
-        for path, modified, size in sorted(values)
+        for path, modified, size, _ in sorted(values)
     ]
+    return [*rows, '', *_summary(values)]
 
 
 def _planned_uploads(settings: Settings) -> list[FileResult]:
@@ -144,6 +145,33 @@ def _size(value: int) -> str:
         if value < divisor * 1024:
             return f'{value / divisor:.0f}{suffix}'
     return f'{value / 1024**4:.0f}T'
+
+
+def _summary(values: list[tuple[str, datetime, int, str]]) -> list[str]:
+    locations: dict[str, int] = {}
+    suffixes: dict[str, int] = {}
+    for path, _, _, location in values:
+        locations[location] = locations.get(location, 0) + 1
+        suffix = Path(path).suffix or '(no suffix)'
+        suffixes[suffix] = suffixes.get(suffix, 0) + 1
+    return [
+        'Summary',
+        f'Files: {len(values)}',
+        'Locations:',
+        *_counts(locations),
+        'Suffixes:',
+        *_counts(suffixes),
+        f'Total size: {_size(sum(size for _, _, size, _ in values))}',
+    ]
+
+
+def _counts(values: dict[str, int]) -> list[str]:
+    width = max((len(value) for value in values), default=0)
+    return [f'{value:<{width}}  {count}' for value, count in sorted(values.items())]
+
+
+def _ssh_location(destination: str) -> str:
+    return f'ssh:{destination.removeprefix("ssh:").partition(":")[0]}'
 
 
 def _time(value: datetime) -> str:
