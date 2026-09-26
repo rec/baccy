@@ -16,6 +16,7 @@ from baccy.models import (
     SourceSelection,
     VolumeSource,
 )
+from baccy.relocate import Relocation
 from baccy.rename import RenameFile
 
 
@@ -515,6 +516,33 @@ def test_rename_dry_run_does_not_rename(
 
     captured = capsys.readouterr()
     assert captured.out == 'totm/session/audio/old.flac -> new.flac\n'
+    assert captured.err == ''
+
+
+def test_relocate_urls_dry_run_does_not_contact_destinations(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
+    relocation = Relocation.model_validate(
+        {
+            'destination': {'kind': 's3', 'bucket': 'archive'},
+            'source': 'project name/audio.flac',
+            'target': 'project-name/audio.flac',
+        }
+    )
+    monkeypatch.setattr('baccy.cli.planned_relocations', lambda settings: [relocation])
+    monkeypatch.setattr(
+        'baccy.cli.relocate_urls',
+        lambda relocations: (_ for _ in ()).throw(AssertionError()),
+    )
+
+    assert main(['--config', str(config), '--dry-run', 'relocate-urls']) == 0
+
+    captured = capsys.readouterr()
+    assert captured.out == (
+        's3:archive/project name/audio.flac -> s3:archive/project-name/audio.flac\n'
+    )
     assert captured.err == ''
 
 
