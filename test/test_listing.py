@@ -49,6 +49,14 @@ def test_list_uploaded_lists_existing_planned_uploads(
     assert list_uploaded(settings) == [
         's3:audio/totm/a.flac          Sat Sep 26 10:40:08 CEST 2026  53M',
         's3:audio/totm/recording.flac  Sat Sep 26 10:40:08 CEST 2026  53M',
+        '',
+        'Summary',
+        'Files: 2',
+        'Locations:',
+        's3:audio  2',
+        'Suffixes:',
+        '.flac  2',
+        'Total size: 106M',
     ]
 
 
@@ -104,7 +112,14 @@ def test_list_uploaded_does_not_hash_audio(
     )
     monkeypatch.setattr('baccy.listing._s3_files', lambda destination, targets: {})
 
-    assert list_uploaded(settings) == []
+    assert list_uploaded(settings) == [
+        '',
+        'Summary',
+        'Files: 0',
+        'Locations:',
+        'Suffixes:',
+        'Total size: 0B',
+    ]
 
 
 def test_ssh_listing_ignores_a_banner(monkeypatch: MonkeyPatch) -> None:
