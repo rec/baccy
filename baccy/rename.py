@@ -19,14 +19,18 @@ class RenameFile(BaseModel, frozen=True):
 
 
 def renamed_files(
-    settings: Settings, pattern: str, replacement: str
+    settings: Settings, pattern: str, replacement: str, regular_expression: bool
 ) -> list[RenameFile]:
-    expression = re.compile(pattern)
+    expression = re.compile(pattern) if regular_expression else None
     values: dict[Path, RenameFile] = {}
     for plan in planned_source_uploads(settings):
         if not isinstance(plan.destination, S3Destination):
             continue
-        name = expression.sub(replacement, plan.segment.path.name)
+        name = (
+            expression.sub(replacement, plan.segment.path.name)
+            if expression is not None
+            else plan.segment.path.name.replace(pattern, replacement)
+        )
         if name == plan.segment.path.name:
             continue
         source = plan.session / plan.segment.path
