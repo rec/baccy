@@ -221,6 +221,20 @@ names absent from that listing. It assumes files are immutable under their
 target names, so it neither hashes local files nor compares bytes with remote
 objects.
 
+## Relocate web-safe URLs
+
+New uploads use web-safe remote target paths. To move existing remote objects
+to those paths without downloading them, preview the complete migration first:
+
+```sh
+uv run baccy --dry-run relocate-urls
+uv run baccy relocate-urls --yes
+```
+
+The command changes S3 and SSH objects only. It does not rename the permanent
+local backup or alter `session-record.jsonl`. Stop the daemon before the final
+command.
+
 ## Test upload access
 
 Test authentication and access to every configured SSH and S3 destination
