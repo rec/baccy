@@ -1,4 +1,5 @@
-import subprocess
+import json
+from pathlib import Path
 
 from pytest import MonkeyPatch
 
@@ -6,10 +7,11 @@ from baccy.listing import list_uploaded
 from baccy.models import Encoding, LandingPageUpload, Settings, UploadRule
 
 
-def test_list_uploaded_lists_all_configured_destinations(
-    monkeypatch: MonkeyPatch,
+def test_list_uploaded_lists_only_baccy_uploads(
+    tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:
     settings = Settings(
+        backup_root=tmp_path / 'backup',
         uploads=[
             UploadRule(
                 name='audio',
@@ -24,24 +26,35 @@ def test_list_uploaded_lists_all_configured_destinations(
             )
         ],
     )
-
-    class Paginator:
-        def paginate(self, **kwargs: object) -> list[dict[str, object]]:
-            assert kwargs == {'Bucket': 'audio', 'Prefix': ''}
-            return [{'Contents': [{'Key': 'totm/recording.flac'}]}]
-
-    class Client:
-        def get_paginator(self, operation: str) -> Paginator:
-            assert operation == 'list_objects_v2'
-            return Paginator()
-
-    monkeypatch.setattr('baccy.listing.s3_client', lambda destination: Client())
-    monkeypatch.setattr(
-        'baccy.listing.subprocess.run',
-        lambda command, **kwargs: subprocess.CompletedProcess(
-            command, 0, stdout='/srv/public/totm/index.html\n'
-        ),
+    events = settings.backup_root / 'events.jsonl'
+    events.parent.mkdir()
+    events.write_text(
+        '\n'.join(
+            json.dumps(value)
+            for value in [
+                {
+                    'operation': 'upload',
+                    'result': 'uploaded',
+                    'destination': 'aws/audio/',
+                    'target': 'totm/recording.flac',
+                },
+                {
+                    'operation': 'landing_page',
+                    'result': 'uploaded',
+                    'destination': 'user@example.org:/srv/public',
+                    'target': 'totm/index.html',
+                },
+                {
+                    'operation': 'backup',
+                    'result': 'copied',
+                    'destination': 'aws/audio/',
+                    'target': 'not-published.flac',
+                },
+            ]
+        )
+        + '\n'
     )
+    monkeypatch.setattr('baccy.listing.s3_endpoint_url', lambda destination: None)
 
     assert list_uploaded(settings) == [
         's3:audio/totm/recording.flac',
