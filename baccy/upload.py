@@ -12,51 +12,35 @@ from pathlib import Path, PurePosixPath
 
 from botocore.exceptions import BotoCoreError, ClientError
 
+from . import models, upload_plan
 from .catalog import Catalog
 from .match import MatchExpression
-from .models import (
-    Destination,
-    FileResult,
-    ResolvedSource,
-    S3Destination,
-    Settings,
-    SshDestination,
-)
 from .s3 import s3_client, s3_transfer_config
 from .ssh import SSH_OPTIONS
-from .upload_plan import (
-    ArtifactPlan,
-    LandingPagePlan,
-    _artifact_plans,
-    _completed_segments,
-    _destination_identity,
-    _landing_page_plans,
-    _source_hash,
-)
 
 _COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 _LOGGER = logging.getLogger(__name__)
 
 
 def publish_sessions(
-    sources: list[ResolvedSource],
-    settings: Settings,
+    sources: list[models.ResolvedSource],
+    settings: models.Settings,
     dry_run: bool,
     sync: bool = False,
     directories: list[Path] | None = None,
-    on_write: Callable[[FileResult], None] | None = None,
+    on_write: Callable[[models.FileResult], None] | None = None,
     catalog: Catalog | None = None,
     on_scan: Callable[[int], None] | None = None,
     verify: bool = False,
-) -> list[FileResult]:
+) -> list[models.FileResult]:
     if catalog is None:
         catalog = Catalog(settings.backup_root)
     if not dry_run:
         catalog.compact_if_needed()
-    results: list[FileResult] = []
+    results: list[models.FileResult] = []
     expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
     remote_targets: dict[str, dict[str, int]] = {}
-    artifacts: list[ArtifactPlan] = []
+    artifacts: list[upload_plan.ArtifactPlan] = []
     session_roots: list[Path] = []
     scanned = 0
     for source in sources:
@@ -91,19 +75,22 @@ def publish_sessions(
     pages = [
         (page, landing_page.upload)
         for landing_page in settings.landing_pages
-        for page in _landing_page_plans(artifacts, landing_page, settings)
+        for page in upload_plan._landing_page_plans(artifacts, landing_page, settings)
     ]
     targets = Counter(
-        (_destination_identity(plan.destination), plan.target.as_posix())
+        (upload_plan._destination_identity(plan.destination), plan.target.as_posix())
         for plan in [*artifacts, *(page for page, _ in pages)]
     )
     incomplete_audio: set[tuple[str, str, PurePosixPath]] = set()
     for plan, session_root in zip(artifacts, session_roots, strict=True):
         group = (plan.project, plan.rule.name, plan.target.parent)
-        key = _destination_identity(plan.destination), plan.target.as_posix()
+        key = (
+            upload_plan._destination_identity(plan.destination),
+            plan.target.as_posix(),
+        )
         if targets[key] > 1:
             results.append(
-                FileResult(
+                models.FileResult(
                     source=plan.project,
                     relative_path=Path(plan.target),
                     status='deferred',
@@ -143,7 +130,10 @@ def publish_sessions(
             )
             incomplete_audio.add(group)
     for plan, upload_name in pages:
-        key = _destination_identity(plan.destination), plan.target.as_posix()
+        key = (
+            upload_plan._destination_identity(plan.destination),
+            plan.target.as_posix(),
+        )
         if targets[key] > 1:
             results.append(
                 _landing_page_result(
@@ -179,14 +169,16 @@ def _publish_session(
     session_root: Path,
     relative_session: Path,
     project_name: str,
-    settings: Settings,
+    settings: models.Settings,
     expressions: dict[str, MatchExpression],
     catalog: Catalog,
     dry_run: bool,
     sync: bool,
-) -> tuple[list[ArtifactPlan], list[FileResult]]:
+) -> tuple[list[upload_plan.ArtifactPlan], list[models.FileResult]]:
     try:
-        segments = _completed_segments(session_root / 'session-record.jsonl')
+        segments = upload_plan._completed_segments(
+            session_root / 'session-record.jsonl'
+        )
     except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
         return [], _record_failure(
             catalog,
@@ -196,7 +188,7 @@ def _publish_session(
             dry_run,
         )
     missing = [
-        FileResult(
+        models.FileResult(
             source=project_name,
             relative_path=relative_session / segment.path,
             status='failed',
@@ -207,7 +199,7 @@ def _publish_session(
     ]
     if missing:
         return [], missing
-    return _artifact_plans(
+    return upload_plan._artifact_plans(
         segments,
         source_name,
         session_root,
@@ -221,25 +213,25 @@ def _publish_session(
 
 
 def _materialize_and_upload_landing_page(
-    plan: LandingPagePlan,
+    plan: upload_plan.LandingPagePlan,
     catalog: Catalog,
     dry_run: bool,
     sync: bool,
     remote_targets: dict[str, dict[str, int]],
-    on_write: Callable[[FileResult], None] | None,
+    on_write: Callable[[models.FileResult], None] | None,
     verify: bool,
-) -> list[FileResult]:
+) -> list[models.FileResult]:
     if not plan.identity:
         return [_landing_page_result(plan, 'failed', plan.content)]
     if dry_run:
         return [_landing_page_result(plan, 'would_upload')]
-    destination_id = _destination_identity(plan.destination)
+    destination_id = upload_plan._destination_identity(plan.destination)
     if sync:
         if destination_id not in remote_targets:
             remote_targets[destination_id] = _remote_targets(plan.destination)
         remote_size = remote_targets[destination_id].get(plan.target.as_posix())
         metadata_matches = remote_size == len(plan.content.encode()) and (
-            not isinstance(plan.destination, S3Destination)
+            not isinstance(plan.destination, models.S3Destination)
             or _remote_s3_identity(plan.destination, plan.target) == plan.identity
         )
         if metadata_matches and verify:
@@ -285,9 +277,9 @@ def _materialize_and_upload_landing_page(
 
 
 def _landing_page_result(
-    plan: LandingPagePlan, status: str, detail: str | None = None
-) -> FileResult:
-    return FileResult(
+    plan: upload_plan.LandingPagePlan, status: str, detail: str | None = None
+) -> models.FileResult:
+    return models.FileResult(
         source=plan.project,
         relative_path=Path(plan.target),
         status=status,
@@ -296,30 +288,32 @@ def _landing_page_result(
     )
 
 
-def _materialize_landing_page(plan: LandingPagePlan, backup_root: Path) -> Path:
+def _materialize_landing_page(
+    plan: upload_plan.LandingPagePlan, backup_root: Path
+) -> Path:
     output = backup_root / 'artifacts' / plan.identity / 'index.html'
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(plan.content)
     return output
 
 
-def _upload_landing_page(plan: LandingPagePlan, path: Path) -> bool:
-    if isinstance(plan.destination, SshDestination):
+def _upload_landing_page(plan: upload_plan.LandingPagePlan, path: Path) -> bool:
+    if isinstance(plan.destination, models.SshDestination):
         _upload_ssh(path, plan.target, plan.destination)
         return True
     return _upload_s3(path, plan.target, plan.destination, plan.identity)
 
 
 def _materialize_and_upload(
-    plan: ArtifactPlan,
+    plan: upload_plan.ArtifactPlan,
     session_root: Path,
     catalog: Catalog,
     dry_run: bool,
     sync: bool,
     remote_targets: dict[str, dict[str, int]],
-    on_write: Callable[[FileResult], None] | None,
+    on_write: Callable[[models.FileResult], None] | None,
     verify: bool,
-) -> list[FileResult]:
+) -> list[models.FileResult]:
     source = session_root / plan.segment.path
     if not source.is_file():
         return _record_failure(
@@ -329,10 +323,10 @@ def _materialize_and_upload(
             'completed source backup is missing',
             dry_run,
         )
-    destination_id = _destination_identity(plan.destination)
+    destination_id = upload_plan._destination_identity(plan.destination)
     if dry_run:
         return [
-            FileResult(
+            models.FileResult(
                 source=plan.project,
                 relative_path=Path(plan.target),
                 status='would_upload',
@@ -365,7 +359,7 @@ def _materialize_and_upload(
             metadata_matches = False
         if (
             metadata_matches
-            and isinstance(plan.destination, S3Destination)
+            and isinstance(plan.destination, models.S3Destination)
             and (record is not None)
         ):
             metadata_matches = _remote_s3_identity(
@@ -374,7 +368,7 @@ def _materialize_and_upload(
         if metadata_matches and verify:
             artifact = _materialize(plan, source, catalog.path.parent)
             try:
-                metadata_matches = _source_hash(artifact) == _remote_hash(
+                metadata_matches = upload_plan._source_hash(artifact) == _remote_hash(
                     plan.destination, plan.target
                 )
             finally:
@@ -382,7 +376,7 @@ def _materialize_and_upload(
                     artifact.unlink(missing_ok=True)
         if metadata_matches:
             return [
-                FileResult(
+                models.FileResult(
                     source=plan.project,
                     relative_path=Path(plan.target),
                     status='unchanged',
@@ -391,13 +385,13 @@ def _materialize_and_upload(
             ]
     elif _matches_catalog(catalog, plan.project, Path(plan.identity), source):
         return [
-            FileResult(
+            models.FileResult(
                 source=plan.project, relative_path=Path(plan.target), status='unchanged'
             )
         ]
     if on_write is not None:
         on_write(
-            FileResult(
+            models.FileResult(
                 source=plan.project,
                 relative_path=Path(plan.target),
                 status='writing',
@@ -441,7 +435,7 @@ def _materialize_and_upload(
         catalog.append(event)
     except OSError as error:
         return [
-            FileResult(
+            models.FileResult(
                 source=plan.project,
                 relative_path=Path(plan.target),
                 status='failed',
@@ -450,7 +444,7 @@ def _materialize_and_upload(
             )
         ]
     return [
-        FileResult(
+        models.FileResult(
             source=plan.project,
             relative_path=Path(plan.target),
             status=status,
@@ -459,7 +453,9 @@ def _materialize_and_upload(
     ]
 
 
-def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
+def _materialize(
+    plan: upload_plan.ArtifactPlan, source: Path, backup_root: Path
+) -> Path:
     if plan.rule.encoding.format == 'source':
         return source
     extension = plan.rule.encoding.format
@@ -496,8 +492,8 @@ def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
     return output
 
 
-def _upload(plan: ArtifactPlan, path: Path) -> bool:
-    if isinstance(plan.destination, SshDestination):
+def _upload(plan: upload_plan.ArtifactPlan, path: Path) -> bool:
+    if isinstance(plan.destination, models.SshDestination):
         _upload_ssh(path, plan.target, plan.destination)
         return True
     else:
@@ -507,7 +503,7 @@ def _upload(plan: ArtifactPlan, path: Path) -> bool:
 def _upload_ssh(
     path: Path,
     target: PurePosixPath,
-    destination: SshDestination,
+    destination: models.SshDestination,
 ) -> None:
     host, base = destination.host, destination.root
     remote_path = f'{base.rstrip("/")}/{target.as_posix()}'
@@ -519,7 +515,7 @@ def _upload_ssh(
 def _upload_s3(
     path: Path,
     target: PurePosixPath,
-    destination: S3Destination,
+    destination: models.S3Destination,
     identity: str,
 ) -> bool:
     client = s3_client(destination)
@@ -548,7 +544,7 @@ def _upload_s3(
 
 
 def _remote_s3_identity(
-    destination: S3Destination, target: PurePosixPath
+    destination: models.S3Destination, target: PurePosixPath
 ) -> str | None:
     key = '/'.join(part for part in (destination.prefix, target.as_posix()) if part)
     try:
@@ -561,8 +557,8 @@ def _remote_s3_identity(
     return identity if isinstance(identity, str) else None
 
 
-def _remote_hash(destination: Destination, target: PurePosixPath) -> str | None:
-    if isinstance(destination, SshDestination):
+def _remote_hash(destination: models.Destination, target: PurePosixPath) -> str | None:
+    if isinstance(destination, models.SshDestination):
         host, base = destination.host, destination.root
         path = shlex.quote(f'{base.rstrip("/")}/{target.as_posix()}')
         result = subprocess.run(
@@ -628,15 +624,15 @@ def _matches_catalog(
     )
 
 
-def _display_destination(destination: Destination) -> str:
-    if isinstance(destination, S3Destination):
+def _display_destination(destination: models.Destination) -> str:
+    if isinstance(destination, models.S3Destination):
         suffix = f'/{destination.prefix}' if destination.prefix else ''
         return f's3:{destination.bucket}{suffix}'
     return f'ssh:{destination.address}'
 
 
-def _remote_targets(destination: Destination) -> dict[str, int]:
-    if isinstance(destination, SshDestination):
+def _remote_targets(destination: models.Destination) -> dict[str, int]:
+    if isinstance(destination, models.SshDestination):
         host, base = destination.host, destination.root
         result = subprocess.run(
             [
@@ -682,7 +678,7 @@ def _remote_targets(destination: Destination) -> dict[str, int]:
 
 def _record_failure(
     catalog: Catalog, project: str, path: Path, detail: str, dry_run: bool
-) -> list[FileResult]:
+) -> list[models.FileResult]:
     if not dry_run:
         try:
             catalog.append(
@@ -697,5 +693,7 @@ def _record_failure(
         except OSError as error:
             _LOGGER.error('could not record upload failure: %s', error)
     return [
-        FileResult(source=project, relative_path=path, status='failed', detail=detail)
+        models.FileResult(
+            source=project, relative_path=path, status='failed', detail=detail
+        )
     ]

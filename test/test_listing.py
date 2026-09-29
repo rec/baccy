@@ -8,37 +8,30 @@ import pytest
 from botocore.exceptions import ClientError
 from pytest import MonkeyPatch
 
+from baccy import models
 from baccy.listing import _s3_files, _ssh_files, list_present_uploads
-from baccy.models import (
-    Encoding,
-    FileResult,
-    S3Destination,
-    Settings,
-    SshDestination,
-    UploadRule,
-)
 
 
 def test_list_present_uploads_lists_existing_planned_uploads(
     monkeypatch: MonkeyPatch,
 ) -> None:
-    settings = Settings()
+    settings = models.Settings()
     monkeypatch.setattr(
         'baccy.listing._planned_uploads',
         lambda settings: [
-            FileResult(
+            models.FileResult(
                 source='totm',
                 relative_path=Path('totm/a.flac'),
                 status='would_upload',
                 destination='s3:audio',
             ),
-            FileResult(
+            models.FileResult(
                 source='totm',
                 relative_path=Path('totm/recording.flac'),
                 status='would_upload',
                 destination='s3:audio',
             ),
-            FileResult(
+            models.FileResult(
                 source='totm',
                 relative_path=Path('totm/index.html'),
                 status='would_upload',
@@ -73,7 +66,7 @@ def test_list_shows_s3_prefix_in_remote_path(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr(
         'baccy.listing._planned_uploads',
         lambda settings: [
-            FileResult(
+            models.FileResult(
                 source='totm',
                 relative_path=Path('totm/a.flac'),
                 status='would_upload',
@@ -87,7 +80,7 @@ def test_list_shows_s3_prefix_in_remote_path(monkeypatch: MonkeyPatch) -> None:
         lambda destination, targets: {'totm/a.flac': (modified, 5)},
     )
 
-    rows = list_present_uploads(Settings())
+    rows = list_present_uploads(models.Settings())
 
     assert rows[0].startswith('s3:audio/archive/totm/a.flac  ')
 
@@ -127,13 +120,13 @@ def test_list_present_uploads_does_not_hash_audio(
         )
         + '\n'
     )
-    settings = Settings(
+    settings = models.Settings(
         backup_root=backup,
         uploads=[
-            UploadRule(
+            models.UploadRule(
                 name='audio',
                 match='True',
-                encoding=Encoding(format='source'),
+                encoding=models.Encoding(format='source'),
                 destination='s3:audio',
             )
         ],
@@ -168,7 +161,7 @@ def test_ssh_listing_ignores_a_banner(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr('baccy.listing.subprocess.run', run)
 
     assert _ssh_files(
-        SshDestination(kind='ssh', address='user@example.org:/srv'),
+        models.SshDestination(kind='ssh', address='user@example.org:/srv'),
         [Path('totm/a.flac')],
     ) == {'totm/a.flac': (datetime.fromtimestamp(1790406008).astimezone(), 55574528)}
     assert "stat -f '%m %z'" in commands[0][-1]
@@ -184,7 +177,10 @@ def test_ssh_listing_batches_large_target_sets(monkeypatch: MonkeyPatch) -> None
     monkeypatch.setattr('baccy.listing.subprocess.run', run)
     targets = [Path(f'project/{index}.flac') for index in range(33)]
 
-    assert _ssh_files(SshDestination(kind='ssh', address='host:/srv'), targets) == {}
+    assert (
+        _ssh_files(models.SshDestination(kind='ssh', address='host:/srv'), targets)
+        == {}
+    )
     assert len(commands) == 3
 
 
@@ -204,7 +200,7 @@ def test_ssh_listing_propagates_failure_after_successful_batch(
 
     with pytest.raises(subprocess.CalledProcessError):
         _ssh_files(
-            SshDestination(kind='ssh', address='host:/srv'),
+            models.SshDestination(kind='ssh', address='host:/srv'),
             [Path(f'project/{index}.flac') for index in range(17)],
         )
     assert calls == 2
@@ -220,7 +216,10 @@ def test_ssh_listing_bounds_command_length(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr('baccy.listing.subprocess.run', run)
     targets = [Path(f'project/{index}{"x" * 1000}.flac') for index in range(20)]
 
-    assert _ssh_files(SshDestination(kind='ssh', address='host:/srv'), targets) == {}
+    assert (
+        _ssh_files(models.SshDestination(kind='ssh', address='host:/srv'), targets)
+        == {}
+    )
     assert len(commands) > 2
     assert all(len(command[-1]) <= 16_384 for command in commands)
 
@@ -239,7 +238,7 @@ def test_s3_listing_checks_only_planned_keys(monkeypatch: MonkeyPatch) -> None:
     monkeypatch.setattr('baccy.listing.s3_client', lambda destination: Client())
 
     assert _s3_files(
-        S3Destination(kind='s3', bucket='archive', prefix='prefix'),
+        models.S3Destination(kind='s3', bucket='archive', prefix='prefix'),
         [Path('project/audio.flac'), Path('project/missing.flac')],
     ) == {'project/audio.flac': (modified, 5)}
     assert sorted(requested) == [

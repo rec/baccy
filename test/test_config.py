@@ -3,12 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from baccy.config import (
-    default_backup_root,
-    default_config_path,
-    load,
-    load_or_default,
-)
+from baccy import config
 from baccy.models import Settings, SshDestination, parse_destination
 
 
@@ -23,7 +18,7 @@ def test_load_reads_sources(tmp_path: Path) -> None:
         'path = "/recordings"\n'
     )
 
-    settings = load(path)
+    settings = config.load(path)
 
     assert settings.backup_root == Path('/backup')
     assert settings.sources[0].name == 'recordings'
@@ -41,7 +36,7 @@ def test_load_reads_upload_rules(tmp_path: Path) -> None:
         'destination = "ssh:user@example.org:/srv/recs"\n'
     )
 
-    settings = load(path)
+    settings = config.load(path)
 
     rule = settings.uploads[0]
     assert rule.match == 'main and duration > 90'
@@ -73,19 +68,19 @@ def test_settings_rejects_project_upload_tables(tmp_path: Path) -> None:
 
 
 def test_default_config_path_uses_application_support(tmp_path: Path) -> None:
-    assert default_config_path(tmp_path) == (
+    assert config.default_config_path(tmp_path) == (
         tmp_path / 'Library' / 'Application Support' / 'baccy' / 'config.toml'
     )
 
 
 def test_default_backup_root_uses_main_drive_home(tmp_path: Path) -> None:
-    assert default_backup_root(tmp_path) == tmp_path / 'baccy'
+    assert config.default_backup_root(tmp_path) == tmp_path / 'baccy'
 
 
 def test_load_or_default_uses_defaults_when_standard_file_is_missing(
     tmp_path: Path,
 ) -> None:
-    settings = load_or_default(default_config_path(tmp_path), tmp_path)
+    settings = config.load_or_default(config.default_config_path(tmp_path), tmp_path)
 
     assert settings.backup_root == tmp_path / 'baccy'
     assert settings.sources == []
@@ -95,7 +90,7 @@ def test_load_or_default_uses_defaults_when_standard_file_is_missing(
 
 def test_load_or_default_rejects_missing_explicit_file(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
-        load_or_default(tmp_path / 'missing.toml', tmp_path)
+        config.load_or_default(tmp_path / 'missing.toml', tmp_path)
 
 
 def test_settings_reject_duplicate_source_names() -> None:
