@@ -136,10 +136,27 @@ def test_network_discovery_rechecks_ssh_machines_without_recs() -> None:
 
     assert discovery.discover() == []
     assert [machine.host for machine in discovery.new_machines] == ['pi.local']
-    discovery.last_scan = None
-
     assert [source.host for source in discovery.discover()] == ['pi.local']
     assert attempts == 2
+
+
+def test_network_discovery_reports_disappeared_source() -> None:
+    visible = True
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if command[0] == 'arp':
+            output = b'? (pi.local) at aa:bb:cc:dd:ee:ff on en0\n' if visible else b''
+            return subprocess.CompletedProcess(command, 0, output, b'')
+        return subprocess.CompletedProcess(command, 0, b'', b'')
+
+    discovery = NetworkDiscovery(run)
+    assert len(discovery.discover()) == 1
+    visible = False
+
+    assert discovery.discover() == []
+    assert [source.name for source in discovery.unavailable_sources] == [
+        'network-aabbccddeeff'
+    ]
 
 
 def test_network_recs_dry_run_does_not_write(tmp_path: Path) -> None:
