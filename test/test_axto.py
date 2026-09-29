@@ -21,10 +21,10 @@ def test_axto_config_dry_run_imports_recs_results_layout(
     exit_code = main(
         [
             '--dry-run',
-            'import',
-            str(results),
             '--config',
             str(config),
+            'import',
+            str(results),
         ]
     )
 
@@ -46,7 +46,7 @@ def test_axto_config_dry_run_syncs_all_expected_transfers(
     _write_results(backup / 'audio')
     config = Path(__file__).parent / 'axto.toml'
 
-    exit_code = main(['--dry-run', 'sync', '--config', str(config)])
+    exit_code = main(['--dry-run', '--config', str(config), 'sync'])
 
     scheduled = sorted(capsys.readouterr().out.splitlines())
     assert exit_code == 0
