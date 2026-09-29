@@ -76,16 +76,13 @@ def import_recs(
                         status='copied',
                     )
                 )
-    summary = BackupSummary()
-    for result in imported:
-        summary = summary.with_result(result)
-    return summary
+    return BackupSummary.from_results(imported)
 
 
 def _preview_import(
     directories: list[Path], settings: Settings, project: str | None
 ) -> BackupSummary:
-    summary = BackupSummary()
+    results: list[FileResult] = []
     for directory in directories:
         for session in _sessions(directory):
             project_name = (
@@ -108,14 +105,14 @@ def _preview_import(
                 raise FileExistsError(
                     f'import destination already exists: {destination}'
                 )
-            summary = summary.with_result(
+            results.append(
                 FileResult(
                     source=project_name,
                     relative_path=destination.relative_to(settings.backup_root),
                     status='would_copy',
                 )
             )
-    return summary
+    return BackupSummary.from_results(results)
 
 
 def _sessions(directory: Path) -> list[Path]:

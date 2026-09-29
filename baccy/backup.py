@@ -82,12 +82,14 @@ def run_backup(
         )
     with BackupLock(settings.backup_root):
         if (settings.backup_root / 'rename-progress.json').exists():
-            return BackupSummary().with_result(
-                FileResult(
-                    source='rename',
-                    status='failed',
-                    detail='a rename is pending; rerun the original rename command',
-                )
+            return BackupSummary.from_results(
+                [
+                    FileResult(
+                        source='rename',
+                        status='failed',
+                        detail='a rename is pending; rerun the original rename command',
+                    )
+                ]
             )
         return _run_candidates(
             settings,
@@ -109,13 +111,11 @@ def _run_candidates(
     dry_run: bool,
     on_write: Callable[[FileResult], None] | None,
 ) -> BackupSummary:
-    summary = BackupSummary()
+    results: list[FileResult] = []
     for source in unavailable:
-        summary = summary.with_result(
-            FileResult(source=source.name, status='unavailable')
-        )
+        results.append(FileResult(source=source.name, status='unavailable'))
     for source in getattr(network, 'unavailable_sources', []):
-        summary = summary.with_result(
+        results.append(
             FileResult(
                 source=source.name,
                 status='unavailable',
@@ -127,9 +127,6 @@ def _run_candidates(
         for source in resolved
         for candidate in scan(source)
     ]
-    summary = summary.model_copy(
-        update={'discovered': len(candidates), 'results': summary.results}
-    )
     catalog = Catalog(settings.backup_root)
     storage_exhausted = False
     for candidate in candidates:
@@ -165,18 +162,18 @@ def _run_candidates(
                         'detail': str(error),
                     }
                 )
-            summary = summary.with_result(result)
+            results.append(result)
             if error.errno in {errno.ENOSPC, errno.EROFS}:
                 storage_exhausted = True
                 break
         else:
-            summary = summary.with_result(result)
+            results.append(result)
         if result.status == 'deferred' and not dry_run:
             catalog.append_deferred(
                 result.source, candidate.relative_path, result.detail
             )
     if storage_exhausted:
-        return summary
+        return BackupSummary.from_results(results, discovered=len(candidates))
     network_results: list[FileResult] = []
     for source in network_sources:
         network_results.extend(
@@ -189,7 +186,7 @@ def _run_candidates(
             )
         )
     for result in network_results:
-        summary = summary.with_result(result)
+        results.append(result)
         if (
             result.status == 'deferred'
             and result.relative_path is not None
@@ -202,7 +199,7 @@ def _run_candidates(
         dry_run,
         on_write=on_write,
     ):
-        summary = summary.with_result(result)
+        results.append(result)
         if (
             result.status == 'deferred'
             and result.relative_path is not None
@@ -211,12 +208,10 @@ def _run_candidates(
             catalog.append_upload_deferred(
                 result.source, result.relative_path, result.detail
             )
-    return summary.model_copy(
-        update={
-            'discovered': summary.discovered
-            + sum(result.relative_path is not None for result in network_results),
-            'results': summary.results,
-        }
+    return BackupSummary.from_results(
+        results,
+        discovered=len(candidates)
+        + sum(result.relative_path is not None for result in network_results),
     )
 
 

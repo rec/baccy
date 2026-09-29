@@ -32,8 +32,8 @@ def watch(
                 if error.errno in {errno.ENOSPC, errno.EROFS}:
                     raise
                 _LOGGER.exception('backup pass failed')
-                summary = BackupSummary().with_result(
-                    FileResult(source='watch', status='failed', detail=str(error))
+                summary = BackupSummary.from_results(
+                    [FileResult(source='watch', status='failed', detail=str(error))]
                 )
             if report is not None:
                 try:
