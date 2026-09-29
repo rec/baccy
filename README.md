@@ -111,8 +111,9 @@ and neither a source nor the backup root may contain the other.
 
 Set `verbose = true` to include unchanged files in command output. When the
 installed service is running, it also sends macOS notifications when it
-recognizes a backup disk or network machine and again when that backup pass
-finishes. The current default includes unchanged individual results while
+recognizes a backup disk and when a disk or network-machine backup pass
+finishes. Machine recognition is logged without a notification. The current
+default includes unchanged individual results while
 retaining the `unchanged` count.
 
 ## Project publication
@@ -289,8 +290,8 @@ source that disappears from the ARP table is reported as unavailable.
 Authentication rejections and hosts without a `~/recs` directory are not
 retried until baccy restarts. A host that accepts SSH but does not yet have
 `~/recs` is checked again on each later ARP scan. With `verbose = true`, baccy
-notifies once per daemon session when it first recognizes an SSH-capable
-machine. Multicast and broadcast ARP entries are ignored.
+logs newly recognized SSH-capable machines without sending a notification.
+Multicast and broadcast ARP entries are ignored.
 Qualifying `~/recs` directories are copied as network sources, with the catalog
 skipping files whose remote size and modification time have not changed.
 
