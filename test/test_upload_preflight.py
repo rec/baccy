@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from botocore.exceptions import ClientError
 
+from baccy.catalog import Catalog
 from baccy.models import PathSource, ResolvedSource, Settings
 from baccy.upload import publish_sessions
 
@@ -151,6 +152,80 @@ def test_upload_rejects_a_landing_page_target_collision(tmp_path: Path) -> None:
     assert {result.relative_path for result in results} == {
         Path('project/session/index.html')
     }
+
+
+def test_landing_pages_in_separate_directories_upload_independently(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / 'audio'
+    for name in ('first', 'second'):
+        session = root / 'project' / name
+        _session(session, 'audio.flac')
+        (session / 'audio.flac').write_bytes(b'audio')
+    settings = Settings.model_validate(
+        _settings(tmp_path).model_dump()
+        | {'landing_pages': [{'upload': 'archive', 'destination': 's3:archive'}]}
+    )
+    monkeypatch.setattr('baccy.upload._upload', lambda plan, path: True)
+    monkeypatch.setattr('baccy.upload._upload_landing_page', lambda plan, path: True)
+
+    results = publish_sessions([_source(root)], settings, dry_run=False)
+
+    assert [(result.relative_path, result.status) for result in results] == [
+        (Path('project/first/audio.flac'), 'uploaded'),
+        (Path('project/second/audio.flac'), 'uploaded'),
+        (Path('project/first/index.html'), 'uploaded'),
+        (Path('project/second/index.html'), 'uploaded'),
+    ]
+
+
+def test_landing_page_waits_for_failed_audio_upload(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / 'audio'
+    session = root / 'project' / 'session'
+    _session(session, 'audio.flac')
+    (session / 'audio.flac').write_bytes(b'audio')
+    settings = Settings.model_validate(
+        _settings(tmp_path).model_dump()
+        | {'landing_pages': [{'upload': 'archive', 'destination': 's3:archive'}]}
+    )
+
+    def failed_upload(plan: object, path: Path) -> bool:
+        raise OSError('upload failed')
+
+    monkeypatch.setattr('baccy.upload._upload', failed_upload)
+    monkeypatch.setattr(
+        'baccy.upload._upload_landing_page',
+        lambda plan, path: pytest.fail('landing page must be deferred'),
+    )
+
+    results = publish_sessions([_source(root)], settings, dry_run=False)
+
+    assert [result.status for result in results] == ['failed', 'deferred']
+    assert results[1].detail == 'linked audio upload is incomplete'
+
+
+def test_upload_reports_failed_catalog_write_after_remote_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / 'audio'
+    session = root / 'project' / 'session'
+    _session(session, 'audio.flac')
+    (session / 'audio.flac').write_bytes(b'audio')
+    monkeypatch.setattr('baccy.upload._upload', lambda plan, path: True)
+
+    def failed_append(self: Catalog, value: dict[str, object]) -> None:
+        raise OSError('catalog unavailable')
+
+    monkeypatch.setattr(Catalog, 'append', failed_append)
+
+    results = publish_sessions([_source(root)], _settings(tmp_path), dry_run=False)
+
+    assert [result.status for result in results] == ['failed']
+    assert results[0].detail == (
+        'remote file present; catalog update failed: catalog unavailable'
+    )
 
 
 def test_failed_remote_listing_does_not_block_another_destination(
