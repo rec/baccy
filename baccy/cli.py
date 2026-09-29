@@ -51,7 +51,7 @@ class TestCommand(BaseModel, frozen=True):
 
 
 class ListCommand(BaseModel, frozen=True):
-    """List files baccy uploaded to configured destinations."""
+    """List present remote files that current upload rules can produce."""
 
 
 class RenameCommand(BaseModel, frozen=True):
@@ -101,13 +101,34 @@ class DaemonLogFormatter(logging.Formatter):
 
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
+    if not arguments or arguments[0] in {'-h', '--help'}:
+        print(_usage())
+        return 0
+    prefix = 0
+    while prefix < len(arguments):
+        value = arguments[prefix]
+        if value == '--config':
+            prefix += 2
+        elif value.startswith('--config=') or value in {
+            '--daemon',
+            '--dry-run',
+            '-d',
+        }:
+            prefix += 1
+        else:
+            break
+    globals = arguments[:prefix]
+    arguments = arguments[prefix:]
+    if arguments and arguments[0] in {'-h', '--help'}:
+        print(_usage())
+        return 0
     try:
-        config, daemon, arguments = _config(arguments)
+        config, daemon, _ = _config(globals)
     except ValueError as error:
         print(error, file=sys.stderr)
         return 2
-    dry_run, arguments = _dry_run(arguments)
-    if not arguments or arguments[0] in {'-h', '--help'}:
+    dry_run, _ = _dry_run(globals)
+    if not arguments:
         print(_usage())
         return 0
     command, rest = arguments[0], arguments[1:]
@@ -143,7 +164,7 @@ def _backup(command: BackupCommand, config: Path, dry_run: bool) -> int:
     settings = load_or_default(config)
     summary = run_backup(settings, dry_run=dry_run)
     _print_summary(summary, settings.verbose)
-    return 1 if summary.failed or summary.unavailable else 0
+    return _summary_exit_code(summary)
 
 
 def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
@@ -206,7 +227,7 @@ def _import(command: ImportCommand, config: Path, dry_run: bool) -> int:
         print(error, file=sys.stderr)
         return 1
     _print_summary(summary, settings.verbose)
-    return 1 if summary.failed else 0
+    return _summary_exit_code(summary)
 
 
 def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> int:
@@ -225,10 +246,13 @@ def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> in
         print(error, file=sys.stderr)
         return 1
     _print_summary(summary, settings.verbose)
-    return 1 if summary.failed else 0
+    return _summary_exit_code(summary)
 
 
 def _test(command: TestCommand, config: Path, dry_run: bool) -> int:
+    if dry_run:
+        print('--dry-run is not supported for test', file=sys.stderr)
+        return 2
     failures = test_destinations(load_or_default(config))
     if failures:
         print('\n'.join(failures), file=sys.stderr)
@@ -238,6 +262,9 @@ def _test(command: TestCommand, config: Path, dry_run: bool) -> int:
 
 
 def _list(command: ListCommand, config: Path, dry_run: bool) -> int:
+    if dry_run:
+        print('--dry-run is not supported for list', file=sys.stderr)
+        return 2
     print('\n'.join(list_uploaded(load_or_default(config))))
     return 0
 
@@ -288,13 +315,17 @@ def _service(arguments: list[str], config: Path, dry_run: bool) -> int:
         print(_service_usage())
         return 0
     command, rest = arguments[0], arguments[1:]
+    if command not in {'install', 'uninstall', 'start', 'stop', 'restart', 'status'}:
+        print(f'unknown service command: {command}', file=sys.stderr)
+        print(_service_usage(), file=sys.stderr)
+        return 2
     if dry_run:
         print(tomlkit.dumps({'command': command, 'dry_run': True}), end='')
         return 0
     application = Application()
     if command == 'install':
         install = tyro.cli(InstallCommand, args=rest, prog='baccy service install')
-        result = application.install_service(['watch', '--config', str(config)])
+        result = application.install_service(['--config', str(config), 'watch'])
         if error := _wait_for_daemon(application):
             print(f'baccy daemon failed to start: {error}', file=sys.stderr)
             return 1
@@ -421,16 +452,27 @@ def _request_daemon_sync(endpoint: Path | str, attempts: int = 20) -> str | None
 
 def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
     value = _visible_summary(summary, verbose)
-    paths = [
-        (
+    lines = []
+    for result in value.results:
+        path = (
             f'{result.destination}/{result.relative_path.as_posix()}'
-            if result.destination is not None
+            if result.destination is not None and result.relative_path is not None
             else result.relative_path.as_posix()
+            if result.relative_path is not None
+            else result.source
         )
-        for result in value.results
-        if result.relative_path is not None and result.status != 'deferred'
-    ]
-    print('\n'.join(paths) if paths else '(no files)')
+        if result.status in {'failed', 'deferred', 'unavailable'}:
+            detail = f' ({result.detail})' if result.detail else ''
+            lines.append(f'{result.status}: {path}{detail}')
+        elif result.relative_path is not None:
+            lines.append(path)
+    print('\n'.join(lines) if lines else '(no files)')
+
+
+def _summary_exit_code(summary: BackupSummary) -> int:
+    if summary.failed or summary.unavailable:
+        return 1
+    return 3 if summary.deferred else 0
 
 
 def _report(application: Application, summary: BackupSummary) -> None:
