@@ -224,7 +224,7 @@ def test_network_discovery_ignores_multicast_and_broadcast_nodes() -> None:
     assert calls == [['arp', '-an']]
 
 
-def test_network_discovery_disables_host_key_checking() -> None:
+def test_network_discovery_requires_known_host_key() -> None:
     calls: list[list[str]] = []
 
     def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
@@ -244,9 +244,7 @@ def test_network_discovery_disables_host_key_checking() -> None:
         '-o',
         'ConnectTimeout=1',
         '-o',
-        'StrictHostKeyChecking=no',
-        '-o',
-        'UserKnownHostsFile=/dev/null',
+        'StrictHostKeyChecking=yes',
         'pi.local',
         'test -d "$HOME/recs"',
     ]

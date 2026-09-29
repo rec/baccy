@@ -194,13 +194,17 @@ def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
 
 def _import(command: ImportCommand, config: Path, dry_run: bool) -> int:
     settings = load_or_default(config)
-    summary = import_recs(
-        command.directories,
-        settings,
-        command.copy_directories,
-        command.project,
-        dry_run,
-    )
+    try:
+        summary = import_recs(
+            command.directories,
+            settings,
+            command.copy_directories,
+            command.project,
+            dry_run,
+        )
+    except (RuntimeError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 1
     _print_summary(summary, settings.verbose)
     return 1 if summary.failed else 0
 
@@ -215,7 +219,11 @@ def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> in
             return 1
         return 0
     settings = load_or_default(config)
-    summary = sync(command.directories, settings, dry_run)
+    try:
+        summary = sync(command.directories, settings, dry_run)
+    except (RuntimeError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 1
     _print_summary(summary, settings.verbose)
     return 1 if summary.failed else 0
 
@@ -236,8 +244,9 @@ def _list(command: ListCommand, config: Path, dry_run: bool) -> int:
 
 def _rename(command: RenameCommand, config: Path, dry_run: bool) -> int:
     try:
+        settings = load_or_default(config)
         files = renamed_files(
-            load_or_default(config),
+            settings,
             command.pattern,
             command.replacement,
             command.regular_expression,
@@ -254,9 +263,21 @@ def _rename(command: RenameCommand, config: Path, dry_run: bool) -> int:
         prompt = input(f'Rename these {len(files)} files? (y/N)')
         if not prompt.startswith(('y', 'Y')):
             return 0
-    if not rename_files(
-        load_or_default(config), files, command.pattern, command.replacement
-    ):
+    try:
+        if not rename_files(
+            settings,
+            files,
+            command.pattern,
+            command.replacement,
+            command.regular_expression,
+        ):
+            print(
+                f'rename failed; see {settings.backup_root / "events.jsonl"}',
+                file=sys.stderr,
+            )
+            return 1
+    except (OSError, RuntimeError, ValueError) as error:
+        print(error, file=sys.stderr)
         return 1
     print('Done')
     return 0

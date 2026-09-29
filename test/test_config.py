@@ -98,3 +98,19 @@ def test_settings_allow_automatic_sources_only() -> None:
 
     assert settings.sources == []
     assert settings.discover_removable is True
+
+
+def test_settings_reject_configured_network_source() -> None:
+    with pytest.raises(ValidationError, match='configured network sources'):
+        Settings.model_validate(
+            {
+                'sources': [
+                    {
+                        'kind': 'network',
+                        'name': 'pi',
+                        'mac': 'aa:bb:cc:dd:ee:ff',
+                        'host': 'pi.local',
+                    }
+                ]
+            }
+        )
