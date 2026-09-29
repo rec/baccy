@@ -11,17 +11,9 @@ from jinja2 import Template
 from pydantic import BaseModel
 from reccy.paths import legal_url_path
 
+from . import models
 from .catalog import Catalog
 from .match import MatchExpression
-from .models import (
-    Destination,
-    FileResult,
-    LandingPageUpload,
-    Settings,
-    SshDestination,
-    UploadRule,
-    parse_destination,
-)
 from .s3 import s3_endpoint_url
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,8 +42,8 @@ class ArtifactPlan(BaseModel, frozen=True):
     source_name: str
     session: Path
     segment: Segment
-    rule: UploadRule
-    destination: Destination
+    rule: models.UploadRule
+    destination: models.Destination
     target: PurePosixPath
     identity: str
     source_hash: str
@@ -59,13 +51,13 @@ class ArtifactPlan(BaseModel, frozen=True):
 
 class LandingPagePlan(BaseModel, frozen=True):
     project: str
-    destination: Destination
+    destination: models.Destination
     target: PurePosixPath
     identity: str
     content: str
 
 
-def planned_source_uploads(settings: Settings) -> list[ArtifactPlan]:
+def planned_source_uploads(settings: models.Settings) -> list[ArtifactPlan]:
     root = settings.backup_root / 'audio'
     expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
     plans: list[ArtifactPlan] = []
@@ -241,13 +233,13 @@ def _artifact_plans(
     session_root: Path,
     relative_session: Path,
     project_name: str,
-    settings: Settings,
+    settings: models.Settings,
     expressions: dict[str, MatchExpression],
     sync: bool,
     catalog: Catalog | None = None,
-) -> tuple[list[ArtifactPlan], list[FileResult]]:
+) -> tuple[list[ArtifactPlan], list[models.FileResult]]:
     plans: list[ArtifactPlan] = []
-    results: list[FileResult] = []
+    results: list[models.FileResult] = []
     hashes: dict[Path, str] = {}
     named_main_tracks = {
         (segment.source, segment.track)
@@ -283,7 +275,7 @@ def _artifact_plans(
             expression = expressions[rule.name]
             if main_error is not None and _expression_uses_main(expression):
                 results.append(
-                    FileResult(
+                    models.FileResult(
                         source=project_name,
                         relative_path=segment.path,
                         status='deferred',
@@ -293,7 +285,9 @@ def _artifact_plans(
                 continue
             if not expression.matches(values):
                 continue
-            destination = parse_destination(rule.destination, settings.s3_max_bandwidth)
+            destination = models.parse_destination(
+                rule.destination, settings.s3_max_bandwidth
+            )
             try:
                 target = _render_target(rule, relative_session, segment)
                 source_path = session_root / segment.path
@@ -328,7 +322,7 @@ def _artifact_plans(
                 )
             except (OSError, ValueError) as error:
                 results.append(
-                    FileResult(
+                    models.FileResult(
                         source=project_name,
                         relative_path=segment.path,
                         status='deferred',
@@ -360,7 +354,9 @@ def _expression_uses_main(expression: MatchExpression) -> bool:
     )
 
 
-def _render_target(rule: UploadRule, session: Path, segment: Segment) -> PurePosixPath:
+def _render_target(
+    rule: models.UploadRule, session: Path, segment: Segment
+) -> PurePosixPath:
     if rule.encoding.format == 'mp3':
         filename = Path(segment.path.name.rsplit(' + ', maxsplit=1)[-1]).with_suffix(
             '.mp3'
@@ -387,8 +383,8 @@ def _legal_target(path: PurePosixPath) -> PurePosixPath:
 
 def _landing_page_plans(
     artifacts: list[ArtifactPlan],
-    landing_page: LandingPageUpload,
-    settings: Settings,
+    landing_page: models.LandingPageUpload,
+    settings: models.Settings,
 ) -> list[LandingPagePlan]:
     grouped: dict[tuple[str, PurePosixPath], list[ArtifactPlan]] = {}
     for artifact in artifacts:
@@ -396,7 +392,9 @@ def _landing_page_plans(
             grouped.setdefault((artifact.project, artifact.target.parent), []).append(
                 artifact
             )
-    destination = parse_destination(landing_page.destination, settings.s3_max_bandwidth)
+    destination = models.parse_destination(
+        landing_page.destination, settings.s3_max_bandwidth
+    )
     plans: list[LandingPagePlan] = []
     for (project_name, directory), values in grouped.items():
         target = _legal_target(directory / 'index.html')
@@ -464,8 +462,8 @@ def _artifact_identity(
     session: Path,
     source_hash: str,
     segment: Segment,
-    rule: UploadRule,
-    destination: Destination,
+    rule: models.UploadRule,
+    destination: models.Destination,
 ) -> str:
     value = {
         'session': session.as_posix(),
@@ -485,8 +483,8 @@ def _source_hash(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _destination_identity(destination: Destination) -> str:
-    if isinstance(destination, SshDestination):
+def _destination_identity(destination: models.Destination) -> str:
+    if isinstance(destination, models.SshDestination):
         return destination.address
     endpoint = s3_endpoint_url(destination) or 'aws'
     return f'{endpoint}/{destination.bucket}/{destination.prefix}'

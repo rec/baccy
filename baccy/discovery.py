@@ -5,51 +5,45 @@ import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
-from .models import (
-    PathSource,
-    ResolvedSource,
-    Source,
-    SourceSelection,
-    VolumeSource,
-)
+from . import models
 
 _RECS_MARKERS = {'recording.toml', 'session-record.jsonl'}
 
 
 def resolve_sources(
-    sources: list[Source],
+    sources: list[models.Source],
     volumes_root: Path = Path('/Volumes'),
     diskutil: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
-) -> tuple[list[ResolvedSource], list[Source]]:
-    resolved: list[ResolvedSource] = []
-    unavailable: list[Source] = []
+) -> tuple[list[models.ResolvedSource], list[models.Source]]:
+    resolved: list[models.ResolvedSource] = []
+    unavailable: list[models.Source] = []
     for source in sources:
         root = resolve_source(source, volumes_root, diskutil)
         if root is None:
             unavailable.append(source)
         else:
-            resolved.append(ResolvedSource(source=source, root=root))
+            resolved.append(models.ResolvedSource(source=source, root=root))
     return resolved, unavailable
 
 
 def resolve_source(
-    source: Source,
+    source: models.Source,
     volumes_root: Path,
     diskutil: Callable[..., subprocess.CompletedProcess[bytes]],
 ) -> Path | None:
-    if isinstance(source, PathSource):
+    if isinstance(source, models.PathSource):
         return source.path if source.path.is_dir() else None
-    if not isinstance(source, VolumeSource):
+    if not isinstance(source, models.VolumeSource):
         return None
     return _resolve_volume(source, volumes_root, diskutil)
 
 
 def discover_removable_sources(
     backup_root: Path,
-    configured: list[ResolvedSource],
+    configured: list[models.ResolvedSource],
     volumes_root: Path = Path('/Volumes'),
     diskutil: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
-) -> list[ResolvedSource]:
+) -> list[models.ResolvedSource]:
     try:
         mounts = sorted(volumes_root.iterdir())
     except FileNotFoundError:
@@ -58,9 +52,9 @@ def discover_removable_sources(
     seen_uuids = {
         s.source.uuid.casefold()
         for s in configured
-        if isinstance(s.source, VolumeSource)
+        if isinstance(s.source, models.VolumeSource)
     }
-    sources: list[ResolvedSource] = []
+    sources: list[models.ResolvedSource] = []
     for mount in mounts:
         if not mount.is_dir() or mount.is_symlink():
             continue
@@ -83,19 +77,21 @@ def discover_removable_sources(
         if not selections:
             continue
         volume_name = data.get('VolumeName')
-        source = VolumeSource(
+        source = models.VolumeSource(
             kind='volume',
             name=f'removable-{normalized_uuid}',
             uuid=uuid,
             expected_name=volume_name if isinstance(volume_name, str) else mount.name,
         )
-        sources.append(ResolvedSource(source=source, root=mount, selections=selections))
+        sources.append(
+            models.ResolvedSource(source=source, root=mount, selections=selections)
+        )
         seen_uuids.add(normalized_uuid)
     return sources
 
 
 def _resolve_volume(
-    source: VolumeSource,
+    source: models.VolumeSource,
     volumes_root: Path,
     diskutil: Callable[..., subprocess.CompletedProcess[bytes]],
 ) -> Path | None:
@@ -136,16 +132,16 @@ def _is_removable(data: dict[str, object]) -> bool:
     )
 
 
-def _automatic_selections(root: Path) -> list[SourceSelection]:
+def _automatic_selections(root: Path) -> list[models.SourceSelection]:
     selections = [
-        SourceSelection(
+        models.SourceSelection(
             relative_root=directory.relative_to(root),
             extensions=_PHOTO_EXTENSIONS,
         )
         for directory in _camera_directories(root)
     ]
     selections.extend(
-        SourceSelection(relative_root=directory.relative_to(root))
+        models.SourceSelection(relative_root=directory.relative_to(root))
         for directory in _recs_session_directories(root)
     )
     return selections

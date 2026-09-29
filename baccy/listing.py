@@ -7,15 +7,7 @@ from pathlib import Path, PurePosixPath
 
 from botocore.exceptions import ClientError
 
-from .models import (
-    FileResult,
-    PathSource,
-    ResolvedSource,
-    S3Destination,
-    Settings,
-    SshDestination,
-    parse_destination,
-)
+from . import models
 from .s3 import s3_client
 from .ssh import SSH_OPTIONS
 from .upload import publish_sessions
@@ -23,10 +15,10 @@ from .upload import publish_sessions
 _COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 
 
-def list_present_uploads(settings: Settings) -> list[str]:
+def list_present_uploads(settings: models.Settings) -> list[str]:
     print('Planning possible uploads...', file=sys.stderr, flush=True)
-    s3_files: dict[str, tuple[S3Destination, list[tuple[str, Path]]]] = {}
-    ssh_files: dict[str, tuple[SshDestination, list[tuple[str, Path]]]] = {}
+    s3_files: dict[str, tuple[models.S3Destination, list[tuple[str, Path]]]] = {}
+    ssh_files: dict[str, tuple[models.SshDestination, list[tuple[str, Path]]]] = {}
     for result in _planned_uploads(settings):
         if (
             result.status != 'would_upload'
@@ -34,9 +26,11 @@ def list_present_uploads(settings: Settings) -> list[str]:
             or result.relative_path is None
         ):
             continue
-        destination = parse_destination(result.destination, settings.s3_max_bandwidth)
+        destination = models.parse_destination(
+            result.destination, settings.s3_max_bandwidth
+        )
         path = f'{result.destination}/{result.relative_path.as_posix()}'
-        if isinstance(destination, SshDestination):
+        if isinstance(destination, models.SshDestination):
             ssh_files.setdefault(result.destination, (destination, []))[1].append(
                 (path, result.relative_path)
             )
@@ -76,10 +70,10 @@ def list_present_uploads(settings: Settings) -> list[str]:
     return [*rows, '', *_summary(values)]
 
 
-def _planned_uploads(settings: Settings) -> list[FileResult]:
+def _planned_uploads(settings: models.Settings) -> list[models.FileResult]:
     root = settings.backup_root / 'audio'
-    source = ResolvedSource(
-        source=PathSource(kind='path', name='backup', path=root), root=root
+    source = models.ResolvedSource(
+        source=models.PathSource(kind='path', name='backup', path=root), root=root
     )
 
     def progress(count: int) -> None:
@@ -96,7 +90,7 @@ def _planned_uploads(settings: Settings) -> list[FileResult]:
 
 
 def _ssh_files(
-    destination: SshDestination, targets: list[Path]
+    destination: models.SshDestination, targets: list[Path]
 ) -> dict[str, tuple[datetime, int]]:
     host, base = destination.host, destination.root
     paths = [str(PurePosixPath(base) / target.as_posix()) for target in targets]
@@ -148,7 +142,7 @@ def _ssh_stat(index: int, path: str) -> str:
 
 
 def _s3_files(
-    destination: S3Destination, targets: list[Path]
+    destination: models.S3Destination, targets: list[Path]
 ) -> dict[str, tuple[datetime, int]]:
     keys = [
         '/'.join(part for part in (destination.prefix, target.as_posix()) if part)

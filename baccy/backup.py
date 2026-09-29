@@ -4,33 +4,23 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TextIO
 
+from . import models
 from .catalog import Catalog
 from .copy import copy_candidate, preview_candidate
 from .discovery import discover_removable_sources, resolve_sources
-from .models import (
-    BackupSummary,
-    Candidate,
-    FileResult,
-    PathSource,
-    RecognizedSource,
-    ResolvedSource,
-    Settings,
-    Source,
-    VolumeSource,
-)
 from .network import NetworkDiscovery, NetworkRecsSource, backup_network_source
 from .scan import scan
 from .upload import publish_sessions
 
 
 def run_backup(
-    settings: Settings,
+    settings: models.Settings,
     dry_run: bool = False,
     network: NetworkDiscovery | None = None,
-    recognize: Callable[[list[RecognizedSource]], None] | None = None,
-    recognize_machines: Callable[[list[RecognizedSource]], None] | None = None,
-    on_write: Callable[[FileResult], None] | None = None,
-) -> BackupSummary:
+    recognize: Callable[[list[models.RecognizedSource]], None] | None = None,
+    recognize_machines: Callable[[list[models.RecognizedSource]], None] | None = None,
+    on_write: Callable[[models.FileResult], None] | None = None,
+) -> models.BackupSummary:
     _validate_config_roots(settings)
     resolved, unavailable = resolve_sources(settings.sources)
     if settings.discover_removable:
@@ -45,7 +35,7 @@ def run_backup(
     if recognize_machines is not None:
         recognize_machines(
             [
-                RecognizedSource(
+                models.RecognizedSource(
                     source=machine.name, label=machine.host, kind='machine'
                 )
                 for machine in discovery.new_machines
@@ -54,11 +44,11 @@ def run_backup(
     if recognize is not None:
         recognize(
             [
-                RecognizedSource(
+                models.RecognizedSource(
                     source=source.source.name,
                     label=(
                         source.source.expected_name or source.root.name
-                        if isinstance(source.source, VolumeSource)
+                        if isinstance(source.source, models.VolumeSource)
                         else source.root.name
                     ),
                     kind='disk',
@@ -66,7 +56,9 @@ def run_backup(
                 for source in removable
             ]
             + [
-                RecognizedSource(source=source.name, label=source.host, kind='machine')
+                models.RecognizedSource(
+                    source=source.name, label=source.host, kind='machine'
+                )
                 for source in network_sources
             ]
         )
@@ -82,9 +74,9 @@ def run_backup(
         )
     with BackupLock(settings.backup_root):
         if (settings.backup_root / 'rename-progress.json').exists():
-            return BackupSummary.from_results(
+            return models.BackupSummary.from_results(
                 [
-                    FileResult(
+                    models.FileResult(
                         source='rename',
                         status='failed',
                         detail='a rename is pending; rerun the original rename command',
@@ -103,20 +95,20 @@ def run_backup(
 
 
 def _run_candidates(
-    settings: Settings,
-    resolved: list[ResolvedSource],
-    unavailable: list[Source],
+    settings: models.Settings,
+    resolved: list[models.ResolvedSource],
+    unavailable: list[models.Source],
     network_sources: list[NetworkRecsSource],
     network: NetworkDiscovery,
     dry_run: bool,
-    on_write: Callable[[FileResult], None] | None,
-) -> BackupSummary:
-    results: list[FileResult] = []
+    on_write: Callable[[models.FileResult], None] | None,
+) -> models.BackupSummary:
+    results: list[models.FileResult] = []
     for source in unavailable:
-        results.append(FileResult(source=source.name, status='unavailable'))
+        results.append(models.FileResult(source=source.name, status='unavailable'))
     for source in getattr(network, 'unavailable_sources', []):
         results.append(
-            FileResult(
+            models.FileResult(
                 source=source.name,
                 status='unavailable',
                 detail='network host disappeared',
@@ -124,7 +116,7 @@ def _run_candidates(
         )
     for machine, detail in getattr(network, 'probe_failures', []):
         results.append(
-            FileResult(
+            models.FileResult(
                 source=machine.name,
                 status='diagnostic',
                 detail=f'SSH probe of {machine.host} failed: {detail}',
@@ -157,7 +149,7 @@ def _run_candidates(
                 )
             )
         except OSError as error:
-            result = FileResult(
+            result = models.FileResult(
                 source=candidate.source.source.name,
                 relative_path=candidate.relative_path,
                 status='failed',
@@ -183,8 +175,8 @@ def _run_candidates(
                 result.source, candidate.relative_path, result.detail
             )
     if storage_exhausted:
-        return BackupSummary.from_results(results, discovered=len(candidates))
-    network_results: list[FileResult] = []
+        return models.BackupSummary.from_results(results, discovered=len(candidates))
+    network_results: list[models.FileResult] = []
     for source in network_sources:
         network_results.extend(
             backup_network_source(
@@ -219,23 +211,23 @@ def _run_candidates(
             catalog.append_upload_deferred(
                 result.source, result.relative_path, result.detail
             )
-    return BackupSummary.from_results(
+    return models.BackupSummary.from_results(
         results,
         discovered=len(candidates)
         + sum(result.relative_path is not None for result in network_results),
     )
 
 
-def _upload_sources(root: Path) -> list[ResolvedSource]:
+def _upload_sources(root: Path) -> list[models.ResolvedSource]:
     return [
-        ResolvedSource(
-            source=PathSource(kind='path', name='audio', path=root / 'audio'),
+        models.ResolvedSource(
+            source=models.PathSource(kind='path', name='audio', path=root / 'audio'),
             root=root / 'audio',
         ),
     ]
 
 
-def _project_name(candidate: Candidate) -> str | None:
+def _project_name(candidate: models.Candidate) -> str | None:
     for parent in candidate.path.parents:
         if not parent.is_relative_to(candidate.source.root):
             break
@@ -269,7 +261,7 @@ class BackupLock:
             file.close()
 
 
-def _validate_roots(backup_root: Path, sources: list[ResolvedSource]) -> None:
+def _validate_roots(backup_root: Path, sources: list[models.ResolvedSource]) -> None:
     destination = backup_root.resolve()
     roots = [source.root.resolve() for source in sources]
     for root in roots:
@@ -283,10 +275,10 @@ def _validate_roots(backup_root: Path, sources: list[ResolvedSource]) -> None:
             raise ValueError('source roots must not overlap')
 
 
-def _validate_config_roots(settings: Settings) -> None:
+def _validate_config_roots(settings: models.Settings) -> None:
     sources = [
-        ResolvedSource(source=source, root=source.path)
+        models.ResolvedSource(source=source, root=source.path)
         for source in settings.sources
-        if isinstance(source, PathSource)
+        if isinstance(source, models.PathSource)
     ]
     _validate_roots(settings.backup_root, sources)
