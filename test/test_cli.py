@@ -525,7 +525,7 @@ def test_list_command_prints_uploaded_files(
     config = tmp_path / 'baccy.toml'
     config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
     monkeypatch.setattr(
-        'baccy.cli.list_uploaded',
+        'baccy.cli.list_present_uploads',
         lambda settings: [
             's3:archive/totm/audio.flac',
             'ssh:user@example.org:/srv/a.html',
@@ -561,7 +561,7 @@ def test_list_reports_remote_failure_without_traceback(
     def unavailable(settings: Settings) -> list[str]:
         raise OSError('SSH unavailable')
 
-    monkeypatch.setattr('baccy.cli.list_uploaded', unavailable)
+    monkeypatch.setattr('baccy.cli.list_present_uploads', unavailable)
 
     assert main(['--config', str(config), 'list']) == 1
     assert capsys.readouterr().err == 'could not list uploads: SSH unavailable\n'
