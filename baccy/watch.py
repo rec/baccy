@@ -1,5 +1,6 @@
 import signal
 import threading
+import time
 from collections.abc import Callable
 from typing import cast
 
@@ -20,6 +21,8 @@ def watch(
     previous_handlers = _install_signal_handlers(stopping)
     try:
         while not stopping.is_set():
+            if trigger is not None:
+                trigger.clear()
             summary = action(settings)
             if report is not None:
                 report(summary)
@@ -27,8 +30,11 @@ def watch(
             if trigger is None:
                 stopping.wait(timeout)
             else:
-                trigger.wait(timeout)
-                trigger.clear()
+                deadline = time.monotonic() + timeout
+                while not stopping.is_set() and not trigger.is_set():
+                    if (remaining := deadline - time.monotonic()) <= 0:
+                        break
+                    stopping.wait(min(remaining, 0.1))
     finally:
         _restore_signal_handlers(previous_handlers)
 
