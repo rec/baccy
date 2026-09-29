@@ -5,15 +5,8 @@ from types import SimpleNamespace
 import pytest
 from pytest import CaptureFixture, MonkeyPatch
 
+from baccy import models
 from baccy.cli import main
-from baccy.models import (
-    BackupSummary,
-    FileResult,
-    ResolvedSource,
-    Settings,
-    SourceSelection,
-    VolumeSource,
-)
 from baccy.rename import RenameFile
 
 
@@ -71,9 +64,9 @@ def test_daemon_uses_its_recorded_configuration(
     )
     received: list[Path] = []
 
-    def backup(settings: Settings, dry_run: bool) -> BackupSummary:
+    def backup(settings: models.Settings, dry_run: bool) -> models.BackupSummary:
         received.append(settings.backup_root)
-        return BackupSummary()
+        return models.BackupSummary()
 
     monkeypatch.setattr('baccy.cli.run_backup', backup)
 
@@ -134,12 +127,12 @@ def test_watch_command_prints_only_changed_summaries(
     def run_watch(settings: object, **kwargs: object) -> None:
         report = kwargs['report']
         assert callable(report)
-        report(BackupSummary())
-        report(BackupSummary())
+        report(models.BackupSummary())
+        report(models.BackupSummary())
         report(
-            BackupSummary.from_results(
+            models.BackupSummary.from_results(
                 [
-                    FileResult(
+                    models.FileResult(
                         source='source',
                         relative_path=Path('recording.toml'),
                         status='copied',
@@ -160,7 +153,7 @@ def test_daemon_watch_logs_each_file_as_json(
 ) -> None:
     config = tmp_path / 'baccy.toml'
     config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
-    summaries: list[BackupSummary] = []
+    summaries: list[models.BackupSummary] = []
 
     class DaemonApplication:
         sync_requested = None
@@ -171,24 +164,24 @@ def test_daemon_watch_logs_each_file_as_json(
         def close(self) -> None:
             pass
 
-        def record_summary(self, summary: BackupSummary) -> None:
+        def record_summary(self, summary: models.BackupSummary) -> None:
             summaries.append(summary)
 
     def run_watch(settings: object, **kwargs: object) -> None:
         report = kwargs['report']
         assert callable(report)
         report(
-            BackupSummary(
+            models.BackupSummary(
                 results=[
-                    FileResult(
+                    models.FileResult(
                         source='source',
                         relative_path=Path('unchanged.wav'),
                         status='unchanged',
                     ),
-                    FileResult(
+                    models.FileResult(
                         source='source', relative_path=Path('one.wav'), status='copied'
                     ),
-                    FileResult(
+                    models.FileResult(
                         source='source',
                         relative_path=Path('two.wav'),
                         status='uploaded',
@@ -197,9 +190,9 @@ def test_daemon_watch_logs_each_file_as_json(
             )
         )
         report(
-            BackupSummary(
+            models.BackupSummary(
                 results=[
-                    FileResult(
+                    models.FileResult(
                         source='source',
                         relative_path=Path('unchanged.wav'),
                         status='unchanged',
@@ -222,17 +215,17 @@ def test_daemon_watch_logs_each_file_as_json(
         {'source': 'source', 'relative_path': 'two.wav', 'status': 'uploaded'},
     ]
     assert summaries == [
-        BackupSummary(
+        models.BackupSummary(
             results=[
-                FileResult(
+                models.FileResult(
                     source='source', relative_path=Path('one.wav'), status='copied'
                 ),
-                FileResult(
+                models.FileResult(
                     source='source', relative_path=Path('two.wav'), status='uploaded'
                 ),
             ]
         ),
-        BackupSummary(),
+        models.BackupSummary(),
     ]
 
 
@@ -305,7 +298,7 @@ def test_list_reports_remote_failure_without_traceback(
     config = tmp_path / 'baccy.toml'
     config.write_text('')
 
-    def unavailable(settings: Settings) -> list[str]:
+    def unavailable(settings: models.Settings) -> list[str]:
         raise OSError('SSH unavailable')
 
     monkeypatch.setattr('baccy.cli.list_present_uploads', unavailable)
@@ -321,9 +314,9 @@ def test_backup_reports_deferred_work_with_distinct_exit_status(
     config.write_text('')
     monkeypatch.setattr(
         'baccy.cli.run_backup',
-        lambda settings, dry_run: BackupSummary.from_results(
+        lambda settings, dry_run: models.BackupSummary.from_results(
             [
-                FileResult(
+                models.FileResult(
                     source='studio',
                     relative_path=Path('audio.flac'),
                     status='deferred',
@@ -344,8 +337,8 @@ def test_backup_reports_failure_detail(
     config.write_text('')
     monkeypatch.setattr(
         'baccy.cli.run_backup',
-        lambda settings, dry_run: BackupSummary.from_results(
-            [FileResult(source='studio', status='failed', detail='disk full')]
+        lambda settings, dry_run: models.BackupSummary.from_results(
+            [models.FileResult(source='studio', status='failed', detail='disk full')]
         ),
     )
 
@@ -390,7 +383,10 @@ def test_rename_keeps_global_flag_text_as_positional_argument(
     received: list[tuple[str, str]] = []
 
     def planned(
-        settings: Settings, pattern: str, replacement: str, regular_expression: bool
+        settings: models.Settings,
+        pattern: str,
+        replacement: str,
+        regular_expression: bool,
     ) -> list[RenameFile]:
         received.append((pattern, replacement))
         return []
@@ -438,11 +434,13 @@ def test_backup_command_without_configuration_uses_main_drive(
     session = tmp_path / 'card' / 'recs-session'
     session.mkdir(parents=True)
     (session / 'session-record.jsonl').write_text('{"type":"header"}\n')
-    source = VolumeSource(kind='volume', name='removable-test-uuid', uuid='test-uuid')
-    resolved = ResolvedSource(
+    source = models.VolumeSource(
+        kind='volume', name='removable-test-uuid', uuid='test-uuid'
+    )
+    resolved = models.ResolvedSource(
         source=source,
         root=tmp_path / 'card',
-        selections=[SourceSelection(relative_root=Path('recs-session'))],
+        selections=[models.SourceSelection(relative_root=Path('recs-session'))],
     )
     monkeypatch.setenv('HOME', str(tmp_path))
     monkeypatch.setattr(

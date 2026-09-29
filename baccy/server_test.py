@@ -2,31 +2,25 @@ import subprocess
 
 from botocore.exceptions import BotoCoreError, ClientError
 
-from .models import (
-    Destination,
-    S3Destination,
-    Settings,
-    SshDestination,
-    parse_destination,
-)
+from . import models
 from .s3 import s3_client
 from .ssh import SSH_OPTIONS
 
 
-def test_destinations(settings: Settings) -> list[str]:
+def test_destinations(settings: models.Settings) -> list[str]:
     failures: list[str] = []
     destinations = {rule.destination for rule in settings.uploads}
     destinations.update(page.destination for page in settings.landing_pages)
     for value in destinations:
         try:
-            _test_destination(parse_destination(value))
+            _test_destination(models.parse_destination(value))
         except (BotoCoreError, ClientError, OSError) as error:
             failures.append(f'{value}: {error}')
     return failures
 
 
-def _test_destination(destination: Destination) -> None:
-    if isinstance(destination, SshDestination):
+def _test_destination(destination: models.Destination) -> None:
+    if isinstance(destination, models.SshDestination):
         host = destination.host
         result = subprocess.run(
             ['ssh', *SSH_OPTIONS, host, 'true'], capture_output=True, check=False
@@ -37,5 +31,5 @@ def _test_destination(destination: Destination) -> None:
     _test_s3(destination)
 
 
-def _test_s3(destination: S3Destination) -> None:
+def _test_s3(destination: models.S3Destination) -> None:
     s3_client(destination).list_objects_v2(Bucket=destination.bucket, MaxKeys=1)
