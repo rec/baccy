@@ -1,3 +1,4 @@
+import logging
 import os
 import plistlib
 import subprocess
@@ -189,15 +190,13 @@ def test_application_notifies_each_new_failure_once(
     assert notifications == [[failure], [failure]]
 
 
-def test_application_notifies_recognized_sources_and_completion(
+def test_application_notifies_recognized_disk_and_completion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     notifications: list[str] = []
     monkeypatch.setattr('baccy.application.notify', notifications.append)
     application = Application(home=tmp_path, platform=models.Platform.macos)
-    source = RecognizedSource(
-        source='network-aabb', label='studio.local', kind='machine'
-    )
+    source = RecognizedSource(source='disk-aabb', label='studio', kind='disk')
     application.start()
     try:
         application.record_recognized_sources([source])
@@ -208,16 +207,17 @@ def test_application_notifies_recognized_sources_and_completion(
         application.close()
 
     assert notifications == [
-        'Recognized machine studio.local; starting backup.',
-        'Backup complete for machine studio.local.',
+        'Recognized disk studio; starting backup.',
+        'Backup complete for disk studio.',
     ]
 
 
 def test_application_waits_for_success_before_notifying_completion(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     notifications: list[str] = []
     monkeypatch.setattr('baccy.application.notify', notifications.append)
+    caplog.set_level(logging.INFO, logger='baccy.application')
     application = Application(home=tmp_path, platform=models.Platform.macos)
     source = RecognizedSource(source='studio', label='studio.local', kind='machine')
     application.start()
@@ -233,17 +233,16 @@ def test_application_waits_for_success_before_notifying_completion(
     finally:
         application.close()
 
-    assert notifications == [
-        'Recognized machine studio.local; starting backup.',
-        'Backup complete for machine studio.local.',
-    ]
+    assert notifications == ['Backup complete for machine studio.local.']
+    assert caplog.text.count('recognized machine studio.local; starting backup') == 1
 
 
-def test_application_notifies_new_ssh_machine_once(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_application_logs_new_ssh_machine_without_notification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
     notifications: list[str] = []
     monkeypatch.setattr('baccy.application.notify', notifications.append)
+    caplog.set_level(logging.INFO, logger='baccy.application')
     application = Application(home=tmp_path, platform=models.Platform.macos)
     machine = RecognizedSource(
         source='network-aabb', label='studio.local', kind='machine'
@@ -252,4 +251,5 @@ def test_application_notifies_new_ssh_machine_once(
     application.record_recognized_machines([machine])
     application.record_recognized_machines([machine])
 
-    assert notifications == ['Recognized machine studio.local.']
+    assert notifications == []
+    assert caplog.text.count('recognized machine studio.local') == 1
