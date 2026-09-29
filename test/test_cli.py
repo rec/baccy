@@ -221,12 +221,14 @@ def test_watch_command_prints_only_changed_summaries(
         report(BackupSummary())
         report(BackupSummary())
         report(
-            BackupSummary().with_result(
-                FileResult(
-                    source='source',
-                    relative_path=Path('recording.toml'),
-                    status='copied',
-                )
+            BackupSummary.from_results(
+                [
+                    FileResult(
+                        source='source',
+                        relative_path=Path('recording.toml'),
+                        status='copied',
+                    )
+                ]
             )
         )
 
@@ -512,6 +514,21 @@ def test_read_only_commands_reject_dry_run(
     assert capsys.readouterr().err == (f'--dry-run is not supported for {command}\n')
 
 
+def test_list_reports_remote_failure_without_traceback(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
+
+    def unavailable(settings: Settings) -> list[str]:
+        raise OSError('SSH unavailable')
+
+    monkeypatch.setattr('baccy.cli.list_uploaded', unavailable)
+
+    assert main(['--config', str(config), 'list']) == 1
+    assert capsys.readouterr().err == 'could not list uploads: SSH unavailable\n'
+
+
 def test_backup_reports_deferred_work_with_distinct_exit_status(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
 ) -> None:
@@ -519,13 +536,15 @@ def test_backup_reports_deferred_work_with_distinct_exit_status(
     config.write_text('')
     monkeypatch.setattr(
         'baccy.cli.run_backup',
-        lambda settings, dry_run: BackupSummary().with_result(
-            FileResult(
-                source='studio',
-                relative_path=Path('audio.flac'),
-                status='deferred',
-                detail='still recording',
-            )
+        lambda settings, dry_run: BackupSummary.from_results(
+            [
+                FileResult(
+                    source='studio',
+                    relative_path=Path('audio.flac'),
+                    status='deferred',
+                    detail='still recording',
+                )
+            ]
         ),
     )
 
@@ -540,8 +559,8 @@ def test_backup_reports_failure_detail(
     config.write_text('')
     monkeypatch.setattr(
         'baccy.cli.run_backup',
-        lambda settings, dry_run: BackupSummary().with_result(
-            FileResult(source='studio', status='failed', detail='disk full')
+        lambda settings, dry_run: BackupSummary.from_results(
+            [FileResult(source='studio', status='failed', detail='disk full')]
         ),
     )
 

@@ -1,3 +1,4 @@
+from collections import Counter
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Literal
 
@@ -261,8 +262,20 @@ class BackupSummary(BaseModel, frozen=True):
     failed: int = 0
     results: list[FileResult] = Field(default_factory=list)
 
-    def with_result(self, result: FileResult) -> BackupSummary:
-        values = self.model_dump()
-        values[result.status] += 1
-        values['results'].append(result)
-        return BackupSummary.model_validate(values)
+    @classmethod
+    def from_results(
+        cls, results: list[FileResult], discovered: int = 0
+    ) -> BackupSummary:
+        counts = Counter(result.status for result in results)
+        return cls(
+            discovered=discovered,
+            would_copy=counts['would_copy'],
+            would_upload=counts['would_upload'],
+            copied=counts['copied'],
+            uploaded=counts['uploaded'],
+            unchanged=counts['unchanged'],
+            deferred=counts['deferred'],
+            unavailable=counts['unavailable'],
+            failed=counts['failed'],
+            results=results,
+        )

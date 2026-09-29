@@ -33,6 +33,7 @@ from .models import (
 from .s3 import s3_client, s3_endpoint_url, s3_transfer_config
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
+_COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 _LOGGER = logging.getLogger(__name__)
 _DEFAULT_LANDING_PAGE_TEMPLATE = (
     Path(__file__).parent / 'templates' / '_default.html'
@@ -914,7 +915,9 @@ def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
         else:
             command.extend(['-c:a', 'flac'])
         command.append(str(temporary))
-        subprocess.run(command, capture_output=True, check=True)
+        subprocess.run(
+            command, capture_output=True, check=True, timeout=_COMMAND_TIMEOUT_SECONDS
+        )
         if extension != 'mp3':
             temporary.replace(output)
     except OSError, subprocess.SubprocessError, KeyboardInterrupt:
@@ -989,7 +992,9 @@ def _remote_s3_identity(
 
 
 def _run(command: list[str]) -> None:
-    result = subprocess.run(command, capture_output=True, check=False)
+    result = subprocess.run(
+        command, capture_output=True, check=False, timeout=_COMMAND_TIMEOUT_SECONDS
+    )
     if result.returncode:
         raise OSError(result.stderr.decode(errors='replace').strip())
 
@@ -1035,6 +1040,7 @@ def _remote_targets(destination: Destination) -> dict[str, int]:
             ],
             capture_output=True,
             check=False,
+            timeout=_COMMAND_TIMEOUT_SECONDS,
         )
         if result.returncode:
             raise OSError(result.stderr.decode(errors='replace').strip())

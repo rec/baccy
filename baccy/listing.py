@@ -1,7 +1,10 @@
 import shlex
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path, PurePosixPath
+
+from botocore.exceptions import ClientError
 
 from .models import (
     FileResult,
@@ -16,6 +19,7 @@ from .s3 import s3_client
 from .upload import publish_sessions
 
 _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
+_COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 
 
 def list_uploaded(settings: Settings) -> list[str]:
@@ -74,24 +78,29 @@ def _ssh_files(
 ) -> dict[str, tuple[datetime, int]]:
     host, _, base = destination.url.partition(':')
     paths = [str(PurePosixPath(base) / target.as_posix()) for target in targets]
-    command = '; '.join(_ssh_stat(index, path) for index, path in enumerate(paths))
-    result = subprocess.run(
-        ['ssh', *_SSH_OPTIONS, host, command],
-        capture_output=True,
-        check=True,
-        text=True,
-    )
     values: dict[str, tuple[datetime, int]] = {}
-    for line in result.stdout.splitlines():
-        if (fields := line.split(maxsplit=2)) and len(fields) == 3:
-            index, modified, size = fields
-            try:
-                values[targets[int(index)].as_posix()] = (
-                    datetime.fromtimestamp(int(modified)).astimezone(),
-                    int(size),
-                )
-            except IndexError, ValueError:
-                continue
+    for start in range(0, len(paths), 16):
+        command = '; '.join(
+            _ssh_stat(index, path)
+            for index, path in enumerate(paths[start : start + 16], start)
+        )
+        result = subprocess.run(
+            ['ssh', *_SSH_OPTIONS, host, command],
+            capture_output=True,
+            check=True,
+            text=True,
+            timeout=_COMMAND_TIMEOUT_SECONDS,
+        )
+        for line in result.stdout.splitlines():
+            if (fields := line.split(maxsplit=2)) and len(fields) == 3:
+                index, modified, size = fields
+                try:
+                    values[targets[int(index)].as_posix()] = (
+                        datetime.fromtimestamp(int(modified)).astimezone(),
+                        int(size),
+                    )
+                except IndexError, ValueError:
+                    continue
     return values
 
 
@@ -108,33 +117,34 @@ def _ssh_stat(index: int, path: str) -> str:
 def _s3_files(
     destination: S3Destination, targets: list[Path]
 ) -> dict[str, tuple[datetime, int]]:
-    keys = {
+    keys = [
         '/'.join(part for part in (destination.prefix, target.as_posix()) if part)
         for target in targets
-    }
-    prefixes = {
-        '/'.join(part for part in (destination.prefix, target.parts[0]) if part) + '/'
-        for target in targets
-        if target.parts
-    }
+    ]
     values: dict[str, tuple[datetime, int]] = {}
-    paginator = s3_client(destination).get_paginator('list_objects_v2')
-    for prefix in prefixes:
-        for page in paginator.paginate(Bucket=destination.bucket, Prefix=prefix):
-            for value in page.get('Contents', []):
-                key = value.get('Key')
-                modified = value.get('LastModified')
-                size = value.get('Size')
-                if (
-                    isinstance(key, str)
-                    and key in keys
-                    and isinstance(modified, datetime)
-                    and isinstance(size, int)
-                ):
-                    values[key.removeprefix(f'{destination.prefix.rstrip("/")}/')] = (
-                        modified,
-                        size,
-                    )
+    client = s3_client(destination)
+
+    def metadata(key: str) -> tuple[str, datetime, int] | None:
+        try:
+            value = client.head_object(Bucket=destination.bucket, Key=key)
+        except ClientError as error:
+            if error.response['Error'].get('Code') in {'404', 'NoSuchKey', 'NotFound'}:
+                return None
+            raise
+        modified = value.get('LastModified')
+        size = value.get('ContentLength')
+        if isinstance(modified, datetime) and isinstance(size, int):
+            return key, modified, size
+        return None
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        for result in executor.map(metadata, keys):
+            if result is not None:
+                key, modified, size = result
+                values[key.removeprefix(f'{destination.prefix.rstrip("/")}/')] = (
+                    modified,
+                    size,
+                )
     return values
 
 
