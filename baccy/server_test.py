@@ -28,7 +28,7 @@ def test_destinations(settings: Settings) -> list[str]:
 
 def _test_destination(destination: Destination) -> None:
     if isinstance(destination, SshDestination):
-        host, _, _ = destination.url.partition(':')
+        host = destination.host
         result = subprocess.run(
             ['ssh', *_SSH_OPTIONS, host, 'true'], capture_output=True, check=False
         )

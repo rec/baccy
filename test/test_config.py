@@ -9,7 +9,7 @@ from baccy.config import (
     load,
     load_or_default,
 )
-from baccy.models import Settings
+from baccy.models import Settings, SshDestination, parse_destination
 
 
 def test_load_reads_sources(tmp_path: Path) -> None:
@@ -47,6 +47,24 @@ def test_load_reads_upload_rules(tmp_path: Path) -> None:
     assert rule.match == 'main and duration > 90'
     assert rule.encoding.format == 'mp3'
     assert rule.destination == 'ssh:user@example.org:/srv/recs'
+
+
+def test_destination_strings_support_s3_prefix_and_ipv6_ssh() -> None:
+    s3 = parse_destination('s3:archive/concerts/2026')
+    ssh = parse_destination('ssh:user@[2001:db8::1]:/srv/shows')
+
+    assert s3.bucket == 'archive'
+    assert s3.prefix == 'concerts/2026'
+    assert isinstance(ssh, SshDestination)
+    assert ssh.address == 'user@[2001:db8::1]:/srv/shows'
+    assert ssh.host == 'user@2001:db8::1'
+    assert ssh.scp_host == 'user@[2001:db8::1]'
+    assert ssh.root == '/srv/shows'
+
+
+def test_destination_rejects_unbracketed_ipv6() -> None:
+    with pytest.raises(ValidationError):
+        parse_destination('ssh:2001:db8::1:/srv/shows')
 
 
 def test_settings_rejects_project_upload_tables(tmp_path: Path) -> None:

@@ -23,7 +23,7 @@ _SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
 _COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 
 
-def list_uploaded(settings: Settings) -> list[str]:
+def list_present_uploads(settings: Settings) -> list[str]:
     print('Planning possible uploads...', file=sys.stderr, flush=True)
     s3_files: dict[str, tuple[S3Destination, list[tuple[str, Path]]]] = {}
     ssh_files: dict[str, tuple[SshDestination, list[tuple[str, Path]]]] = {}
@@ -64,7 +64,7 @@ def list_uploaded(settings: Settings) -> list[str]:
         checked += len(files)
         print(f'Checked {checked}/{total} paths', file=sys.stderr, flush=True)
         values.extend(
-            (path, *remote_files[target.as_posix()], _ssh_location(location))
+            (path, *remote_files[target.as_posix()], f'ssh:{destination.scp_host}')
             for path, target in files
             if target.as_posix() in remote_files
         )
@@ -98,7 +98,7 @@ def _planned_uploads(settings: Settings) -> list[FileResult]:
 def _ssh_files(
     destination: SshDestination, targets: list[Path]
 ) -> dict[str, tuple[datetime, int]]:
-    host, _, base = destination.url.partition(':')
+    host, base = destination.host, destination.root
     paths = [str(PurePosixPath(base) / target.as_posix()) for target in targets]
     values: dict[str, tuple[datetime, int]] = {}
     start = 0
@@ -217,10 +217,6 @@ def _summary(values: list[tuple[str, datetime, int, str]]) -> list[str]:
 def _counts(values: dict[str, int]) -> list[str]:
     width = max((len(value) for value in values), default=0)
     return [f'{value:<{width}}  {count}' for value, count in sorted(values.items())]
-
-
-def _ssh_location(destination: str) -> str:
-    return f'ssh:{destination.removeprefix("ssh:").partition(":")[0]}'
 
 
 def _time(value: datetime) -> str:

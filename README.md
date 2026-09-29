@@ -142,8 +142,12 @@ upload.
 
 SSH destinations use the existing non-interactive SSH configuration and keys.
 S3 destinations use boto3 and the host's normal AWS credential chain. Baccy
-records an artifact identity in S3 object metadata and skips an object with the
-same identity. `s3_max_bandwidth` limits all S3 uploads in bytes per second.
+accepts `ssh:USER@[IPv6]:/absolute/path` for IPv6 hosts and
+`s3:BUCKET/PREFIX` for keys under a bucket prefix. An S3 endpoint override
+comes from the default profile in `~/.aws/config` (`endpoint_url`), not from
+the destination string. Baccy records an artifact identity in S3 object
+metadata and skips an object with the same identity. `s3_max_bandwidth` limits
+all S3 uploads in bytes per second.
 Credentials never appear in the TOML or event log.
 
 ## Run once

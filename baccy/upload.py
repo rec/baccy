@@ -968,11 +968,11 @@ def _upload_ssh(
     target: PurePosixPath,
     destination: SshDestination,
 ) -> None:
-    host, _, base = destination.url.partition(':')
+    host, base = destination.host, destination.root
     remote_path = f'{base.rstrip("/")}/{target.as_posix()}'
     directory = str(PurePosixPath(remote_path).parent)
     _run(['ssh', *_SSH_OPTIONS, host, f'mkdir -p {shlex.quote(directory)}'])
-    _run(['scp', *_SSH_OPTIONS, str(path), f'{host}:{remote_path}'])
+    _run(['scp', *_SSH_OPTIONS, str(path), f'{destination.scp_host}:{remote_path}'])
 
 
 def _upload_s3(
@@ -1022,7 +1022,7 @@ def _remote_s3_identity(
 
 def _remote_hash(destination: Destination, target: PurePosixPath) -> str | None:
     if isinstance(destination, SshDestination):
-        host, _, base = destination.url.partition(':')
+        host, base = destination.host, destination.root
         path = shlex.quote(f'{base.rstrip("/")}/{target.as_posix()}')
         result = subprocess.run(
             [
@@ -1089,20 +1089,21 @@ def _matches_catalog(
 
 def _destination_identity(destination: Destination) -> str:
     if isinstance(destination, SshDestination):
-        return destination.url
+        return destination.address
     endpoint = s3_endpoint_url(destination) or 'aws'
     return f'{endpoint}/{destination.bucket}/{destination.prefix}'
 
 
 def _display_destination(destination: Destination) -> str:
     if isinstance(destination, S3Destination):
-        return f's3:{destination.bucket}'
-    return f'ssh:{destination.url}'
+        suffix = f'/{destination.prefix}' if destination.prefix else ''
+        return f's3:{destination.bucket}{suffix}'
+    return f'ssh:{destination.address}'
 
 
 def _remote_targets(destination: Destination) -> dict[str, int]:
     if isinstance(destination, SshDestination):
-        host, _, base = destination.url.partition(':')
+        host, base = destination.host, destination.root
         result = subprocess.run(
             [
                 'ssh',

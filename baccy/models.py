@@ -1,4 +1,5 @@
 from collections import Counter
+from ipaddress import IPv6Address
 from pathlib import Path, PurePosixPath
 from typing import Annotated, Literal
 
@@ -60,16 +61,51 @@ Source = PathSource | VolumeSource | NetworkSource
 
 class SshDestination(BaseModel, frozen=True):
     kind: Literal['ssh']
-    url: str
+    address: str
 
-    @field_validator('url')
+    @property
+    def host(self) -> str:
+        if '[' in self.address:
+            prefix, _, value = self.address.partition('[')
+            return prefix + value.partition(']')[0]
+        return self.address.partition(':')[0]
+
+    @property
+    def scp_host(self) -> str:
+        if '[' in self.address:
+            return self.address.partition(']:')[0] + ']'
+        return self.host
+
+    @property
+    def root(self) -> str:
+        return (
+            self.address.partition(']:')[2]
+            if '[' in self.address
+            else self.address.partition(':')[2]
+        )
+
+    @field_validator('address')
     @classmethod
-    def validate_ssh_url(cls, value: str) -> str:
-        host, separator, path = value.partition(':')
-        if not host or not separator or not path or ' ' in value:
-            raise ValueError('SSH URL must be HOST:PATH without spaces')
-        if PurePosixPath(path).is_absolute() is False:
-            raise ValueError('SSH URL path must be absolute')
+    def validate_address(cls, value: str) -> str:
+        if '[' in value:
+            prefix, opening, rest = value.partition('[')
+            host, separator, path = rest.partition(']:')
+            if (
+                not opening
+                or not separator
+                or (prefix and (not prefix[:-1] or prefix.count('@') != 1))
+            ):
+                raise ValueError('SSH address must be HOST:PATH or USER@[IPv6]:PATH')
+            try:
+                IPv6Address(host)
+            except ValueError as error:
+                raise ValueError('invalid bracketed SSH IPv6 host') from error
+        else:
+            host, separator, path = value.partition(':')
+            if not host or not separator or ']' in host:
+                raise ValueError('SSH address must be HOST:PATH or USER@[IPv6]:PATH')
+        if not path or ' ' in value or not PurePosixPath(path).is_absolute():
+            raise ValueError('SSH address path must be absolute and contain no spaces')
         return value
 
     model_config = {'extra': 'forbid'}
@@ -106,10 +142,13 @@ Destination = Annotated[SshDestination | S3Destination, Field(discriminator='kin
 def parse_destination(value: str, max_bandwidth: int = 1_000_000) -> Destination:
     kind, separator, address = value.partition(':')
     if kind == 's3' and separator:
-        return S3Destination(kind='s3', bucket=address, max_bandwidth=max_bandwidth)
+        bucket, _, prefix = address.partition('/')
+        return S3Destination(
+            kind='s3', bucket=bucket, prefix=prefix, max_bandwidth=max_bandwidth
+        )
     if kind == 'ssh' and separator:
-        return SshDestination(kind='ssh', url=address)
-    raise ValueError('destination must be s3:BUCKET or ssh:HOST:PATH')
+        return SshDestination(kind='ssh', address=address)
+    raise ValueError('destination must be s3:BUCKET[/PREFIX] or ssh:HOST:PATH')
 
 
 class Encoding(BaseModel, frozen=True):

@@ -19,7 +19,7 @@ from .application import Application, DaemonApplication
 from .backup import run_backup
 from .config import load_or_default
 from .importer import import_recs
-from .listing import list_uploaded
+from .listing import list_present_uploads
 from .models import BackupSummary, FileResult, Settings
 from .network import NetworkDiscovery
 from .rename import rename_files, renamed_files
@@ -275,7 +275,7 @@ def _list(command: ListCommand, config: Path, dry_run: bool) -> int:
         print('--dry-run is not supported for list', file=sys.stderr)
         return 2
     try:
-        rows = list_uploaded(load_or_default(config))
+        rows = list_present_uploads(load_or_default(config))
     except (
         BotoCoreError,
         ClientError,
