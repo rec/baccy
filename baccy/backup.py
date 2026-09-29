@@ -123,6 +123,7 @@ def _run_candidates(
         update={'discovered': len(candidates), 'results': summary.results}
     )
     catalog = Catalog(settings.backup_root)
+    storage_exhausted = False
     for candidate in candidates:
         try:
             result = (
@@ -147,7 +148,7 @@ def _run_candidates(
                 status='failed',
                 detail=str(error),
             )
-            if not dry_run:
+            if not dry_run and error.errno not in {errno.ENOSPC, errno.EROFS}:
                 catalog.append(
                     {
                         'source': candidate.source.source.name,
@@ -158,6 +159,7 @@ def _run_candidates(
                 )
             summary = summary.with_result(result)
             if error.errno in {errno.ENOSPC, errno.EROFS}:
+                storage_exhausted = True
                 break
         else:
             summary = summary.with_result(result)
@@ -165,6 +167,8 @@ def _run_candidates(
             catalog.append_deferred(
                 result.source, candidate.relative_path, result.detail
             )
+    if storage_exhausted:
+        return summary
     network_results: list[FileResult] = []
     for source in network_sources:
         network_results.extend(

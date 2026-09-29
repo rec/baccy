@@ -10,11 +10,15 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def notify(message: str) -> None:
-    result = subprocess.run(
-        ['/usr/bin/osascript', '-e', _DISPLAY_NOTIFICATION, message],
-        capture_output=True,
-        check=False,
-    )
+    try:
+        result = subprocess.run(
+            ['/usr/bin/osascript', '-e', _DISPLAY_NOTIFICATION, message],
+            capture_output=True,
+            check=False,
+        )
+    except OSError as error:
+        _LOGGER.error('macOS notification failed: %s', error)
+        return
     if result.returncode:
         detail = result.stderr.decode(errors='replace').strip()
         _LOGGER.error(
