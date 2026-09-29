@@ -6,7 +6,10 @@ from .upload import publish_sessions
 
 
 def sync(
-    directories: list[Path], settings: Settings, dry_run: bool = False
+    directories: list[Path],
+    settings: Settings,
+    dry_run: bool = False,
+    verify: bool = False,
 ) -> BackupSummary:
     root = (settings.backup_root / 'audio').resolve()
     selected = [_directory(root, directory) for directory in directories]
@@ -15,7 +18,12 @@ def sync(
     )
     if dry_run:
         results = publish_sessions(
-            [source], settings, dry_run=True, sync=True, directories=selected or None
+            [source],
+            settings,
+            dry_run=True,
+            sync=True,
+            directories=selected or None,
+            verify=verify,
         )
     else:
         with BackupLock(settings.backup_root):
@@ -29,6 +37,7 @@ def sync(
                 dry_run=False,
                 sync=True,
                 directories=selected or None,
+                verify=verify,
             )
     return BackupSummary.from_results(results)
 

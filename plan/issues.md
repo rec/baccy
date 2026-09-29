@@ -11,13 +11,6 @@ Original issue numbers are retained for cross-reference.
 
 ## P2: user-facing semantics, maintainability, and tests
 
-27. **Metadata-only sync cannot prove remote content is correct.**
-    `sync` compares available size metadata and S3 identity where a catalog
-    record exists. A same-size SSH replacement or an object without a prior
-    catalog record can still look healthy. Normal publication can also skip a
-    deleted remote object based solely on local catalog state. Make those
-    guarantees explicit in CLI help and consider an opt-in verification mode.
-
 33. **Some names and configuration surfaces mislead.**
     `list_uploaded` in [`baccy/listing.py:21`](../baccy/listing.py#L21) means
     "currently present files that the present rules could produce," not all
