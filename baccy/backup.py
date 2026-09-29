@@ -122,12 +122,22 @@ def _run_candidates(
                 detail='network host disappeared',
             )
         )
+    for machine, detail in getattr(network, 'probe_failures', []):
+        results.append(
+            FileResult(
+                source=machine.name,
+                status='diagnostic',
+                detail=f'SSH probe of {machine.host} failed: {detail}',
+            )
+        )
     candidates = [
         candidate.model_copy(update={'project': _project_name(candidate)})
         for source in resolved
         for candidate in scan(source)
     ]
     catalog = Catalog(settings.backup_root)
+    if not dry_run:
+        catalog.compact_if_needed()
     storage_exhausted = False
     for candidate in candidates:
         try:
@@ -198,6 +208,7 @@ def _run_candidates(
         settings,
         dry_run,
         on_write=on_write,
+        catalog=catalog,
     ):
         results.append(result)
         if (

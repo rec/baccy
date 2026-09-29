@@ -27,6 +27,7 @@ def import_recs(
         if (settings.backup_root / 'rename-progress.json').exists():
             raise ValueError('a rename is pending; rerun the original rename command')
         catalog = Catalog(settings.backup_root)
+        catalog.compact_if_needed()
         for directory in directories:
             for session in _sessions(directory):
                 project_name = (

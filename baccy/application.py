@@ -1,5 +1,6 @@
 import logging
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -21,6 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class BaccyStatus(ReccyStatus):
     summary: BackupSummary | None = None
+    executable: str = ''
 
 
 class Application(Reccy):
@@ -37,6 +39,12 @@ class Application(Reccy):
     _recognized_machines: set[str] = PrivateAttr(default_factory=set)
     _pending_completions: set[str] = PrivateAttr(default_factory=set)
     _sync_requested: threading.Event = PrivateAttr(default_factory=threading.Event)
+    _previous_service: models.DaemonMetadata | None = PrivateAttr(default=None)
+    _installed_executable: Path | None = PrivateAttr(default=None)
+
+    @property
+    def installed_executable(self) -> Path | None:
+        return self._installed_executable
 
     @property
     def sync_requested(self) -> threading.Event:
@@ -51,12 +59,67 @@ class Application(Reccy):
             .model_copy(update={'executable': executable})
         )
 
-    def install_service(self, daemon_argv: list[str]) -> models.StatusResult:
+    def install_service(self, daemon_argv: list[str]) -> None:
         executable = _install_service_release(self.paths.home)
         controller = self.service_controller()
-        if controller.status().running:
+        if self.paths.metadata.exists():
+            self._previous_service = models.DaemonMetadata.model_validate_json(
+                self.paths.metadata.read_text()
+            )
+        else:
+            self._previous_service = None
+        was_running = controller.status().running
+        if was_running:
             controller.stop()
-        return controller.install(self.service_metadata(daemon_argv, executable))
+        try:
+            controller.install(self.service_metadata(daemon_argv, executable))
+        except (
+            OSError,
+            ValueError,
+            subprocess.SubprocessError,
+            KeyboardInterrupt,
+        ) as error:
+            if self._previous_service is not None and was_running:
+                try:
+                    controller.start()
+                except (OSError, subprocess.SubprocessError) as rollback_error:
+                    error.add_note(
+                        f'Could not restart previous service: {rollback_error}'
+                    )
+            raise
+        self._installed_executable = executable
+
+    def rollback_service(self) -> None:
+        controller = self.service_controller()
+        if self._previous_service is not None:
+            if controller.status().installed:
+                controller.stop()
+            controller.install(self._previous_service)
+            self._installed_executable = self._previous_service.executable
+        else:
+            controller.uninstall()
+            self._installed_executable = None
+
+    def prune_releases(self) -> None:
+        release_root = (
+            self.paths.home / 'Library' / 'Application Support' / 'baccy' / 'releases'
+        )
+        retained = {
+            path.parent.parent.parent
+            for path in (
+                self._installed_executable,
+                self._previous_service.executable if self._previous_service else None,
+            )
+            if path is not None
+        }
+        for release in release_root.iterdir():
+            if (
+                release.is_dir()
+                and not release.is_symlink()
+                and release.name.isdecimal()
+                and release not in retained
+            ):
+                shutil.rmtree(release)
 
     def record_recognized_sources(self, sources: list[RecognizedSource]) -> None:
         recognized = {source.source: source for source in sources}
@@ -119,7 +182,9 @@ class Application(Reccy):
         self._pending_completions.difference_update(completed)
         self.publish_status()
 
-    def rpc_command(self, request: rpc.Request) -> rpc.Result:
+    def rpc_command(
+        self, request: rpc.Request, cancelled: threading.Event | None = None
+    ) -> rpc.Result:
         if request.command == 'sync':
             self._sync_requested.set()
             return {'scheduled': True}
@@ -130,6 +195,7 @@ class Application(Reccy):
             running=self._started,
             errors=self._errors.copy(),
             summary=self._summary,
+            executable=sys.executable,
         )
 
 

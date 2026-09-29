@@ -164,6 +164,21 @@ def test_ssh_listing_batches_large_target_sets(monkeypatch: MonkeyPatch) -> None
     assert len(commands) == 3
 
 
+def test_ssh_listing_bounds_command_length(monkeypatch: MonkeyPatch) -> None:
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout='')
+
+    monkeypatch.setattr('baccy.listing.subprocess.run', run)
+    targets = [Path(f'project/{index}{"x" * 1000}.flac') for index in range(20)]
+
+    assert _ssh_files(SshDestination(kind='ssh', url='host:/srv'), targets) == {}
+    assert len(commands) > 2
+    assert all(len(command[-1]) <= 16_384 for command in commands)
+
+
 def test_s3_listing_checks_only_planned_keys(monkeypatch: MonkeyPatch) -> None:
     requested: list[str] = []
     modified = datetime(2026, 9, 26, tzinfo=ZoneInfo('Europe/Paris'))

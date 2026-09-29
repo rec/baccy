@@ -120,6 +120,30 @@ def test_network_discovery_does_not_retry_authentication_rejection() -> None:
     assert delays == []
 
 
+def test_failed_new_host_probe_is_non_failing_result(tmp_path: Path) -> None:
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if command[0] == 'arp':
+            return subprocess.CompletedProcess(
+                command, 0, b'? (other.local) at aa:bb:cc:dd:ee:ff on en0\n', b''
+            )
+        return subprocess.CompletedProcess(command, 255, b'', b'Permission denied')
+
+    summary = run_backup(
+        Settings(backup_root=tmp_path / 'backup', discover_removable=False),
+        dry_run=True,
+        network=NetworkDiscovery(run),
+    )
+
+    assert summary.failed == summary.unavailable == 0
+    assert [(r.source, r.status, r.detail) for r in summary.results] == [
+        (
+            'network-aabbccddeeff',
+            'diagnostic',
+            'SSH probe of other.local failed: Permission denied',
+        )
+    ]
+
+
 def test_network_discovery_rechecks_ssh_machines_without_recs() -> None:
     attempts = 0
 

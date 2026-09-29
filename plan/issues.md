@@ -9,51 +9,6 @@ plan.
 
 Original issue numbers are retained for cross-reference.
 
-## P1: reliability, concurrency, shutdown, and resource use
-
-15. **Failed newly discovered network hosts are not visible in pass results.**
-    [`baccy/network.py`](../baccy/network.py) now bounds SSH probes to eight
-    workers and reports a previously discovered source that disappears from
-    ARP as unavailable. A newly seen host whose SSH probe fails is still only
-    logged when verbose mode is enabled. Decide whether it should produce an
-    unavailable result without treating every unrelated ARP entry as a backup
-    source.
-
-22. **Service installation has no rollback or reliable restart identity.**
-    [`baccy/application.py:54`](../baccy/application.py#L54) stops the old
-    service before installing the new one, and a failed install leaves it
-    stopped. [`baccy/cli.py:364`](../baccy/cli.py#L364) accepts any running
-    daemon responding at the control socket, without checking that it is the
-    newly installed release. Release directories from failed or superseded
-    installations also accumulate. This is application-specific release
-    handling around reccy's service controller, not a duplicate of the
-    controller itself.
-
-24. **Large inventories are repeatedly materialized.**
-    [`baccy/scan.py:9`](../baccy/scan.py#L9) recursively builds a complete
-    path list and candidate list; [`baccy/catalog.py:57`](../baccy/catalog.py#L57)
-    rereads the entire append-only catalog at the start of passes;
-    [`baccy/upload.py:75`](../baccy/upload.py#L75) walks all journals in both
-    preflight and planning. Normal publication hashes every matching audio
-    source in [`baccy/upload.py:389`](../baccy/upload.py#L389) before even
-    checking its catalog record. These are plausible causes of long, silent
-    scans and high I/O or memory use. Measure before choosing a streaming or
-    indexing change.
-
-25. **`list` still has no progress output for large inventories.**
-    [`baccy/listing.py`](../baccy/listing.py) now checks only planned S3 keys
-    and splits SSH requests into batches of 16 paths. It still holds all rows
-    until completion, so a long run gives the user no indication of progress.
-    Exceptionally long paths could also make one SSH batch exceed command-line
-    limits. Report progress and bound batches by command length as well as count.
-
-26. **The event log grows without bound.**
-    [`baccy/catalog.py`](../baccy/catalog.py) now rejects corrupt interior
-    records and warns about an incomplete final line. It still rereads the
-    complete append-only log on each pass, and each append opens and fsyncs the
-    file separately. Define a retention or compaction policy before it becomes
-    too large.
-
 ## P2: user-facing semantics, maintainability, and tests
 
 27. **Metadata-only sync cannot prove remote content is correct.**

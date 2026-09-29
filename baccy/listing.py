@@ -1,5 +1,6 @@
 import shlex
 import subprocess
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -23,6 +24,7 @@ _COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 
 
 def list_uploaded(settings: Settings) -> list[str]:
+    print('Planning possible uploads...', file=sys.stderr, flush=True)
     s3_files: dict[str, tuple[S3Destination, list[tuple[str, Path]]]] = {}
     ssh_files: dict[str, tuple[SshDestination, list[tuple[str, Path]]]] = {}
     for result in _planned_uploads(settings):
@@ -43,15 +45,24 @@ def list_uploaded(settings: Settings) -> list[str]:
                 (path, result.relative_path)
             )
     values: list[tuple[str, datetime, int, str]] = []
+    total = sum(len(files) for _, files in [*s3_files.values(), *ssh_files.values()])
+    checked = 0
+    print(f'Checking {total} remote paths...', file=sys.stderr, flush=True)
     for location, (destination, files) in s3_files.items():
+        print(f'Checking {location}: {len(files)} paths', file=sys.stderr, flush=True)
         remote_files = _s3_files(destination, [target for _, target in files])
+        checked += len(files)
+        print(f'Checked {checked}/{total} paths', file=sys.stderr, flush=True)
         values.extend(
             (path, *remote_files[target.as_posix()], location)
             for path, target in files
             if target.as_posix() in remote_files
         )
     for location, (destination, files) in ssh_files.items():
+        print(f'Checking {location}: {len(files)} paths', file=sys.stderr, flush=True)
         remote_files = _ssh_files(destination, [target for _, target in files])
+        checked += len(files)
+        print(f'Checked {checked}/{total} paths', file=sys.stderr, flush=True)
         values.extend(
             (path, *remote_files[target.as_posix()], _ssh_location(location))
             for path, target in files
@@ -70,7 +81,18 @@ def _planned_uploads(settings: Settings) -> list[FileResult]:
     source = ResolvedSource(
         source=PathSource(kind='path', name='backup', path=root), root=root
     )
-    return publish_sessions([source], settings, dry_run=True, sync=True)
+
+    def progress(count: int) -> None:
+        if count % 100 == 0:
+            print(f'Planned {count} sessions', file=sys.stderr, flush=True)
+
+    return publish_sessions(
+        [source],
+        settings,
+        dry_run=True,
+        sync=True,
+        on_scan=progress,
+    )
 
 
 def _ssh_files(
@@ -79,11 +101,20 @@ def _ssh_files(
     host, _, base = destination.url.partition(':')
     paths = [str(PurePosixPath(base) / target.as_posix()) for target in targets]
     values: dict[str, tuple[datetime, int]] = {}
-    for start in range(0, len(paths), 16):
-        command = '; '.join(
-            _ssh_stat(index, path)
-            for index, path in enumerate(paths[start : start + 16], start)
-        )
+    start = 0
+    while start < len(paths):
+        commands: list[str] = []
+        length = 0
+        for index in range(start, min(start + 16, len(paths))):
+            command = _ssh_stat(index, paths[index])
+            command_length = len(command.encode())
+            if command_length > 16_384:
+                raise ValueError(f'SSH path is too long to query: {targets[index]}')
+            if commands and length + command_length + 2 > 16_384:
+                break
+            commands.append(command)
+            length += command_length + 2
+        command = '; '.join(commands)
         result = subprocess.run(
             ['ssh', *_SSH_OPTIONS, host, command],
             capture_output=True,
@@ -101,6 +132,8 @@ def _ssh_files(
                     )
                 except IndexError, ValueError:
                     continue
+        start += len(commands)
+        print(f'Checked {start}/{len(paths)} SSH paths', file=sys.stderr, flush=True)
     return values
 
 
@@ -138,12 +171,18 @@ def _s3_files(
         return None
 
     with ThreadPoolExecutor(max_workers=8) as executor:
-        for result in executor.map(metadata, keys):
+        for index, result in enumerate(executor.map(metadata, keys), 1):
             if result is not None:
                 key, modified, size = result
                 values[key.removeprefix(f'{destination.prefix.rstrip("/")}/')] = (
                     modified,
                     size,
+                )
+            if index % 100 == 0 or index == len(keys):
+                print(
+                    f'Checked {index}/{len(keys)} S3 paths',
+                    file=sys.stderr,
+                    flush=True,
                 )
     return values
 
