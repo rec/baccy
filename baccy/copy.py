@@ -114,20 +114,20 @@ def _copy_jsonl_candidate(
         prefix='.baccy-', suffix='.tmp', dir=destination.parent
     )
     temporary = Path(name)
-    temporary, digest = _snapshot_jsonl(
-        candidate.path,
-        before,
-        descriptor,
-        temporary,
-    )
     try:
-        if temporary is None:
+        snapshot, digest = _snapshot_jsonl(
+            candidate.path,
+            before,
+            descriptor,
+            temporary,
+        )
+        if snapshot is None:
             return _result(candidate, 'deferred', digest)
         return commit_snapshot(
-            candidate, before, temporary, digest, destination, backup_root, catalog
+            candidate, before, snapshot, digest, destination, backup_root, catalog
         )
     finally:
-        if temporary is not None and temporary.exists():
+        if temporary.exists():
             temporary.unlink()
 
 
@@ -190,9 +190,13 @@ def _snapshot(
     temporary = Path(name)
     try:
         if source.suffix == '.jsonl':
-            return _snapshot_jsonl(source, before, descriptor, temporary)
-        return _snapshot_regular(source, before, descriptor, temporary)
-    except OSError:
+            snapshot = _snapshot_jsonl(source, before, descriptor, temporary)
+        else:
+            snapshot = _snapshot_regular(source, before, descriptor, temporary)
+        if snapshot[0] is None:
+            temporary.unlink(missing_ok=True)
+        return snapshot
+    except OSError, KeyboardInterrupt:
         temporary.unlink(missing_ok=True)
         raise
 

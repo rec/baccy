@@ -119,15 +119,17 @@ def publish_sessions(
             session_roots.extend([journal.parent] * len(plans))
             results.extend(failures)
     pages = [
-        page
+        (page, landing_page.upload)
         for landing_page in settings.landing_pages
         for page in _landing_page_plans(artifacts, landing_page, settings)
     ]
     targets = Counter(
         (_destination_identity(plan.destination), plan.target.as_posix())
-        for plan in [*artifacts, *pages]
+        for plan in [*artifacts, *(page for page, _ in pages)]
     )
+    incomplete_audio: set[tuple[str, str, PurePosixPath]] = set()
     for plan, session_root in zip(artifacts, session_roots, strict=True):
+        group = (plan.project, plan.rule.name, plan.target.parent)
         key = _destination_identity(plan.destination), plan.target.as_posix()
         if targets[key] > 1:
             results.append(
@@ -139,19 +141,24 @@ def publish_sessions(
                     detail='upload target collides with another artifact',
                 )
             )
+            incomplete_audio.add(group)
             continue
         try:
-            results.extend(
-                _materialize_and_upload(
-                    plan,
-                    session_root,
-                    catalog,
-                    dry_run,
-                    sync,
-                    remote_targets,
-                    on_write,
-                )
+            outcome = _materialize_and_upload(
+                plan,
+                session_root,
+                catalog,
+                dry_run,
+                sync,
+                remote_targets,
+                on_write,
             )
+            results.extend(outcome)
+            if any(
+                result.status not in {'uploaded', 'unchanged', 'would_upload'}
+                for result in outcome
+            ):
+                incomplete_audio.add(group)
         except (
             BotoCoreError,
             ClientError,
@@ -163,12 +170,20 @@ def publish_sessions(
                     catalog, plan.project, Path(plan.target), str(error), dry_run
                 )
             )
-    for plan in pages:
+            incomplete_audio.add(group)
+    for plan, upload_name in pages:
         key = _destination_identity(plan.destination), plan.target.as_posix()
         if targets[key] > 1:
             results.append(
                 _landing_page_result(
                     plan, 'deferred', 'upload target collides with another artifact'
+                )
+            )
+            continue
+        if (plan.project, upload_name, plan.target.parent) in incomplete_audio:
+            results.append(
+                _landing_page_result(
+                    plan, 'deferred', 'linked audio upload is incomplete'
                 )
             )
             continue
@@ -598,6 +613,7 @@ def _landing_page_plans(
                 {
                     'landing_page': landing_page.model_dump(mode='json'),
                     'project': project,
+                    'target': target.as_posix(),
                     'urls': urls,
                 },
                 sort_keys=True,
@@ -649,17 +665,26 @@ def _materialize_and_upload_landing_page(
     if sync:
         remote_targets[destination_id][plan.target.as_posix()] = path.stat().st_size
     if uploaded:
-        catalog.append(
-            {
-                'operation': 'landing_page',
-                'source': plan.project,
-                'relative_path': plan.identity,
-                'result': 'uploaded',
-                'destination': destination_id,
-                'target': plan.target.as_posix(),
-                'artifact_size': path.stat().st_size,
-            }
-        )
+        try:
+            catalog.append(
+                {
+                    'operation': 'landing_page',
+                    'source': plan.project,
+                    'relative_path': plan.identity,
+                    'result': 'uploaded',
+                    'destination': destination_id,
+                    'target': plan.target.as_posix(),
+                    'artifact_size': path.stat().st_size,
+                }
+            )
+        except OSError as error:
+            return [
+                _landing_page_result(
+                    plan,
+                    'failed',
+                    f'remote page is present but local catalog update failed: {error}',
+                )
+            ]
         return [_landing_page_result(plan, 'uploaded')]
     return [_landing_page_result(plan, 'unchanged')]
 
@@ -822,51 +847,42 @@ def _materialize_and_upload(
         return _record_failure(
             catalog, plan.project, Path(plan.identity), str(error), dry_run
         )
-    stat = source.stat()
     if sync:
         remote_targets[destination_id][plan.target.as_posix()] = artifact_size
-    if not uploaded:
-        catalog.append(
-            {
-                'source': plan.project,
-                'relative_path': plan.identity,
-                'size': stat.st_size,
-                'mtime_ns': stat.st_mtime_ns,
-                'operation': 'upload',
-                'result': 'unchanged',
-                'artifact_size': artifact_size,
-                'destination': destination_id,
-                'target': plan.target.as_posix(),
-            }
-        )
-        return [
-            FileResult(
-                source=plan.project,
-                relative_path=Path(plan.target),
-                status='unchanged',
-                destination=_display_destination(plan.destination),
-            )
-        ]
-    catalog.append(
-        {
+    status = 'uploaded' if uploaded else 'unchanged'
+    try:
+        stat = source.stat()
+        event: dict[str, object] = {
             'source': plan.project,
             'relative_path': plan.identity,
             'size': stat.st_size,
             'mtime_ns': stat.st_mtime_ns,
             'operation': 'upload',
-            'result': 'uploaded',
-            'rule': plan.rule.name,
-            'encoding': plan.rule.encoding.model_dump(),
-            'destination': _destination_identity(plan.destination),
+            'result': status,
+            'destination': destination_id,
             'target': plan.target.as_posix(),
             'artifact_size': artifact_size,
         }
-    )
+        if uploaded:
+            event.update(
+                {'rule': plan.rule.name, 'encoding': plan.rule.encoding.model_dump()}
+            )
+        catalog.append(event)
+    except OSError as error:
+        return [
+            FileResult(
+                source=plan.project,
+                relative_path=Path(plan.target),
+                status='failed',
+                destination=_display_destination(plan.destination),
+                detail=f'remote file present; catalog update failed: {error}',
+            )
+        ]
     return [
         FileResult(
             source=plan.project,
             relative_path=Path(plan.target),
-            status='uploaded',
+            status=status,
             destination=_display_destination(plan.destination),
         )
     ]
@@ -901,7 +917,7 @@ def _materialize(plan: ArtifactPlan, source: Path, backup_root: Path) -> Path:
         subprocess.run(command, capture_output=True, check=True)
         if extension != 'mp3':
             temporary.replace(output)
-    except OSError, subprocess.SubprocessError:
+    except OSError, subprocess.SubprocessError, KeyboardInterrupt:
         temporary.unlink(missing_ok=True)
         raise
     return output
@@ -1051,15 +1067,18 @@ def _record_failure(
     catalog: Catalog, project: str, path: Path, detail: str, dry_run: bool
 ) -> list[FileResult]:
     if not dry_run:
-        catalog.append(
-            {
-                'operation': 'upload',
-                'source': project,
-                'relative_path': path.as_posix(),
-                'result': 'failed',
-                'detail': detail,
-            }
-        )
+        try:
+            catalog.append(
+                {
+                    'operation': 'upload',
+                    'source': project,
+                    'relative_path': path.as_posix(),
+                    'result': 'failed',
+                    'detail': detail,
+                }
+            )
+        except OSError as error:
+            _LOGGER.error('could not record upload failure: %s', error)
     return [
         FileResult(source=project, relative_path=path, status='failed', detail=detail)
     ]
