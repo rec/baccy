@@ -410,6 +410,44 @@ def test_service_install_reports_daemon_start_failure(
     assert capsys.readouterr().err == 'baccy daemon failed to start: exited\n'
 
 
+def test_service_install_checks_release_identity_and_rolls_back(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    endpoint = tmp_path / 'gui.sock'
+    current = tmp_path / 'new' / 'python'
+    previous = tmp_path / 'old' / 'python'
+    calls: list[str] = []
+
+    class ServiceApplication:
+        control_endpoint = endpoint
+        installed_executable = current
+
+        def install_service(self, arguments: list[str]) -> StatusResult:
+            return StatusResult(installed=True)
+
+        def rollback_service(self) -> None:
+            calls.append('rollback')
+            self.installed_executable = previous
+
+        def service_status(self) -> StatusResult:
+            return StatusResult(installed=True, running=False, details='exited')
+
+    class Client:
+        def __init__(self, value: Path, *, role: str) -> None:
+            pass
+
+        def call(self, command: str) -> dict[str, object]:
+            return {'running': True, 'executable': str(previous)}
+
+    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+    monkeypatch.setattr('baccy.cli.time.sleep', lambda duration: None)
+
+    assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 1
+    assert calls == ['rollback']
+    assert 'older release' in capsys.readouterr().err
+
+
 def test_service_install_can_skip_sync(
     tmp_path: Path, monkeypatch: MonkeyPatch
 ) -> None:

@@ -36,6 +36,7 @@ def test_rename_lists_only_direct_s3_uploads(monkeypatch: MonkeyPatch) -> None:
         destination=S3Destination(kind='s3', bucket='archive'),
         target=Path('totm/session/audio/MacBook.flac'),
         identity='source',
+        source_hash='source',
     )
     monkeypatch.setattr(
         'baccy.rename.planned_source_uploads', lambda settings: [source]
@@ -95,6 +96,7 @@ def test_rename_uses_regular_expressions_only_when_requested(
                 destination=S3Destination(kind='s3', bucket='archive'),
                 target=Path('totm/session/audio/Microphone + 1.flac'),
                 identity='source',
+                source_hash='source',
             )
         ],
     )
@@ -169,6 +171,7 @@ def test_rename_uses_planned_web_safe_key_and_prefix(monkeypatch: MonkeyPatch) -
         destination=S3Destination(kind='s3', bucket='archive', prefix='backups'),
         target=Path('totm/session/audio/MacBook-legal.flac'),
         identity='source',
+        source_hash='source',
     )
     monkeypatch.setattr('baccy.rename.planned_source_uploads', lambda settings: [plan])
     monkeypatch.setattr('baccy.rename.s3_endpoint_url', lambda destination: None)

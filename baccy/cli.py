@@ -273,7 +273,13 @@ def _list(command: ListCommand, config: Path, dry_run: bool) -> int:
         return 2
     try:
         rows = list_uploaded(load_or_default(config))
-    except (BotoCoreError, ClientError, OSError, subprocess.SubprocessError) as error:
+    except (
+        BotoCoreError,
+        ClientError,
+        OSError,
+        ValueError,
+        subprocess.SubprocessError,
+    ) as error:
         print(f'could not list uploads: {error}', file=sys.stderr)
         return 1
     print('\n'.join(rows))
@@ -336,10 +342,39 @@ def _service(arguments: list[str], config: Path, dry_run: bool) -> int:
     application = Application()
     if command == 'install':
         install = tyro.cli(InstallCommand, args=rest, prog='baccy service install')
-        result = application.install_service(['--config', str(config), 'watch'])
+        try:
+            result = application.install_service(['--config', str(config), 'watch'])
+        except (OSError, ValueError, subprocess.SubprocessError) as error:
+            print(f'baccy service installation failed: {error}', file=sys.stderr)
+            return 1
         if error := _wait_for_daemon(application):
+            if hasattr(application, 'rollback_service'):
+                try:
+                    application.rollback_service()
+                except (OSError, ValueError, subprocess.SubprocessError) as rollback:
+                    print(
+                        f'baccy daemon failed to start: {error}; '
+                        f'rollback failed: {rollback}',
+                        file=sys.stderr,
+                    )
+                    return 1
+                if getattr(application, 'installed_executable', None) is not None:
+                    if rollback_error := _wait_for_daemon(application):
+                        print(
+                            f'baccy daemon failed to start: {error}; '
+                            f'previous daemon did not restart: {rollback_error}',
+                            file=sys.stderr,
+                        )
+                        return 1
             print(f'baccy daemon failed to start: {error}', file=sys.stderr)
             return 1
+        if hasattr(application, 'prune_releases'):
+            try:
+                application.prune_releases()
+            except OSError as error:
+                print(f'baccy release cleanup failed: {error}', file=sys.stderr)
+        if result is None:
+            result = application.service_status()
         if install.sync and (
             error := _request_daemon_sync(application.control_endpoint, attempts=1)
         ):
@@ -364,6 +399,8 @@ def _service(arguments: list[str], config: Path, dry_run: bool) -> int:
         print(f'unknown service command: {command}', file=sys.stderr)
         print(_service_usage(), file=sys.stderr)
         return 2
+    if result is None:
+        result = application.service_status()
     sys.stdout.write(tomlkit.dumps(result.model_dump(mode='json', exclude_none=True)))
     return 0
 
@@ -440,6 +477,13 @@ def _wait_for_daemon(application: Application) -> str | None:
                 time.sleep(0.1)
             continue
         if isinstance(status, dict) and status.get('running') is True:
+            expected = getattr(application, 'installed_executable', None)
+            if expected is not None and status.get('executable') != str(expected):
+                error = 'daemon is running an older release'
+                if attempt < 49:
+                    time.sleep(0.1)
+                    continue
+                return error
             return None
         return 'daemon reported that it is not running'
     return error
@@ -472,7 +516,7 @@ def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
             if result.relative_path is not None
             else result.source
         )
-        if result.status in {'failed', 'deferred', 'unavailable'}:
+        if result.status in {'failed', 'deferred', 'unavailable', 'diagnostic'}:
             detail = f' ({result.detail})' if result.detail else ''
             lines.append(f'{result.status}: {path}{detail}')
         elif result.relative_path is not None:

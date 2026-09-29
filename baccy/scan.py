@@ -1,5 +1,5 @@
 import json
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 from pathlib import Path, PurePosixPath
 
 from .models import Candidate, ResolvedSource
@@ -33,20 +33,18 @@ def scan(source: ResolvedSource) -> list[Candidate]:
     )
 
 
-def _files(directory: Path) -> list[Path]:
-    paths: list[Path] = []
+def _files(directory: Path) -> Iterable[Path]:
     try:
         children = sorted(directory.iterdir(), key=lambda p: p.name)
     except FileNotFoundError, PermissionError:
-        return paths
+        return
     for path in children:
         if path.is_symlink():
             continue
         if path.is_dir():
-            paths.extend(_files(path))
+            yield from _files(path)
         elif path.is_file():
-            paths.append(path)
-    return paths
+            yield path
 
 
 def _selected(relative_path: Path, source: ResolvedSource) -> bool:
@@ -66,8 +64,8 @@ def _priority(path: Path) -> int:
     return 2
 
 
-def _active_recs_audio(candidates: Iterable[Candidate]) -> set[Path]:
-    values = list(candidates)
+def _active_recs_audio(candidates: Collection[Candidate]) -> set[Path]:
+    values = candidates
     active: set[Path] = set()
     for candidate in values:
         if candidate.path.name != 'session-record.jsonl':

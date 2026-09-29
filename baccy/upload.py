@@ -64,6 +64,7 @@ class ArtifactPlan(BaseModel, frozen=True):
     destination: Destination
     target: PurePosixPath
     identity: str
+    source_hash: str
 
 
 class LandingPagePlan(BaseModel, frozen=True):
@@ -81,16 +82,19 @@ def publish_sessions(
     sync: bool = False,
     directories: list[Path] | None = None,
     on_write: Callable[[FileResult], None] | None = None,
+    catalog: Catalog | None = None,
+    on_scan: Callable[[int], None] | None = None,
 ) -> list[FileResult]:
-    catalog = Catalog(settings.backup_root)
+    if catalog is None:
+        catalog = Catalog(settings.backup_root)
+    if not dry_run:
+        catalog.compact_if_needed()
     results: list[FileResult] = []
     expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
     remote_targets: dict[str, dict[str, int]] = {}
     artifacts: list[ArtifactPlan] = []
     session_roots: list[Path] = []
-    missing = _missing_sources(sources, directories)
-    for failures in missing.values():
-        results.extend(failures)
+    scanned = 0
     for source in sources:
         for journal in sorted(source.root.glob('**/session-record.jsonl')):
             if journal.is_symlink():
@@ -102,8 +106,9 @@ def publish_sessions(
             relative_session = journal.parent.relative_to(source.root)
             if not relative_session.parts:
                 continue
-            if journal.parent in missing:
-                continue
+            scanned += 1
+            if on_scan is not None:
+                on_scan(scanned)
             project_name = relative_session.parts[0]
             plans, failures = _publish_session(
                 source.source.name,
@@ -226,39 +231,6 @@ def planned_source_uploads(settings: Settings) -> list[ArtifactPlan]:
     return plans
 
 
-def _missing_sources(
-    sources: list[ResolvedSource], directories: list[Path] | None
-) -> dict[Path, list[FileResult]]:
-    missing: dict[Path, list[FileResult]] = {}
-    for source in sources:
-        for journal in sorted(source.root.glob('**/session-record.jsonl')):
-            if journal.is_symlink() or (
-                directories is not None
-                and not any(
-                    journal.is_relative_to(directory) for directory in directories
-                )
-            ):
-                continue
-            relative_session = journal.parent.relative_to(source.root)
-            if not relative_session.parts:
-                continue
-            try:
-                segments = _completed_segments(journal, warn_zero_frames=False)
-            except OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError:
-                continue
-            for segment in segments:
-                if not (journal.parent / segment.path).is_file():
-                    missing.setdefault(journal.parent, []).append(
-                        FileResult(
-                            source=relative_session.parts[0],
-                            relative_path=relative_session / segment.path,
-                            status='failed',
-                            detail='completed source backup is missing',
-                        )
-                    )
-    return missing
-
-
 def _publish_session(
     source_name: str,
     session_root: Path,
@@ -280,6 +252,18 @@ def _publish_session(
             str(error),
             dry_run,
         )
+    missing = [
+        FileResult(
+            source=project_name,
+            relative_path=relative_session / segment.path,
+            status='failed',
+            detail='completed source backup is missing',
+        )
+        for segment in segments
+        if not (session_root / segment.path).is_file()
+    ]
+    if missing:
+        return [], missing
     return _artifact_plans(
         segments,
         source_name,
@@ -289,6 +273,7 @@ def _publish_session(
         settings,
         expressions,
         sync,
+        catalog,
     )
 
 
@@ -449,9 +434,11 @@ def _artifact_plans(
     settings: Settings,
     expressions: dict[str, MatchExpression],
     sync: bool,
+    catalog: Catalog | None = None,
 ) -> tuple[list[ArtifactPlan], list[FileResult]]:
     plans: list[ArtifactPlan] = []
     results: list[FileResult] = []
+    hashes: dict[Path, str] = {}
     named_main_tracks = {
         (segment.source, segment.track)
         for segment in segments
@@ -499,13 +486,32 @@ def _artifact_plans(
             destination = parse_destination(rule.destination, settings.s3_max_bandwidth)
             try:
                 target = _render_target(rule, relative_session, segment)
+                source_path = session_root / segment.path
+                record = (
+                    catalog.latest_target(
+                        _destination_identity(destination), target.as_posix()
+                    )
+                    if catalog is not None and not sync
+                    else None
+                )
+                source_stat = source_path.stat() if record is not None else None
+                if sync:
+                    source_hash = segment.path.as_posix()
+                elif (
+                    record is not None
+                    and source_stat is not None
+                    and record.get('size') == source_stat.st_size
+                    and record.get('mtime_ns') == source_stat.st_mtime_ns
+                    and isinstance(record.get('source_hash'), str)
+                ):
+                    source_hash = str(record['source_hash'])
+                else:
+                    if source_path not in hashes:
+                        hashes[source_path] = _source_hash(source_path)
+                    source_hash = hashes[source_path]
                 identity = _artifact_identity(
                     session=relative_session,
-                    source_hash=(
-                        segment.path.as_posix()
-                        if sync
-                        else _source_hash(session_root / segment.path)
-                    ),
+                    source_hash=source_hash,
                     segment=segment,
                     rule=rule,
                     destination=destination,
@@ -530,6 +536,7 @@ def _artifact_plans(
                     destination=destination,
                     target=target,
                     identity=identity,
+                    source_hash=source_hash,
                 )
             )
     return plans, results
@@ -864,6 +871,8 @@ def _materialize_and_upload(
             'target': plan.target.as_posix(),
             'artifact_size': artifact_size,
         }
+        if not sync:
+            event['source_hash'] = plan.source_hash
         if uploaded:
             event.update(
                 {'rule': plan.rule.name, 'encoding': plan.rule.encoding.model_dump()}
