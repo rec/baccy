@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pytest
 from botocore.exceptions import ClientError
 from pytest import MonkeyPatch
 
@@ -185,6 +186,28 @@ def test_ssh_listing_batches_large_target_sets(monkeypatch: MonkeyPatch) -> None
 
     assert _ssh_files(SshDestination(kind='ssh', address='host:/srv'), targets) == {}
     assert len(commands) == 3
+
+
+def test_ssh_listing_propagates_failure_after_successful_batch(
+    monkeypatch: MonkeyPatch,
+) -> None:
+    calls = 0
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise subprocess.CalledProcessError(255, command, stderr='connection lost')
+        return subprocess.CompletedProcess(command, 0, stdout='0 1790406008 5\n')
+
+    monkeypatch.setattr('baccy.listing.subprocess.run', run)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        _ssh_files(
+            SshDestination(kind='ssh', address='host:/srv'),
+            [Path(f'project/{index}.flac') for index in range(17)],
+        )
+    assert calls == 2
 
 
 def test_ssh_listing_bounds_command_length(monkeypatch: MonkeyPatch) -> None:

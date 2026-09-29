@@ -1,14 +1,96 @@
 import json
 import subprocess
+import wave
 from pathlib import Path
 
 import pytest
+from botocore.exceptions import ClientError
 from pydantic import ValidationError
 
 from baccy.match import MatchExpression
 from baccy.models import PathSource, ResolvedSource, Settings
 from baccy.sync import sync
 from baccy.upload import publish_sessions
+
+
+@pytest.mark.parametrize('destination', ['s3:archive', 'ssh:host:/srv'])
+def test_transfer_interrupt_does_not_record_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, destination: str
+) -> None:
+    root = tmp_path / 'recs'
+    session = root / 'project' / 'session'
+    (session / 'audio').mkdir(parents=True)
+    with wave.open(str(session / 'audio' / 'master.wav'), 'wb') as audio:
+        audio.setnchannels(1)
+        audio.setsampwidth(2)
+        audio.setframerate(48_000)
+        audio.writeframes(b'\0\0' * 48_000)
+    (session / 'session-record.jsonl').write_text(
+        '\n'.join(
+            json.dumps(value)
+            for value in [
+                {
+                    'type': 'file_started',
+                    'media_type': 'audio',
+                    'stream_id': 'master',
+                    'timestamp': '2026-09-26T10:40:08Z',
+                    'format': 'wav',
+                    'source': 'device',
+                    'track_name': 'master',
+                    'source_channels': [1],
+                    'path': 'audio/master.wav',
+                },
+                {
+                    'type': 'file_finished',
+                    'media_type': 'audio',
+                    'stream_id': 'master',
+                    'path': 'audio/master.wav',
+                    'frame_count': 48_000,
+                    'sample_rate': 48_000,
+                },
+            ]
+        )
+        + '\n'
+    )
+    if destination.startswith('s3:'):
+
+        class Client:
+            def head_object(self, Bucket: str, Key: str) -> dict[str, object]:
+                raise ClientError({'Error': {'Code': '404'}}, 'HeadObject')
+
+            def upload_file(self, *args: object, **kwargs: object) -> None:
+                raise KeyboardInterrupt
+
+        monkeypatch.setattr('baccy.upload.s3_client', lambda destination: Client())
+    else:
+
+        def run(command: list[str]) -> None:
+            if command[0] == 'scp':
+                raise KeyboardInterrupt
+
+        monkeypatch.setattr('baccy.upload._run', run)
+    source = ResolvedSource(
+        source=PathSource(kind='path', name='recs', path=root), root=root
+    )
+    settings = Settings.model_validate(
+        {
+            'backup_root': tmp_path / 'backup',
+            'uploads': [
+                {
+                    'name': 'main',
+                    'match': 'True',
+                    'encoding': {'format': 'source'},
+                    'destination': destination,
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(KeyboardInterrupt):
+        publish_sessions([source], settings, False)
+
+    events = settings.backup_root / 'events.jsonl'
+    assert not events.exists() or '"result":"uploaded"' not in events.read_text()
 
 
 def test_upload_rules_prefer_named_main_track_and_skip_unchanged(
