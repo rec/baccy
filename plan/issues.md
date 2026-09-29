@@ -7,74 +7,7 @@ was run. A scenario marked **risk** follows from the code but has not been
 reproduced against a live service. This is an issue inventory, not a migration
 plan.
 
-## Status after the first repair batch
-
-P0 items 1–7 are addressed. The agreed policies are implemented: renames have
-durable progress and fail-stop recovery; sync compares available size metadata
-and S3 identity where a catalog record exists; automatic SSH source discovery
-requires a trusted host key; and one failed session or destination no longer
-blocks independent uploads. P1 items 9, 11, and 14 are also addressed. P2 item
-27 remains partly open because metadata-only verification cannot detect every
-same-size replacement, particularly on SSH or when no prior catalog record is
-available. The remaining P1 and P2 findings below are not claimed as fixed.
-These statuses reflect code and unit tests, not a live transfer.
-
-## P0: possible data loss or silent incorrect results
-
-1. **`rename` uses the local path as the S3 key.**
-   [`baccy/rename.py:55`](../baccy/rename.py#L55) builds keys from
-   `RenameFile.source` and `replacement`, not the upload plan's web-safe
-   `target` or the destination prefix. A filename that `legal_url_path` changes
-   will make the copy address differ from the actual uploaded object. An S3
-   prefix would also be omitted. Plan old and new remote keys explicitly and
-   verify that they are the direct-source rule's keys before changing anything.
-
-2. **`rename` is not transactional across remote, local, and journal state.**
-   [`baccy/rename.py:62`](../baccy/rename.py#L62) copies and deletes one S3
-   object at a time, then renames the local file, then rewrites journals after
-   all files have moved. An S3 error, local filesystem error, interrupt, or
-   process kill between those steps leaves mutually inconsistent names. In
-   particular, `delete_object` is attempted immediately after `copy_object`,
-   and there is no verification that the new object is the intended one. Make
-   the stages resumable, with explicit state/checks before destructive remote
-   operations. This is a **risk**; no failure-injection test covers it.
-
-3. **The journal rewrite can truncate the sole active session record.**
-   [`baccy/rename.py:99`](../baccy/rename.py#L99) reads and then writes
-   `session-record.jsonl` in place. An interruption or full disk during
-   `write_text` can leave a partial journal after the files were renamed.
-   Write a temporary file in the same directory, flush it, and replace it
-   atomically after validating the result. Consider the other recs metadata
-   that names these files as well.
-
-4. **Configured `NetworkSource` entries can never resolve.**
-   [`baccy/models.py:48`](../baccy/models.py#L48) accepts `kind = "network"`,
-   but [`baccy/discovery.py:35`](../baccy/discovery.py#L35) returns `None` for
-   anything other than path and volume. Such sources are always reported
-   unavailable; ARP autodiscovery is a separate path. Either implement the
-   configured source or reject that configuration.
-
-5. **One missing local audio file blocks all publication.**
-   [`baccy/upload.py:75`](../baccy/upload.py#L75) returns the complete
-   `_missing_sources` list before processing any session. An old incomplete
-   session can therefore prevent unrelated projects and valid sessions from
-   uploading indefinitely. Scope the failure to the affected artifact or
-   session; preserve the useful preflight check without making it global.
-
-6. **Target collisions are checked only within a single session.**
-   [`baccy/upload.py:182`](../baccy/upload.py#L182) resets `targets` for each
-   journal. Two sessions/rules can still produce the same destination/key,
-   particularly timestamp-only MP3 names, and overwrite each other. Landing
-   page targets are not included in this collision check. The README's claim
-   that *every* collision is rejected is therefore too strong.
-
-7. **The repair script drops non-audio journal records.**
-   [`scripts/repair_imported_session.py:92`](../scripts/repair_imported_session.py#L92)
-   starts a new `repaired` list and discards records other than audio file
-   lifecycle events. Applying it to a journal containing a header, footer, or
-   other events loses that information. Its tests cover audio-path outcomes,
-   not preservation of those records. Decide whether this script is limited to
-   known stubs; otherwise retain unrelated records in order.
+Original issue numbers are retained for cross-reference.
 
 ## P1: reliability, concurrency, shutdown, and resource use
 
@@ -84,15 +17,6 @@ These statuses reflect code and unit tests, not a live transfer.
    erased. The RPC reply says `scheduled`, so the caller has no way to detect
    this race. Consume requests without a wait/clear gap or use a counted queue.
 
-9. **The backup lock does not cover `sync` or `rename`.**
-   [`baccy/backup.py:26`](../baccy/backup.py#L26) locks the backup pass and
-   [`baccy/importer.py:11`](../baccy/importer.py#L11) locks import, while
-   [`baccy/sync.py:7`](../baccy/sync.py#L7) and
-   [`baccy/rename.py:55`](../baccy/rename.py#L55) do not. A direct CLI sync or
-   rename can overlap a running daemon backup, including its journal reads and
-   upload writes. The assumption of no other *users* does not exclude another
-   local baccy process. Define which operations must share the lock.
-
 10. **Termination is not prompt or bounded.**
     [`baccy/watch.py:12`](../baccy/watch.py#L12) sets a stop event on SIGINT or
     SIGTERM but lets the current action finish. With a trigger, it can then
@@ -100,12 +24,6 @@ These statuses reflect code and unit tests, not a live transfer.
     SCP, and ffmpeg calls in [`baccy/upload.py:819`](../baccy/upload.py#L819)
     have no timeout, so the action can hang indefinitely. The daemon needs a
     bounded, interruptible shutdown policy that does not corrupt transfers.
-
-11. **A failed remote SSH listing looks like an empty destination.**
-    [`baccy/upload.py:933`](../baccy/upload.py#L933) returns an empty set if
-    `find` exits nonzero. During `sync`, an authentication, permission, or
-    network failure can then trigger a full re-upload of every planned SSH
-    target. Propagate the listing error and stop or defer that destination.
 
 12. **Upload failure handling misses local and post-transfer failures.**
     [`baccy/upload.py:600`](../baccy/upload.py#L600) materializes HTML before
@@ -120,13 +38,6 @@ These statuses reflect code and unit tests, not a live transfer.
     on ENOSPC/EROFS but proceeds to network copies and publication. This can
     make a resource-exhaustion incident worse and produce misleading partial
     results. Stop storage-dependent work for that pass.
-
-14. **Network discovery trusts any SSH host on the ARP table.**
-    [`baccy/network.py:18`](../baccy/network.py#L18) disables host-key checking
-    and known-host storage, and [`baccy/network.py:209`](../baccy/network.py#L209)
-    probes ARP entries. A reachable impersonator can present a `recs` tree and
-    become a backup source. This is a security and data-integrity **risk**;
-    explicitly pin or approve host identities before ingesting data.
 
 15. **Network-source discovery can go stale or exhaust threads.**
     [`baccy/network.py:81`](../baccy/network.py#L81) returns cached sources
@@ -223,13 +134,12 @@ These statuses reflect code and unit tests, not a live transfer.
 
 ## P2: user-facing semantics, maintainability, and tests
 
-27. **`sync` checks names, not content or size.**
-    [`baccy/upload.py:706`](../baccy/upload.py#L706) treats any present target
-    as unchanged. This is documented in the README, but a truncated, stale,
-    or externally replaced object will look healthy. Normal publication can
-    also skip a deleted remote object based solely on local catalog state.
-    Make those guarantees explicit in CLI help and consider an opt-in
-    verification mode rather than claiming remote correctness.
+27. **Metadata-only sync cannot prove remote content is correct.**
+    `sync` compares available size metadata and S3 identity where a catalog
+    record exists. A same-size SSH replacement or an object without a prior
+    catalog record can still look healthy. Normal publication can also skip a
+    deleted remote object based solely on local catalog state. Make those
+    guarantees explicit in CLI help and consider an opt-in verification mode.
 
 28. **Landing pages can be skipped for the wrong directory.**
     [`baccy/upload.py:537`](../baccy/upload.py#L537) computes a content
@@ -285,8 +195,8 @@ These statuses reflect code and unit tests, not a live transfer.
     bytes, but [`baccy/copy.py:285`](../baccy/copy.py#L285) replaces the
     destination without versioning. The README also says daemon configuration
     is selected only with `--daemon`, ordinary backup works without an
-    installed service, backup prints a JSON summary, and every target
-    collision is rejected. Current CLI, copy, and upload code disagree.
+    installed service, and backup prints a JSON summary. Current CLI and copy
+    code disagree.
     Correct the user guide after the intended behaviors are confirmed.
 
 35. **The implementation has a few concentrated and repeated areas.**
@@ -304,12 +214,12 @@ These statuses reflect code and unit tests, not a live transfer.
     implementation of those services.
 
 36. **Failure-mode tests are sparse relative to the failure surface.**
-    `test/test_rename.py` has no successful S3/local/journal round trip and
-    no injected copy/delete, local rename, or rewrite failure. `test/test_watch.py`
-    has two normal-loop tests but no trigger race, exception, or shutdown test.
+    `test/test_rename.py` lacks injected delete and local rename failures.
+    `test/test_watch.py` has two normal-loop tests but no trigger race,
+    exception, or shutdown test.
     `test/test_listing.py` has three tests, none for a large SSH target set or
     remote failure. Upload tests cover ordinary behavior and the missing-file
-    preflight, but not cross-session collisions, same-content landing pages,
+    preflight and cross-session collisions, but not same-content landing pages
     or an interrupted transfer. Network tests cover discovery and normal
     copies, not same-size mutation. These are high-value additions; do not
     duplicate the broad axto fixture regression for each small failure case.
