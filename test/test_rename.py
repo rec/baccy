@@ -186,7 +186,7 @@ def test_rename_uses_planned_web_safe_key_and_prefix(monkeypatch: MonkeyPatch) -
     )
 
 
-def test_rename_resumes_after_progress_write_fails(
+def test_rename_resumes_after_progress_local_and_remote_failures(
     monkeypatch: MonkeyPatch, tmp_path: Path
 ) -> None:
     session = Path('totm/session')
@@ -220,6 +220,7 @@ def test_rename_resumes_after_progress_write_fails(
                 }
             }
             self.fail_copy = False
+            self.fail_delete = False
 
         def head_object(self, Bucket: str, Key: str) -> dict[str, object]:
             if Key not in self.objects:
@@ -238,6 +239,8 @@ def test_rename_resumes_after_progress_write_fails(
             self.objects[Key] = self.objects[CopySource['Key']].copy()
 
         def delete_object(self, Bucket: str, Key: str) -> None:
+            if self.fail_delete:
+                raise ClientError({'Error': {'Code': 'ServiceUnavailable'}}, 'Delete')
             assert (root / replacement).is_file()
             assert 'audio/new.flac' in journal.read_text()
             del self.objects[Key]
@@ -275,6 +278,26 @@ def test_rename_resumes_after_progress_write_fails(
     assert renamed_files(Settings(backup_root=tmp_path), 'old', 'new', False) == [file]
     with pytest.raises(ValueError, match='rename is pending'):
         sync([], Settings(backup_root=tmp_path))
+
+    original_rename = Path.rename
+
+    def fail_local_rename(path: Path, target: Path) -> Path:
+        if path == root / source:
+            raise OSError('local disk unavailable')
+        return original_rename(path, target)
+
+    monkeypatch.setattr(Path, 'rename', fail_local_rename)
+    assert rename_files(Settings(backup_root=tmp_path), [file], 'old', 'new') is False
+    assert (root / source).is_file()
+    assert source.as_posix() in client.objects
+    monkeypatch.setattr(Path, 'rename', original_rename)
+
+    client.fail_delete = True
+    assert rename_files(Settings(backup_root=tmp_path), [file], 'old', 'new') is False
+    assert (root / replacement).is_file()
+    assert source.as_posix() in client.objects
+    assert (tmp_path / 'rename-progress.json').is_file()
+    client.fail_delete = False
 
     assert rename_files(Settings(backup_root=tmp_path), [file], 'old', 'new') is True
     assert not (tmp_path / 'rename-progress.json').exists()

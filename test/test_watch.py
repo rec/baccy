@@ -1,3 +1,4 @@
+import signal
 import threading
 import time
 from pathlib import Path
@@ -107,3 +108,17 @@ def test_watch_reports_transient_failure_and_runs_another_pass(tmp_path: Path) -
 
     assert attempts == 2
     assert summaries[0].results[0].detail == 'network unavailable'
+
+
+def test_watch_stops_after_signal_during_transfer(tmp_path: Path) -> None:
+    calls = 0
+
+    def transfer(settings: Settings) -> BackupSummary:
+        nonlocal calls
+        calls += 1
+        signal.raise_signal(signal.SIGTERM)
+        return BackupSummary(copied=1)
+
+    watch(Settings(backup_root=tmp_path, poll_seconds=10), action=transfer)
+
+    assert calls == 1
