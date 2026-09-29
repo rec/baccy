@@ -5,9 +5,8 @@ audio files, photos, and other assets. It copies configured local directories,
 memory cards, and already-mounted network shares to one central backup root.
 It can run once from a terminal or continuously as a per-user LaunchAgent.
 
-The first version never deletes backups because a source disappears. When a
-source path changes, baccy retains the previous destination bytes under the
-backup root before atomically replacing the visible current copy.
+Baccy never deletes backups because a source disappears. A changed source
+replaces its previous backup copy; baccy does not retain overwritten versions.
 
 ## Install
 
@@ -27,21 +26,21 @@ By default baccy looks for:
 ~/Library/Application Support/baccy/config.toml
 ```
 
-If that file does not exist, baccy still runs with automatic removable-drive
-discovery enabled and writes selected backups to:
+Without an installed daemon, the default configuration would use automatic
+removable-drive discovery and write selected backups to:
 
 ```text
 ~/baccy
 ```
 
-This makes `baccy backup`, `baccy watch`, and a normally installed service
-useful without creating a configuration file. A missing path supplied
-explicitly with `--config` remains an error.
+CLI commands use the installed daemon's recorded configuration by default.
+Use `--config PATH` to run without an installed daemon. A missing path supplied
+explicitly with `--config` is an error.
 
 Pass `--config PATH` before the command to use a different file.
 
-Pass `--daemon` to use the configuration recorded by the installed daemon.
-It cannot be combined with `--config`.
+`--daemon` explicitly selects the default daemon configuration. It cannot be
+combined with `--config`. Global flags must precede the command.
 
 ```toml
 backup_root = "/path/to/baccy"
@@ -110,7 +109,7 @@ the volume containing `backup_root` are ignored. Set
 `include = ["**"]` and no exclusions by default. Source names must be unique,
 and neither a source nor the backup root may contain the other.
 
-Set `verbose = true` to include unchanged files in each JSON summary. When the
+Set `verbose = true` to include unchanged files in command output. When the
 installed service is running, it also sends macOS notifications when it
 recognizes a backup disk or network machine and again when that backup pass
 finishes. The current default includes unchanged individual results while
@@ -154,26 +153,26 @@ Run one complete scan and exit:
 ```sh
 uv run baccy backup
 uv run baccy --config /path/to/baccy.toml backup
-uv run baccy backup --dry-run
+uv run baccy --dry-run backup
 ```
 
-The first form needs no configuration file. It discovers qualifying removable
-media and stores selected photo files or recs sessions on the main drive under
-`~/baccy`.
+The first form uses the installed daemon's recorded configuration. To run
+without an installed daemon, pass `--config PATH` before the command.
 
-The command prints a JSON summary. It exits nonzero when a configured source is
-unavailable or a copy fails. A missing removable card or mounted share does not
-delete or alter prior backups.
+The command prints one path per completed file, with status and detail for
+failed or deferred work. It exits with status 1 for failures or unavailable
+sources, 3 for deferred work without failures, and 0 for a complete pass. A
+missing removable card or mounted share does not delete prior backups.
 
 For recs sessions, baccy appends only newly completed lines from
 `session-record.jsonl` after verifying its already backed-up prefix. WAV and
 FLAC files named by an unfinished `file_started` record are deferred. They are
 copied atomically once recs writes a matching `file_finished` record.
 
-Use `-d` or `--dry-run` to print the same summary with `would_copy` and
+Use `-d` or `--dry-run` before the command to preview `would_copy` and
 `would_upload` results without creating the backup root, lock, event log,
 artifact cache, temporary files, or network connections.
-`baccy watch -d` repeatedly performs the same non-writing preview.
+`baccy -d watch` repeatedly performs the same non-writing preview.
 
 ## Repair zero frame counts
 
@@ -189,9 +188,9 @@ uv run python scripts/repair_zero_frame_counts.py ~/baccy/audio/totm
 Import one or more recs project directories or individual session directories:
 
 ```sh
-uv run baccy import /Volumes/Recordings/concert
-uv run baccy import /Volumes/Recordings/2026/09/24/20-00-00 --project concert
-uv run baccy import /Volumes/Recordings/concert --copy
+uv run baccy --config /path/to/baccy.toml import /Volumes/Recordings/concert
+uv run baccy --config /path/to/baccy.toml import /Volumes/Recordings/2026/09/24/20-00-00 --project concert
+uv run baccy --config /path/to/baccy.toml import /Volumes/Recordings/concert --copy
 ```
 
 By default `import` moves each session into its canonical location under the
@@ -227,10 +226,10 @@ derived files without a recorded size can only be checked for nonzero size.
 ## Rename direct S3 backups
 
 `baccy rename PATTERN REPLACEMENT` previews direct-source audio renames and
-asks for confirmation. Use `--re` for a regular-expression pattern and
-`--dry-run` for a preview without changes. The command copies and verifies all
-new S3 objects before renaming local files and rewriting session journals; it
-deletes the old S3 objects last. Progress is saved in
+asks for confirmation. Use `--re` for a regular-expression pattern and put
+`--dry-run` before `rename` for a preview without changes. The command copies
+and verifies all new S3 objects before renaming local files and rewriting
+session journals; it deletes the old S3 objects last. Progress is saved in
 `BACKUP_ROOT/rename-progress.json`. If interrupted or failed, rerun the same
 command and arguments to resume. Backups, imports, and syncs will not modify
 the backup root while a rename is pending. Rename events are written as

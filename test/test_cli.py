@@ -83,6 +83,18 @@ def test_daemon_uses_its_recorded_configuration(
     assert received == [tmp_path / 'backup']
 
 
+def test_help_does_not_require_daemon_metadata(
+    capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        'baccy.cli.Application',
+        lambda: pytest.fail('help must not inspect the installed daemon'),
+    )
+
+    assert main(['--help']) == 0
+    assert capsys.readouterr().out.startswith('Usage: baccy ')
+
+
 def test_daemon_sync_requests_daemon(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
 ) -> None:
@@ -190,9 +202,9 @@ def test_backup_command_verbose_includes_unchanged_files(
         f'path = "{source}"\n'
     )
 
-    main(['backup', '--config', str(config)])
+    main(['--config', str(config), 'backup'])
     capsys.readouterr()
-    main(['backup', '--config', str(config)])
+    main(['--config', str(config), 'backup'])
 
     assert capsys.readouterr().out == 'recording.toml\n'
 
@@ -220,7 +232,7 @@ def test_watch_command_prints_only_changed_summaries(
 
     monkeypatch.setattr('baccy.cli.watch', run_watch)
 
-    assert main(['watch', '--config', str(config)]) == 0
+    assert main(['--config', str(config), 'watch']) == 0
 
     assert capsys.readouterr().out == '(no files)\nrecording.toml\n'
 
@@ -360,7 +372,7 @@ def test_service_install_waits_for_daemon_and_schedules_sync(
     monkeypatch.setattr('baccy.cli.rpc.Client', Client)
 
     assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 0
-    assert installed == [['watch', '--config', str(tmp_path / 'baccy.toml')]]
+    assert installed == [['--config', str(tmp_path / 'baccy.toml'), 'watch']]
     assert calls == ['status', 'sync']
     assert tomllib.loads(capsys.readouterr().out) == {
         'installed': True,
@@ -444,7 +456,7 @@ def test_test_command_prints_ok_for_reachable_destinations(
     config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
     monkeypatch.setattr('baccy.cli.test_destinations', lambda settings: [])
 
-    assert main(['test', '--config', str(config)]) == 0
+    assert main(['--config', str(config), 'test']) == 0
 
     captured = capsys.readouterr()
     assert captured.out == 'ok\n'
@@ -460,7 +472,7 @@ def test_test_command_reports_unreachable_destinations(
         'baccy.cli.test_destinations', lambda settings: ['archive: access denied']
     )
 
-    assert main(['test', '--config', str(config)]) == -1
+    assert main(['--config', str(config), 'test']) == -1
 
     captured = capsys.readouterr()
     assert captured.out == ''
@@ -480,13 +492,61 @@ def test_list_command_prints_uploaded_files(
         ],
     )
 
-    assert main(['list', '--config', str(config)]) == 0
+    assert main(['--config', str(config), 'list']) == 0
 
     captured = capsys.readouterr()
     assert captured.out == (
         's3:archive/totm/audio.flac\nssh:user@example.org:/srv/a.html\n'
     )
     assert captured.err == ''
+
+
+@pytest.mark.parametrize('command', ['list', 'test'])
+def test_read_only_commands_reject_dry_run(
+    tmp_path: Path, capsys: CaptureFixture[str], command: str
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
+
+    assert main(['--config', str(config), '--dry-run', command]) == 2
+    assert capsys.readouterr().err == (f'--dry-run is not supported for {command}\n')
+
+
+def test_backup_reports_deferred_work_with_distinct_exit_status(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
+    monkeypatch.setattr(
+        'baccy.cli.run_backup',
+        lambda settings, dry_run: BackupSummary().with_result(
+            FileResult(
+                source='studio',
+                relative_path=Path('audio.flac'),
+                status='deferred',
+                detail='still recording',
+            )
+        ),
+    )
+
+    assert main(['--config', str(config), 'backup']) == 3
+    assert capsys.readouterr().out == ('deferred: audio.flac (still recording)\n')
+
+
+def test_backup_reports_failure_detail(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
+    monkeypatch.setattr(
+        'baccy.cli.run_backup',
+        lambda settings, dry_run: BackupSummary().with_result(
+            FileResult(source='studio', status='failed', detail='disk full')
+        ),
+    )
+
+    assert main(['--config', str(config), 'backup']) == 1
+    assert capsys.readouterr().out == 'failed: studio (disk full)\n'
 
 
 def test_rename_dry_run_does_not_rename(
@@ -518,6 +578,38 @@ def test_rename_dry_run_does_not_rename(
     assert captured.err == ''
 
 
+def test_rename_keeps_global_flag_text_as_positional_argument(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
+    received: list[tuple[str, str]] = []
+
+    def planned(
+        settings: Settings, pattern: str, replacement: str, regular_expression: bool
+    ) -> list[RenameFile]:
+        received.append((pattern, replacement))
+        return []
+
+    monkeypatch.setattr('baccy.cli.renamed_files', planned)
+
+    assert (
+        main(['--config', str(config), '--dry-run', 'rename', '--', '--config', 'new'])
+        == 0
+    )
+    assert received == [('--config', 'new')]
+
+
+def test_service_dry_run_rejects_unknown_action(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text('')
+
+    assert main(['--config', str(config), '--dry-run', 'service', 'unknown']) == 2
+    assert 'unknown service command: unknown' in capsys.readouterr().err
+
+
 @pytest.mark.parametrize('flag', ['-d', '--dry-run'])
 def test_backup_command_dry_run_does_not_write(
     tmp_path: Path, capsys: CaptureFixture[str], flag: str
@@ -537,7 +629,7 @@ def test_backup_command_dry_run_does_not_write(
         f'path = "{source}"\n'
     )
 
-    exit_code = main(['backup', flag, '--config', str(config)])
+    exit_code = main(['--config', str(config), flag, 'backup'])
 
     assert exit_code == 0
     assert capsys.readouterr().out == 'recording.toml\n'
@@ -587,7 +679,7 @@ def test_import_command_moves_project_sessions_from_their_header(
     config = tmp_path / 'baccy.toml'
     config.write_text(f'backup_root = "{backup}"\n')
 
-    assert main(['import', str(source), '--config', str(config)]) == 0
+    assert main(['--config', str(config), 'import', str(source)]) == 0
 
     destination = backup / 'audio' / 'concert' / '2026' / '09' / '24' / '20-00-00'
     assert capsys.readouterr().out == 'audio/concert/2026/09/24/20-00-00\n'
@@ -621,7 +713,7 @@ def test_import_command_does_not_publish_sessions(
         'baccy.importer.publish_sessions', publish_sessions, raising=False
     )
 
-    assert main(['import', str(source), '--config', str(config)]) == 0
+    assert main(['--config', str(config), 'import', str(source)]) == 0
 
 
 def test_import_command_copies_direct_session_with_project_override(
@@ -639,13 +731,13 @@ def test_import_command_copies_direct_session_with_project_override(
     assert (
         main(
             [
+                '--config',
+                str(config),
                 'import',
                 str(session),
                 '--copy',
                 '--project',
                 'concert',
-                '--config',
-                str(config),
             ]
         )
         == 0
@@ -677,7 +769,7 @@ def test_global_dry_run_previews_import_without_writing(
     config = tmp_path / 'baccy.toml'
     config.write_text(f'backup_root = "{backup}"\n')
 
-    assert main(['--dry-run', 'import', str(source), '--config', str(config)]) == 0
+    assert main(['--dry-run', '--config', str(config), 'import', str(source)]) == 0
 
     assert capsys.readouterr().out == 'audio/concert/2026/09/24/20-00-00\n'
     assert session.exists()
@@ -697,7 +789,7 @@ def test_global_dry_run_reaches_sync(
         ),
     )
 
-    assert main(['-d', 'sync', '--config', str(config)]) == 0
+    assert main(['-d', '--config', str(config), 'sync']) == 0
 
     assert received == [True]
     assert capsys.readouterr().out == '(no files)\n'
