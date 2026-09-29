@@ -23,7 +23,7 @@ class ServiceCommand(BaseModel, frozen=True):
     """Manage the per-user baccy LaunchAgent."""
 
 
-def service(arguments: list[str], config: Path, dry_run: bool) -> int:
+def service(arguments: list[str], config: Path, dry_run: bool, verbose: bool) -> int:
     if not arguments or arguments[0] in {'-h', '--help'}:
         print(_service_usage())
         return 0
@@ -70,8 +70,6 @@ def service(arguments: list[str], config: Path, dry_run: bool) -> int:
                 application.prune_releases()
             except OSError as error:
                 print(f'baccy release cleanup failed: {error}', file=sys.stderr)
-        if result is None:
-            result = application.service_status()
         if install.sync and (
             error := request_daemon_sync(application.control_endpoint, attempts=1)
         ):
@@ -96,6 +94,9 @@ def service(arguments: list[str], config: Path, dry_run: bool) -> int:
         print(f'unknown service command: {command}', file=sys.stderr)
         print(_service_usage(), file=sys.stderr)
         return 2
+    if command == 'install' and not verbose:
+        print('ok')
+        return 0
     if result is None:
         result = application.service_status()
     sys.stdout.write(tomlkit.dumps(result.model_dump(mode='json', exclude_none=True)))

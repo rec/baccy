@@ -322,6 +322,8 @@ flags, including `--no-sync`.
 
 Installation waits for the daemon to start, then schedules a sync. Pass
 `--no-sync` to install without scheduling that initial sync.
+On success, installation prints `ok`. Pass the global `--verbose` or `-v` flag
+before the command to print the full service status instead.
 
 The agent uses `launchd` with `RunAtLoad` and `KeepAlive`. Installation builds
 an isolated release environment under `~/Library/Application Support/baccy/`,

@@ -35,25 +35,29 @@ def test_service_commands_print_toml(
 
 
 @pytest.mark.parametrize('command', [['service', 'install'], ['install']])
+@pytest.mark.parametrize('verbose_flag', [None, '--verbose', '-v'])
 def test_service_install_waits_for_daemon_and_schedules_sync(
     tmp_path: Path,
     capsys: CaptureFixture[str],
     monkeypatch: MonkeyPatch,
     command: list[str],
+    verbose_flag: str | None,
 ) -> None:
     endpoint = tmp_path / 'gui.sock'
     installed: list[list[str]] = []
     calls: list[str] = []
+    status_requests = 0
 
     class ServiceApplication:
         control_endpoint = endpoint
 
-        def install_service(self, arguments: list[str]) -> StatusResult:
+        def install_service(self, arguments: list[str]) -> None:
             installed.append(arguments)
-            return StatusResult(installed=True)
 
         def service_status(self) -> StatusResult:
-            raise AssertionError('running daemon should not need a status check')
+            nonlocal status_requests
+            status_requests += 1
+            return StatusResult(installed=True)
 
     class Client:
         def __init__(self, value: Path, *, role: str) -> None:
@@ -67,13 +71,18 @@ def test_service_install_waits_for_daemon_and_schedules_sync(
     monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
     monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
-    assert main(['--config', str(tmp_path / 'baccy.toml'), *command]) == 0
+    global_flags = ['--config', str(tmp_path / 'baccy.toml')]
+    if verbose_flag is not None:
+        global_flags.append(verbose_flag)
+    assert main([*global_flags, *command]) == 0
     assert installed == [['--config', str(tmp_path / 'baccy.toml'), 'watch']]
     assert calls == ['status', 'status', 'sync']
-    assert tomllib.loads(capsys.readouterr().out) == {
-        'installed': True,
-        'details': '',
-    }
+    assert status_requests == (0 if verbose_flag is None else 1)
+    output = capsys.readouterr().out
+    if verbose_flag is None:
+        assert output == 'ok\n'
+    else:
+        assert tomllib.loads(output) == {'installed': True, 'details': ''}
 
 
 def test_service_install_reports_daemon_start_failure(
