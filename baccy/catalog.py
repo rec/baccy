@@ -1,7 +1,10 @@
 import json
+import logging
 import os
 import time
 from pathlib import Path
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Catalog:
@@ -74,13 +77,28 @@ class Catalog:
         deferred: set[tuple[str, str, str]] = set()
         targets: dict[tuple[str, str], dict[str, object]] = {}
         with self.path.open() as file:
-            for line in file:
+            line = file.readline()
+            line_number = 0
+            while line:
+                line_number += 1
+                following = file.readline()
                 try:
                     value = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
+                except json.JSONDecodeError as error:
+                    if not following and not line.endswith('\n'):
+                        _LOGGER.warning(
+                            'ignoring incomplete final catalog line %s:%d',
+                            self.path,
+                            line_number,
+                        )
+                        break
+                    raise ValueError(
+                        f'invalid catalog record at {self.path}:{line_number}'
+                    ) from error
                 if not isinstance(value, dict):
-                    continue
+                    raise ValueError(
+                        f'invalid catalog record at {self.path}:{line_number}'
+                    )
                 source = value.get('source')
                 relative_path = value.get('relative_path')
                 if isinstance(source, str) and isinstance(relative_path, str):
@@ -97,4 +115,5 @@ class Catalog:
                             ] = value
                     elif value.get('result') == 'deferred':
                         deferred.add(key)
+                line = following
         return latest, deferred, targets

@@ -103,13 +103,20 @@ class Application(Reccy):
                 ]
             )
         self._notified_failures = fingerprints
-        for source in sorted(self._pending_completions):
+        completed: set[str] = set()
+        incomplete = {
+            result.source
+            for result in summary.results
+            if result.status in {'failed', 'unavailable', 'deferred'}
+        }
+        for source in sorted(self._pending_completions - incomplete):
             if (recognized := self._recognized_sources.get(source)) is not None:
                 notify(f'Backup complete for {recognized.kind} {recognized.label}.')
                 _LOGGER.info(
                     'backup complete for %s %s', recognized.kind, recognized.label
                 )
-        self._pending_completions.difference_update(self._recognized_sources)
+                completed.add(source)
+        self._pending_completions.difference_update(completed)
         self.publish_status()
 
     def rpc_command(self, request: rpc.Request) -> rpc.Result:

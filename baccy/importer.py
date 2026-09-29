@@ -15,6 +15,10 @@ def import_recs(
     project: str | None,
     dry_run: bool = False,
 ) -> BackupSummary:
+    if project is not None and (
+        not project or Path(project).parts != (project,) or project in {'.', '..'}
+    ):
+        raise ValueError('project must be a single path component')
     if dry_run:
         return _preview_import(directories, settings, project)
     imported: list[FileResult] = []

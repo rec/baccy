@@ -1,3 +1,4 @@
+import errno
 import json
 import os
 import time
@@ -94,6 +95,27 @@ def test_backup_lock_is_at_backup_root(tmp_path: Path) -> None:
     with BackupLock(tmp_path) as lock:
         assert lock.path == tmp_path / '.lock'
         assert lock.path.exists()
+
+
+def test_disk_full_stops_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / 'source'
+    source.mkdir()
+    (source / 'recording.toml').write_text('format = "recs"\n')
+
+    def no_space(*args: object, **kwargs: object) -> None:
+        raise OSError(errno.ENOSPC, 'disk full')
+
+    def publish(*args: object, **kwargs: object) -> None:
+        raise AssertionError('publication must not start after disk exhaustion')
+
+    monkeypatch.setattr('baccy.backup.copy_candidate', no_space)
+    monkeypatch.setattr('baccy.backup.publish_sessions', publish)
+
+    result = run_backup(_settings(source, tmp_path / 'backup'))
+
+    assert result.failed == 1
 
 
 def test_backup_records_one_deferred_event_per_deferral_cycle(tmp_path: Path) -> None:
