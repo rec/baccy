@@ -125,7 +125,8 @@ class Application(Reccy):
         recognized = {source.source: source for source in sources}
         for source in recognized.values():
             if source.source not in self._recognized_sources:
-                notify(f'Recognized {source.kind} {source.label}; starting backup.')
+                if source.kind != 'machine':
+                    notify(f'Recognized {source.kind} {source.label}; starting backup.')
                 _LOGGER.info(
                     'recognized %s %s; starting backup', source.kind, source.label
                 )
@@ -135,7 +136,6 @@ class Application(Reccy):
     def record_recognized_machines(self, machines: list[RecognizedSource]) -> None:
         for machine in machines:
             if machine.source not in self._recognized_machines:
-                notify(f'Recognized machine {machine.label}.')
                 _LOGGER.info('recognized machine %s', machine.label)
                 self._recognized_machines.add(machine.source)
 
