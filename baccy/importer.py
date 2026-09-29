@@ -1,5 +1,6 @@
 import json
 import shutil
+import tempfile
 from datetime import datetime
 from pathlib import Path
 
@@ -44,15 +45,18 @@ def import_recs(
                     / project_name
                     / _session_relative(directory, session, project_name)
                 )
-                if destination.exists():
+                if destination.exists() or destination.is_symlink():
                     raise FileExistsError(
                         f'import destination already exists: {destination}'
                     )
                 destination.parent.mkdir(parents=True, exist_ok=True)
-                if copy_directories:
-                    shutil.copytree(session, destination)
-                else:
-                    shutil.move(str(session), str(destination))
+                with tempfile.TemporaryDirectory(
+                    prefix='.baccy-import-', dir=destination.parent
+                ) as temporary_directory:
+                    staged = Path(temporary_directory) / session.name
+                    shutil.copytree(session, staged, symlinks=not copy_directories)
+                    _verify_session(session, staged)
+                    staged.replace(destination)
                 catalog.append(
                     {
                         'operation': 'import',
@@ -63,6 +67,8 @@ def import_recs(
                         'result': 'copied',
                     }
                 )
+                if not copy_directories:
+                    shutil.rmtree(session)
                 imported.append(
                     FileResult(
                         source=project_name,
@@ -98,7 +104,7 @@ def _preview_import(
                 / project_name
                 / _session_relative(directory, session, project_name)
             )
-            if destination.exists():
+            if destination.exists() or destination.is_symlink():
                 raise FileExistsError(
                     f'import destination already exists: {destination}'
                 )
@@ -132,6 +138,17 @@ def _sessions(directory: Path) -> list[Path]:
     if not sessions:
         raise ValueError(f'import path contains no recs sessions: {directory}')
     return sorted(sessions)
+
+
+def _verify_session(source: Path, staged: Path) -> None:
+    for path in source.rglob('*'):
+        copied = staged / path.relative_to(source)
+        if path.is_file() and (
+            not copied.is_file() or copied.stat().st_size != path.stat().st_size
+        ):
+            raise OSError(f'import copy differs from source: {path}')
+        if path.is_dir() and not copied.is_dir():
+            raise OSError(f'import copy is missing a directory: {path}')
 
 
 def _project_name(session: Path) -> str | None:

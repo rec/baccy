@@ -296,6 +296,11 @@ def _backup_remote_file(
             raise OSError(result.stderr.decode(errors='replace').strip())
         if temporary.stat().st_size != file.size:
             return _result(candidate, 'deferred', 'remote source changed while copying')
+        if _remote_metadata(run, source.host, file.relative_path) != (
+            file.mtime_ns,
+            file.size,
+        ):
+            return _result(candidate, 'deferred', 'remote source changed while copying')
         os.utime(temporary, ns=(file.mtime_ns, file.mtime_ns))
         return commit_snapshot(
             candidate,
@@ -348,6 +353,28 @@ def _read_command(relative_path: Path) -> str:
         f'path=$(printf %s {value} | (base64 -D 2>/dev/null || base64 -d)); '
         'cat "$HOME/recs/$path"'
     )
+
+
+def _remote_metadata(
+    run: Callable[..., subprocess.CompletedProcess[bytes]], host: str, path: Path
+) -> tuple[int, int]:
+    value = base64.b64encode(path.as_posix().encode()).decode()
+    result = _ssh(
+        run,
+        host,
+        f'path=$(printf %s {value} | (base64 -D 2>/dev/null || base64 -d)); '
+        'file="$HOME/recs/$path"; '
+        'mtime=$(stat -f %m "$file" 2>/dev/null || stat -c %Y "$file") || exit; '
+        'size=$(wc -c < "$file") || exit; '
+        'printf "%s %s" "$mtime" "$size"',
+    )
+    if result.returncode != 0:
+        raise OSError(result.stderr.decode(errors='replace').strip())
+    try:
+        mtime, size = map(int, result.stdout.split())
+    except ValueError as error:
+        raise OSError('invalid remote file metadata') from error
+    return mtime * 1_000_000_000, size
 
 
 def _ssh(
