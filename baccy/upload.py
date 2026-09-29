@@ -7,6 +7,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from urllib.parse import unquote
@@ -83,11 +84,12 @@ def publish_sessions(
     catalog = Catalog(settings.backup_root)
     results: list[FileResult] = []
     expressions = {rule.name: MatchExpression(rule.match) for rule in settings.uploads}
-    remote_targets: dict[str, set[str]] = {}
+    remote_targets: dict[str, dict[str, int]] = {}
     artifacts: list[ArtifactPlan] = []
+    session_roots: list[Path] = []
     missing = _missing_sources(sources, directories)
-    if missing:
-        return missing
+    for failures in missing.values():
+        results.extend(failures)
     for source in sources:
         for journal in sorted(source.root.glob('**/session-record.jsonl')):
             if journal.is_symlink():
@@ -99,28 +101,90 @@ def publish_sessions(
             relative_session = journal.parent.relative_to(source.root)
             if not relative_session.parts:
                 continue
+            if journal.parent in missing:
+                continue
             project_name = relative_session.parts[0]
+            plans, failures = _publish_session(
+                source.source.name,
+                journal.parent,
+                relative_session,
+                project_name,
+                settings,
+                expressions,
+                catalog,
+                dry_run,
+                sync,
+            )
+            artifacts.extend(plans)
+            session_roots.extend([journal.parent] * len(plans))
+            results.extend(failures)
+    pages = [
+        page
+        for landing_page in settings.landing_pages
+        for page in _landing_page_plans(artifacts, landing_page, settings)
+    ]
+    targets = Counter(
+        (_destination_identity(plan.destination), plan.target.as_posix())
+        for plan in [*artifacts, *pages]
+    )
+    for plan, session_root in zip(artifacts, session_roots, strict=True):
+        key = _destination_identity(plan.destination), plan.target.as_posix()
+        if targets[key] > 1:
+            results.append(
+                FileResult(
+                    source=plan.project,
+                    relative_path=Path(plan.target),
+                    status='deferred',
+                    destination=_display_destination(plan.destination),
+                    detail='upload target collides with another artifact',
+                )
+            )
+            continue
+        try:
             results.extend(
-                _publish_session(
-                    source.source.name,
-                    journal.parent,
-                    relative_session,
-                    project_name,
-                    settings,
-                    expressions,
+                _materialize_and_upload(
+                    plan,
+                    session_root,
                     catalog,
                     dry_run,
                     sync,
                     remote_targets,
-                    artifacts,
                     on_write,
                 )
             )
-    results.extend(
-        _publish_landing_pages(
-            artifacts, settings, catalog, dry_run, sync, remote_targets, on_write
-        )
-    )
+        except (
+            BotoCoreError,
+            ClientError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            results.extend(
+                _record_failure(
+                    catalog, plan.project, Path(plan.target), str(error), dry_run
+                )
+            )
+    for plan in pages:
+        key = _destination_identity(plan.destination), plan.target.as_posix()
+        if targets[key] > 1:
+            results.append(
+                _landing_page_result(
+                    plan, 'deferred', 'upload target collides with another artifact'
+                )
+            )
+            continue
+        try:
+            results.extend(
+                _materialize_and_upload_landing_page(
+                    plan, catalog, dry_run, sync, remote_targets, on_write
+                )
+            )
+        except (
+            BotoCoreError,
+            ClientError,
+            OSError,
+            subprocess.SubprocessError,
+        ) as error:
+            results.append(_landing_page_result(plan, 'failed', str(error)))
     return results
 
 
@@ -148,8 +212,8 @@ def planned_source_uploads(settings: Settings) -> list[ArtifactPlan]:
 
 def _missing_sources(
     sources: list[ResolvedSource], directories: list[Path] | None
-) -> list[FileResult]:
-    missing: list[FileResult] = []
+) -> dict[Path, list[FileResult]]:
+    missing: dict[Path, list[FileResult]] = {}
     for source in sources:
         for journal in sorted(source.root.glob('**/session-record.jsonl')):
             if journal.is_symlink() or (
@@ -168,7 +232,7 @@ def _missing_sources(
                 continue
             for segment in segments:
                 if not (journal.parent / segment.path).is_file():
-                    missing.append(
+                    missing.setdefault(journal.parent, []).append(
                         FileResult(
                             source=relative_session.parts[0],
                             relative_path=relative_session / segment.path,
@@ -189,21 +253,18 @@ def _publish_session(
     catalog: Catalog,
     dry_run: bool,
     sync: bool,
-    remote_targets: dict[str, set[str]],
-    artifacts: list[ArtifactPlan],
-    on_write: Callable[[FileResult], None] | None,
-) -> list[FileResult]:
+) -> tuple[list[ArtifactPlan], list[FileResult]]:
     try:
         segments = _completed_segments(session_root / 'session-record.jsonl')
     except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError) as error:
-        return _record_failure(
+        return [], _record_failure(
             catalog,
             project_name,
             Path(source_name) / relative_session / 'session-record.jsonl',
             str(error),
             dry_run,
         )
-    plans, results = _artifact_plans(
+    return _artifact_plans(
         segments,
         source_name,
         session_root,
@@ -213,29 +274,6 @@ def _publish_session(
         expressions,
         sync,
     )
-    artifacts.extend(plans)
-    targets = [
-        (_destination_identity(plan.destination), plan.target.as_posix())
-        for plan in plans
-    ]
-    for plan in plans:
-        target_key = _destination_identity(plan.destination), plan.target.as_posix()
-        if targets.count(target_key) > 1:
-            results.append(
-                FileResult(
-                    source=project_name,
-                    relative_path=Path(plan.target),
-                    status='deferred',
-                    detail='upload target collides with another artifact',
-                )
-            )
-            continue
-        results.extend(
-            _materialize_and_upload(
-                plan, session_root, catalog, dry_run, sync, remote_targets, on_write
-            )
-        )
-    return results
 
 
 def _completed_segments(journal: Path, warn_zero_frames: bool = True) -> list[Segment]:
@@ -514,26 +552,6 @@ def _legal_target(path: PurePosixPath) -> PurePosixPath:
     return value
 
 
-def _publish_landing_pages(
-    artifacts: list[ArtifactPlan],
-    settings: Settings,
-    catalog: Catalog,
-    dry_run: bool,
-    sync: bool,
-    remote_targets: dict[str, set[str]],
-    on_write: Callable[[FileResult], None] | None,
-) -> list[FileResult]:
-    results: list[FileResult] = []
-    for landing_page in settings.landing_pages:
-        for plan in _landing_page_plans(artifacts, landing_page, settings):
-            results.extend(
-                _materialize_and_upload_landing_page(
-                    plan, catalog, dry_run, sync, remote_targets, on_write
-                )
-            )
-    return results
-
-
 def _landing_page_plans(
     artifacts: list[ArtifactPlan],
     landing_page: LandingPageUpload,
@@ -602,7 +620,7 @@ def _materialize_and_upload_landing_page(
     catalog: Catalog,
     dry_run: bool,
     sync: bool,
-    remote_targets: dict[str, set[str]],
+    remote_targets: dict[str, dict[str, int]],
     on_write: Callable[[FileResult], None] | None,
 ) -> list[FileResult]:
     if not plan.identity:
@@ -613,7 +631,11 @@ def _materialize_and_upload_landing_page(
     if sync:
         if destination_id not in remote_targets:
             remote_targets[destination_id] = _remote_targets(plan.destination)
-        if plan.target.as_posix() in remote_targets[destination_id]:
+        remote_size = remote_targets[destination_id].get(plan.target.as_posix())
+        if remote_size == len(plan.content.encode()) and (
+            not isinstance(plan.destination, S3Destination)
+            or _remote_s3_identity(plan.destination, plan.target) == plan.identity
+        ):
             return [_landing_page_result(plan, 'unchanged')]
     elif catalog.latest(plan.project, Path(plan.identity), 'landing_page') is not None:
         return [_landing_page_result(plan, 'unchanged')]
@@ -625,7 +647,7 @@ def _materialize_and_upload_landing_page(
     except (BotoCoreError, ClientError, OSError, subprocess.SubprocessError) as error:
         return [_landing_page_result(plan, 'failed', str(error))]
     if sync:
-        remote_targets[destination_id].add(plan.target.as_posix())
+        remote_targets[destination_id][plan.target.as_posix()] = path.stat().st_size
     if uploaded:
         catalog.append(
             {
@@ -635,6 +657,7 @@ def _materialize_and_upload_landing_page(
                 'result': 'uploaded',
                 'destination': destination_id,
                 'target': plan.target.as_posix(),
+                'artifact_size': path.stat().st_size,
             }
         )
         return [_landing_page_result(plan, 'uploaded')]
@@ -709,7 +732,7 @@ def _materialize_and_upload(
     catalog: Catalog,
     dry_run: bool,
     sync: bool,
-    remote_targets: dict[str, set[str]],
+    remote_targets: dict[str, dict[str, int]],
     on_write: Callable[[FileResult], None] | None,
 ) -> list[FileResult]:
     source = session_root / plan.segment.path
@@ -735,7 +758,35 @@ def _materialize_and_upload(
         if destination_id not in remote_targets:
             remote_targets[destination_id] = _remote_targets(plan.destination)
         targets = remote_targets[destination_id]
-        if plan.target.as_posix() in targets:
+        record = catalog.latest_target(destination_id, plan.target.as_posix())
+        source_stat = source.stat()
+        expected_size = (
+            source_stat.st_size
+            if plan.rule.encoding.format == 'source'
+            else record.get('artifact_size')
+            if record is not None
+            else None
+        )
+        remote_size = targets.get(plan.target.as_posix())
+        metadata_matches = remote_size is not None and (
+            remote_size == expected_size
+            if isinstance(expected_size, int)
+            else remote_size > 0
+        )
+        if record is not None and (
+            record.get('size') != source_stat.st_size
+            or record.get('mtime_ns') != source_stat.st_mtime_ns
+        ):
+            metadata_matches = False
+        if (
+            metadata_matches
+            and isinstance(plan.destination, S3Destination)
+            and (record is not None)
+        ):
+            metadata_matches = _remote_s3_identity(
+                plan.destination, plan.target
+            ) == record.get('relative_path')
+        if metadata_matches:
             return [
                 FileResult(
                     source=plan.project,
@@ -762,6 +813,7 @@ def _materialize_and_upload(
     try:
         artifact = _materialize(plan, source, catalog.path.parent)
         try:
+            artifact_size = artifact.stat().st_size
             uploaded = _upload(plan, artifact)
         finally:
             if plan.rule.encoding.format == 'mp3':
@@ -772,7 +824,7 @@ def _materialize_and_upload(
         )
     stat = source.stat()
     if sync:
-        remote_targets[destination_id].add(plan.target.as_posix())
+        remote_targets[destination_id][plan.target.as_posix()] = artifact_size
     if not uploaded:
         catalog.append(
             {
@@ -782,6 +834,9 @@ def _materialize_and_upload(
                 'mtime_ns': stat.st_mtime_ns,
                 'operation': 'upload',
                 'result': 'unchanged',
+                'artifact_size': artifact_size,
+                'destination': destination_id,
+                'target': plan.target.as_posix(),
             }
         )
         return [
@@ -804,6 +859,7 @@ def _materialize_and_upload(
             'encoding': plan.rule.encoding.model_dump(),
             'destination': _destination_identity(plan.destination),
             'target': plan.target.as_posix(),
+            'artifact_size': artifact_size,
         }
     )
     return [
@@ -885,7 +941,10 @@ def _upload_s3(
         if error.response['Error'].get('Code') not in {'404', 'NoSuchKey', 'NotFound'}:
             raise
     else:
-        if existing.get('Metadata', {}).get('baccy-identity') == identity:
+        if (
+            existing.get('Metadata', {}).get('baccy-identity') == identity
+            and existing.get('ContentLength') == path.stat().st_size
+        ):
             return False
     extra = {'Metadata': {'baccy-identity': identity}}
     arguments = {'ExtraArgs': extra}
@@ -897,6 +956,20 @@ def _upload_s3(
         **arguments,
     )
     return True
+
+
+def _remote_s3_identity(
+    destination: S3Destination, target: PurePosixPath
+) -> str | None:
+    key = '/'.join(part for part in (destination.prefix, target.as_posix()) if part)
+    try:
+        value = s3_client(destination).head_object(Bucket=destination.bucket, Key=key)
+    except ClientError as error:
+        if error.response['Error'].get('Code') in {'404', 'NoSuchKey', 'NotFound'}:
+            return None
+        raise
+    identity = value.get('Metadata', {}).get('baccy-identity')
+    return identity if isinstance(identity, str) else None
 
 
 def _run(command: list[str]) -> None:
@@ -930,30 +1003,47 @@ def _display_destination(destination: Destination) -> str:
     return f'ssh:{destination.url}'
 
 
-def _remote_targets(destination: Destination) -> set[str]:
+def _remote_targets(destination: Destination) -> dict[str, int]:
     if isinstance(destination, SshDestination):
         host, _, base = destination.url.partition(':')
         result = subprocess.run(
-            ['ssh', *_SSH_OPTIONS, host, f'find {shlex.quote(base)} -type f -print'],
+            [
+                'ssh',
+                *_SSH_OPTIONS,
+                host,
+                f"find {shlex.quote(base)} -type f -exec sh -c '"
+                'for path do '
+                'size=$(stat -c %s "$path" 2>/dev/null || stat -f %z "$path") || exit; '
+                'printf "%s\\0%s\\0" "$path" "$size"; '
+                "done' sh {} +",
+            ],
             capture_output=True,
             check=False,
         )
         if result.returncode:
-            return set()
+            raise OSError(result.stderr.decode(errors='replace').strip())
         prefix = f'{base.rstrip("/")}/'
-        return {
-            path.removeprefix(prefix)
-            for path in result.stdout.decode(errors='replace').splitlines()
-            if path.startswith(prefix)
-        }
+        fields = result.stdout.split(b'\0')
+        if fields.pop() != b'' or len(fields) % 2:
+            raise OSError('incomplete SSH remote listing')
+        try:
+            return {
+                path.decode(errors='surrogateescape').removeprefix(prefix): int(size)
+                for path, size in zip(fields[::2], fields[1::2], strict=True)
+                if path.decode(errors='surrogateescape').startswith(prefix)
+            }
+        except ValueError as error:
+            raise OSError('invalid SSH remote listing') from error
     client = s3_client(destination)
     prefix = destination.prefix.rstrip('/')
-    values: set[str] = set()
+    values: dict[str, int] = {}
     paginator = client.get_paginator('list_objects_v2')
     for page in paginator.paginate(Bucket=destination.bucket, Prefix=prefix):
         for value in page.get('Contents', []):
-            if isinstance(key := value.get('Key'), str):
-                values.add(key.removeprefix(f'{prefix}/'))
+            if isinstance(key := value.get('Key'), str) and isinstance(
+                size := value.get('Size'), int
+            ):
+                values[key.removeprefix(f'{prefix}/')] = size
     return values
 
 

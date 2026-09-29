@@ -81,6 +81,14 @@ def run_backup(
             on_write=on_write,
         )
     with BackupLock(settings.backup_root):
+        if (settings.backup_root / 'rename-progress.json').exists():
+            return BackupSummary().with_result(
+                FileResult(
+                    source='rename',
+                    status='failed',
+                    detail='a rename is pending; rerun the original rename command',
+                )
+            )
         return _run_candidates(
             settings,
             resolved,

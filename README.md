@@ -137,8 +137,9 @@ encoded in `/tmp` and deleted after each upload attempt. The permanent source
 backup remains authoritative.
 
 Uploads preserve their session-relative paths. Encoded derivatives change only
-the file extension. Baccy rejects every colliding target before it starts an
-encoder or upload.
+the file extension. Baccy rejects targets that collide among the artifacts
+and landing pages planned in the same pass before it starts an encoder or
+upload.
 
 SSH destinations use the existing non-interactive SSH configuration and keys.
 S3 destinations use boto3 and the host's normal AWS credential chain. Baccy
@@ -216,10 +217,24 @@ uv run baccy sync concert
 uv run baccy sync concert/2026/09
 ```
 
-`sync` lists each configured remote destination once and uploads only target
-names absent from that listing. It assumes files are immutable under their
-target names, so it neither hashes local files nor compares bytes with remote
-objects.
+`sync` lists each configured remote destination once and compares remote file
+sizes with the local source files or recorded artifact sizes when available.
+For S3 objects with a matching catalog record, it also checks the remote
+`baccy-identity` metadata. It does not download or hash remote files. An SSH
+file replaced with different content of the same size can still go undetected;
+derived files without a recorded size can only be checked for nonzero size.
+
+## Rename direct S3 backups
+
+`baccy rename PATTERN REPLACEMENT` previews direct-source audio renames and
+asks for confirmation. Use `--re` for a regular-expression pattern and
+`--dry-run` for a preview without changes. The command copies and verifies all
+new S3 objects before renaming local files and rewriting session journals; it
+deletes the old S3 objects last. Progress is saved in
+`BACKUP_ROOT/rename-progress.json`. If interrupted or failed, rerun the same
+command and arguments to resume. Backups, imports, and syncs will not modify
+the backup root while a rename is pending. Rename events are written as
+timestamped JSON lines in `BACKUP_ROOT/events.jsonl`.
 
 ## Test upload access
 
@@ -248,10 +263,13 @@ watcher calls the same one-pass backup engine as `baccy backup`; it is not a
 second backup implementation.
 
 Every 10 seconds, watch reads the local ARP table for newly visible systems. It
-uses non-interactive SSH with host-key checking disabled. Baccy neither records
-nor verifies host keys, so a host may change its key without interrupting
-discovery, but it must still accept the user's existing SSH certificate before
-it can qualify.
+uses non-interactive SSH and requires the host's verified key to be in the
+user's SSH `known_hosts` file. Unknown or changed keys are rejected. Verify
+each recording machine's host-key fingerprint independently before trusting
+it; an unverified `ssh-keyscan` result alone is not proof of identity. The
+machine must also accept the user's existing SSH credentials. Configured
+`kind = "network"` sources are rejected because they were never resolved; use
+trusted-host automatic discovery instead.
 Each newly seen MAC address gets an immediate SSH attempt in parallel with the
 other newly seen hosts and, for connection failures, one retry after two
 seconds and another after four seconds.

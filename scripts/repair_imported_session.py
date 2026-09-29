@@ -95,44 +95,53 @@ def _repair_records(
     include_unrecorded_audio: bool,
     discard_missing_audio: bool,
 ) -> tuple[list[dict[str, object]], list[RepairRecord]]:
-    starts: dict[tuple[str, str], dict[str, object]] = {}
-    repaired: list[dict[str, object]] = []
+    starts: dict[tuple[str, str], int] = {}
+    repaired: list[dict[str, object] | None] = []
     report: list[RepairRecord] = []
     for record in records:
         record_type = record.get('type')
-        if record_type not in {'file_started', 'file_finished', 'file_discarded'}:
+        if record_type not in {'file_started', 'file_finished'}:
+            repaired.append(record)
+            continue
+        if record.get('media_type') not in {None, 'audio'}:
+            repaired.append(record)
             continue
         stream_id, path = _validate_lifecycle_path(session, record)
         identity = stream_id, path
         if record_type == 'file_started':
             if record.get('media_type') == 'audio':
-                starts[identity] = record
-        elif (
-            record_type == 'file_finished'
-            and (start := starts.get(identity)) is not None
-        ):
-            replacement, item = _resolve_path(session, path, start)
-            report.append(item)
-            source = _source_name(start, stream_id)
-            if replacement is not None and source is not None:
-                repaired.extend(
-                    [
-                        {**start, 'path': replacement, 'source': source},
-                        {**record, 'path': replacement},
-                    ]
-                )
-            elif replacement is None and discard_missing_audio:
-                report[-1] = RepairRecord(path=path, status='discarded')
-            elif replacement is not None:
+                starts[identity] = len(repaired)
+            repaired.append(record)
+            continue
+        if (index := starts.get(identity)) is None:
+            repaired.append(record)
+            continue
+        start = repaired[index]
+        if start is None:
+            repaired.append(record)
+            continue
+        replacement, item = _resolve_path(session, path, start)
+        report.append(item)
+        source = _source_name(start, stream_id)
+        if replacement is not None and source is not None:
+            repaired[index] = {**start, 'path': replacement, 'source': source}
+            repaired.append({**record, 'path': replacement})
+        elif replacement is None and discard_missing_audio:
+            repaired[index] = None
+            report[-1] = RepairRecord(path=path, status='discarded')
+        else:
+            repaired.append(record)
+            if replacement is not None:
                 report[-1] = RepairRecord(
                     path=path,
                     status='deferred',
                     reason='audio source is missing from the evidence record',
                 )
+    complete = [record for record in repaired if record is not None]
     if include_unrecorded_audio:
-        repaired, additions = _add_unrecorded_audio(session, repaired)
+        complete, additions = _add_unrecorded_audio(session, complete)
         report.extend(additions)
-    return repaired, report
+    return complete, report
 
 
 def _source_name(record: dict[str, object], stream_id: str) -> str | None:

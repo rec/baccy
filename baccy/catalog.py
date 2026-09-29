@@ -7,12 +7,15 @@ from pathlib import Path
 class Catalog:
     def __init__(self, root: Path) -> None:
         self.path = root / 'events.jsonl'
-        self._latest, self._deferred = self._load_state()
+        self._latest, self._deferred, self._targets = self._load_state()
 
     def latest(
         self, source: str, relative_path: Path, operation: str = 'backup'
     ) -> dict[str, object] | None:
         return self._latest.get((operation, source, relative_path.as_posix()))
+
+    def latest_target(self, destination: str, target: str) -> dict[str, object] | None:
+        return self._targets.get((destination, target))
 
     def append(self, value: dict[str, object]) -> None:
         event = value | {'recorded_at_ns': time.time_ns()}
@@ -26,6 +29,10 @@ class Catalog:
         if event.get('result') in {'copied', 'uploaded', 'unchanged'}:
             self._latest[key] = event
             self._deferred.discard(key)
+            if isinstance(event.get('destination'), str) and isinstance(
+                event.get('target'), str
+            ):
+                self._targets[(str(event['destination']), str(event['target']))] = event
         elif event.get('result') == 'deferred':
             self._deferred.add(key)
 
@@ -59,11 +66,13 @@ class Catalog:
     ) -> tuple[
         dict[tuple[str, str, str], dict[str, object]],
         set[tuple[str, str, str]],
+        dict[tuple[str, str], dict[str, object]],
     ]:
         if not self.path.exists():
-            return {}, set()
+            return {}, set(), {}
         latest: dict[tuple[str, str, str], dict[str, object]] = {}
         deferred: set[tuple[str, str, str]] = set()
+        targets: dict[tuple[str, str], dict[str, object]] = {}
         with self.path.open() as file:
             for line in file:
                 try:
@@ -80,6 +89,12 @@ class Catalog:
                     if value.get('result') in {'copied', 'uploaded', 'unchanged'}:
                         latest[key] = value
                         deferred.discard(key)
+                        if isinstance(value.get('destination'), str) and isinstance(
+                            value.get('target'), str
+                        ):
+                            targets[
+                                (str(value['destination']), str(value['target']))
+                            ] = value
                     elif value.get('result') == 'deferred':
                         deferred.add(key)
-        return latest, deferred
+        return latest, deferred, targets

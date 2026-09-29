@@ -25,9 +25,7 @@ _SSH_OPTIONS = [
     '-o',
     'ConnectTimeout=1',
     '-o',
-    'StrictHostKeyChecking=no',
-    '-o',
-    'UserKnownHostsFile=/dev/null',
+    'StrictHostKeyChecking=yes',
 ]
 _LIST_RECS_FILES = (
     'cd "$HOME/recs" || exit\n'

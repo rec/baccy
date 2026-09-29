@@ -102,6 +102,36 @@ def test_repair_matches_channels_and_adds_unrecorded_audio(tmp_path: Path) -> No
     ]
 
 
+def test_repair_preserves_unrelated_journal_records(tmp_path: Path) -> None:
+    session = _session(tmp_path)
+    (session / 'audio').mkdir()
+    (session / 'audio' / 'recording.flac').write_bytes(b'flac')
+    evidence = session / 'evidence' / 'session-record-v3.jsonl'
+    evidence.write_text(
+        '{"type":"header","project_name":"totm"}\n'
+        '{"type":"file_started","media_type":"midi","stream_id":"keys",'
+        '"path":"midi/keys.mid"}\n'
+        '{"type":"file_finished","stream_id":"keys",'
+        '"path":"midi/keys.mid"}\n' + evidence.read_text() + '{"type":"footer"}\n'
+    )
+
+    result = _run(session, '--apply')
+
+    assert result.returncode == 0
+    records = [
+        json.loads(line)
+        for line in (session / 'session-record.jsonl').read_text().splitlines()
+    ]
+    assert [record['type'] for record in records] == [
+        'header',
+        'file_started',
+        'file_finished',
+        'file_started',
+        'file_finished',
+        'footer',
+    ]
+
+
 def _session(root: Path) -> Path:
     session = root / 'session'
     (session / 'evidence').mkdir(parents=True)

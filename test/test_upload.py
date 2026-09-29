@@ -387,7 +387,7 @@ def test_sync_uses_remote_names_without_hashing_sources(
     )
     monkeypatch.setattr(
         'baccy.upload._remote_targets',
-        lambda destination: {'concert/2026/09/24/20-00-00/audio.flac'},
+        lambda destination: {'concert/2026/09/24/20-00-00/audio.flac': 5},
     )
     monkeypatch.setattr(
         'baccy.upload._source_hash',
@@ -398,6 +398,16 @@ def test_sync_uses_remote_names_without_hashing_sources(
 
     assert result.unchanged == 1
     assert result.uploaded == 0
+
+    monkeypatch.setattr(
+        'baccy.upload._remote_targets',
+        lambda destination: {'concert/2026/09/24/20-00-00/audio.flac': 3},
+    )
+    monkeypatch.setattr('baccy.upload._upload', lambda plan, path: True)
+
+    mismatched = sync([Path('concert')], settings)
+
+    assert mismatched.uploaded == 1
 
     monkeypatch.setattr(
         'baccy.upload._remote_targets',

@@ -498,7 +498,7 @@ def test_rename_dry_run_does_not_rename(
         session=Path('totm/session'),
         source=Path('totm/session/audio/old.flac'),
         replacement=Path('totm/session/audio/new.flac'),
-        destinations=[],
+        targets=[],
     )
     monkeypatch.setattr(
         'baccy.cli.renamed_files',
