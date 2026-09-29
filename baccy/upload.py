@@ -3,10 +3,12 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
@@ -84,6 +86,7 @@ def publish_sessions(
     on_write: Callable[[FileResult], None] | None = None,
     catalog: Catalog | None = None,
     on_scan: Callable[[int], None] | None = None,
+    verify: bool = False,
 ) -> list[FileResult]:
     if catalog is None:
         catalog = Catalog(settings.backup_root)
@@ -158,6 +161,7 @@ def publish_sessions(
                 sync,
                 remote_targets,
                 on_write,
+                verify,
             )
             results.extend(outcome)
             if any(
@@ -196,7 +200,7 @@ def publish_sessions(
         try:
             results.extend(
                 _materialize_and_upload_landing_page(
-                    plan, catalog, dry_run, sync, remote_targets, on_write
+                    plan, catalog, dry_run, sync, remote_targets, on_write, verify
                 )
             )
         except (
@@ -646,6 +650,7 @@ def _materialize_and_upload_landing_page(
     sync: bool,
     remote_targets: dict[str, dict[str, int]],
     on_write: Callable[[FileResult], None] | None,
+    verify: bool,
 ) -> list[FileResult]:
     if not plan.identity:
         return [_landing_page_result(plan, 'failed', plan.content)]
@@ -656,10 +661,15 @@ def _materialize_and_upload_landing_page(
         if destination_id not in remote_targets:
             remote_targets[destination_id] = _remote_targets(plan.destination)
         remote_size = remote_targets[destination_id].get(plan.target.as_posix())
-        if remote_size == len(plan.content.encode()) and (
+        metadata_matches = remote_size == len(plan.content.encode()) and (
             not isinstance(plan.destination, S3Destination)
             or _remote_s3_identity(plan.destination, plan.target) == plan.identity
-        ):
+        )
+        if metadata_matches and verify:
+            metadata_matches = _remote_hash(plan.destination, plan.target) == (
+                hashlib.sha256(plan.content.encode()).hexdigest()
+            )
+        if metadata_matches:
             return [_landing_page_result(plan, 'unchanged')]
     elif catalog.latest(plan.project, Path(plan.identity), 'landing_page') is not None:
         return [_landing_page_result(plan, 'unchanged')]
@@ -767,6 +777,7 @@ def _materialize_and_upload(
     sync: bool,
     remote_targets: dict[str, dict[str, int]],
     on_write: Callable[[FileResult], None] | None,
+    verify: bool,
 ) -> list[FileResult]:
     source = session_root / plan.segment.path
     if not source.is_file():
@@ -819,6 +830,15 @@ def _materialize_and_upload(
             metadata_matches = _remote_s3_identity(
                 plan.destination, plan.target
             ) == record.get('relative_path')
+        if metadata_matches and verify:
+            artifact = _materialize(plan, source, catalog.path.parent)
+            try:
+                metadata_matches = _source_hash(artifact) == _remote_hash(
+                    plan.destination, plan.target
+                )
+            finally:
+                if plan.rule.encoding.format == 'mp3':
+                    artifact.unlink(missing_ok=True)
         if metadata_matches:
             return [
                 FileResult(
@@ -998,6 +1018,53 @@ def _remote_s3_identity(
         raise
     identity = value.get('Metadata', {}).get('baccy-identity')
     return identity if isinstance(identity, str) else None
+
+
+def _remote_hash(destination: Destination, target: PurePosixPath) -> str | None:
+    if isinstance(destination, SshDestination):
+        host, _, base = destination.url.partition(':')
+        path = shlex.quote(f'{base.rstrip("/")}/{target.as_posix()}')
+        result = subprocess.run(
+            [
+                'ssh',
+                *_SSH_OPTIONS,
+                host,
+                f'sha256sum -- {path} 2>/dev/null || shasum -a 256 -- {path}',
+            ],
+            capture_output=True,
+            check=False,
+            timeout=_COMMAND_TIMEOUT_SECONDS,
+        )
+        if result.returncode:
+            raise OSError(result.stderr.decode(errors='replace').strip())
+        fields = result.stdout.decode(errors='replace').split(maxsplit=1)
+        digest = fields[0] if fields else ''
+        if re.fullmatch(r'[0-9a-fA-F]{64}', digest) is None:
+            raise OSError('invalid SSH SHA-256 result')
+        return digest.lower()
+    key = '/'.join(part for part in (destination.prefix, target.as_posix()) if part)
+    try:
+        response = s3_client(destination).get_object(Bucket=destination.bucket, Key=key)
+    except ClientError as error:
+        if error.response['Error'].get('Code') in {'404', 'NoSuchKey', 'NotFound'}:
+            return None
+        raise
+    digest = hashlib.sha256()
+    body = response['Body']
+    started = time.monotonic()
+    transferred = 0
+    try:
+        for chunk in body.iter_chunks(chunk_size=1_048_576):
+            digest.update(chunk)
+            transferred += len(chunk)
+            if (
+                delay := transferred / destination.max_bandwidth
+                - (time.monotonic() - started)
+            ) > 0:
+                time.sleep(delay)
+    finally:
+        body.close()
+    return digest.hexdigest()
 
 
 def _run(command: list[str]) -> None:

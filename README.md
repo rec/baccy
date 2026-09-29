@@ -214,6 +214,7 @@ below the backup root:
 uv run baccy sync
 uv run baccy sync concert
 uv run baccy sync concert/2026/09
+uv run baccy sync --verify
 ```
 
 `sync` lists each configured remote destination once and compares remote file
@@ -222,6 +223,14 @@ For S3 objects with a matching catalog record, it also checks the remote
 `baccy-identity` metadata. It does not download or hash remote files. An SSH
 file replaced with different content of the same size can still go undetected;
 derived files without a recorded size can only be checked for nonzero size.
+Normal publication trusts the local catalog and can therefore skip a remote file
+that was deleted outside baccy. Run `sync` to repair missing remote files.
+Use `sync --verify` to compare SHA-256 hashes of local artifacts and remote
+content that would otherwise be considered unchanged, including same-size SSH
+replacements. This reads those remote files and may take a long time or incur
+transfer charges. It runs in the foreground,
+including when `--daemon` supplies the configuration; ordinary `sync` still
+schedules a daemon pass and returns promptly.
 
 ## Rename direct S3 backups
 

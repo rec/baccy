@@ -43,9 +43,12 @@ class ImportCommand(BaseModel, frozen=True):
 
 
 class SyncCommand(BaseModel, frozen=True):
+    """Reconcile remote files. --verify hashes remote content and may be slow."""
+
     directories: Annotated[list[Path], tyro.conf.Positional] = Field(
         default_factory=list
     )
+    verify: bool = False
 
 
 class TestCommand(BaseModel, frozen=True):
@@ -237,7 +240,7 @@ def _import(command: ImportCommand, config: Path, dry_run: bool) -> int:
 
 
 def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> int:
-    if daemon and not dry_run:
+    if daemon and not dry_run and not command.verify:
         if command.directories:
             print('--daemon sync does not accept directories', file=sys.stderr)
             return 2
@@ -247,7 +250,7 @@ def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> in
         return 0
     settings = load_or_default(config)
     try:
-        summary = sync(command.directories, settings, dry_run)
+        summary = sync(command.directories, settings, dry_run, command.verify)
     except (BotoCoreError, ClientError, OSError, RuntimeError, ValueError) as error:
         print(error, file=sys.stderr)
         return 1

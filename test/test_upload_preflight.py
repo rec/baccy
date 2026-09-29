@@ -412,6 +412,77 @@ def test_s3_sync_uses_recorded_identity_without_downloading(
     assert client.uploads == 2
 
 
+def test_verified_sync_detects_same_size_remote_change(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / 'audio'
+    session = root / 'project' / 'session'
+    _session(session, 'audio.flac')
+    (session / 'audio.flac').write_bytes(b'audio')
+    settings = _settings(tmp_path)
+    monkeypatch.setattr(
+        'baccy.upload._remote_targets',
+        lambda destination: {'project/session/audio.flac': 5},
+    )
+    uploads: list[Path] = []
+    monkeypatch.setattr(
+        'baccy.upload._upload',
+        lambda plan, path: uploads.append(path) or True,
+    )
+    monkeypatch.setattr(
+        'baccy.upload._remote_hash', lambda destination, target: '0' * 64
+    )
+
+    results = publish_sessions(
+        [_source(root)], settings, dry_run=False, sync=True, verify=True
+    )
+
+    assert [result.status for result in results] == ['uploaded']
+    assert uploads == [session / 'audio.flac']
+
+
+def test_verified_sync_accepts_matching_remote_content(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / 'audio'
+    session = root / 'project' / 'session'
+    _session(session, 'audio.flac')
+    (session / 'audio.flac').write_bytes(b'audio')
+    settings = _settings(tmp_path)
+    monkeypatch.setattr(
+        'baccy.upload._remote_targets',
+        lambda destination: {'project/session/audio.flac': 5},
+    )
+
+    class Body:
+        closed = False
+
+        def iter_chunks(self, chunk_size: int) -> list[bytes]:
+            return [b'aud', b'io']
+
+        def close(self) -> None:
+            self.closed = True
+
+    body = Body()
+
+    class Client:
+        def get_object(self, Bucket: str, Key: str) -> dict[str, object]:
+            assert (Bucket, Key) == ('archive', 'project/session/audio.flac')
+            return {'Body': body}
+
+    monkeypatch.setattr('baccy.upload.s3_client', lambda destination: Client())
+    monkeypatch.setattr(
+        'baccy.upload._upload', lambda plan, path: pytest.fail('must not upload')
+    )
+
+    results = publish_sessions(
+        [_source(root)], settings, dry_run=False, sync=True, verify=True
+    )
+
+    assert [result.status for result in results] == ['unchanged']
+    assert body.closed
+
+
 def _session(path: Path, audio_name: str) -> None:
     path.mkdir(parents=True)
     records = [
