@@ -841,7 +841,7 @@ def test_global_dry_run_reaches_sync(
     received: list[bool] = []
     monkeypatch.setattr(
         'baccy.cli.sync',
-        lambda directories, settings, dry_run: (
+        lambda directories, settings, dry_run, verify: (
             received.append(dry_run) or BackupSummary()
         ),
     )
@@ -850,3 +850,21 @@ def test_global_dry_run_reaches_sync(
 
     assert received == [True]
     assert capsys.readouterr().out == '(no files)\n'
+
+
+def test_verified_sync_runs_foreground_with_daemon_configuration(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    config = tmp_path / 'baccy.toml'
+    config.write_text(f'backup_root = "{tmp_path / "backup"}"\n')
+    received: list[bool] = []
+    monkeypatch.setattr('baccy.cli._daemon_config', lambda: config)
+    monkeypatch.setattr(
+        'baccy.cli.sync',
+        lambda directories, settings, dry_run, verify: (
+            received.append(verify) or BackupSummary()
+        ),
+    )
+
+    assert main(['sync', '--verify']) == 0
+    assert received == [True]
