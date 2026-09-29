@@ -83,3 +83,27 @@ def test_watch_stops_promptly_while_waiting_for_trigger(tmp_path: Path) -> None:
     )
 
     assert time.monotonic() - started < 1
+
+
+def test_watch_reports_transient_failure_and_runs_another_pass(tmp_path: Path) -> None:
+    stop = threading.Event()
+    summaries: list[BackupSummary] = []
+    attempts = 0
+
+    def action(value: Settings) -> BackupSummary:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise OSError('network unavailable')
+        stop.set()
+        return BackupSummary()
+
+    watch(
+        Settings(backup_root=tmp_path, poll_seconds=0.01),
+        stop=stop,
+        action=action,
+        report=summaries.append,
+    )
+
+    assert attempts == 2
+    assert summaries[0].results[0].detail == 'network unavailable'

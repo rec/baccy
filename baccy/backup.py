@@ -114,6 +114,14 @@ def _run_candidates(
         summary = summary.with_result(
             FileResult(source=source.name, status='unavailable')
         )
+    for source in getattr(network, 'unavailable_sources', []):
+        summary = summary.with_result(
+            FileResult(
+                source=source.name,
+                status='unavailable',
+                detail='network host disappeared',
+            )
+        )
     candidates = [
         candidate.model_copy(update={'project': _project_name(candidate)})
         for source in resolved
