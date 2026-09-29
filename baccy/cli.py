@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import UTC, datetime
@@ -10,6 +11,7 @@ from typing import Annotated
 
 import tomlkit
 import tyro
+from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import BaseModel, Field
 from reccy.protocol import rpc
 
@@ -162,7 +164,11 @@ def main(argv: list[str] | None = None) -> int:
 
 def _backup(command: BackupCommand, config: Path, dry_run: bool) -> int:
     settings = load_or_default(config)
-    summary = run_backup(settings, dry_run=dry_run)
+    try:
+        summary = run_backup(settings, dry_run=dry_run)
+    except (OSError, RuntimeError, ValueError) as error:
+        print(error, file=sys.stderr)
+        return 1
     _print_summary(summary, settings.verbose)
     return _summary_exit_code(summary)
 
@@ -223,7 +229,7 @@ def _import(command: ImportCommand, config: Path, dry_run: bool) -> int:
             command.project,
             dry_run,
         )
-    except (RuntimeError, ValueError) as error:
+    except (OSError, RuntimeError, ValueError) as error:
         print(error, file=sys.stderr)
         return 1
     _print_summary(summary, settings.verbose)
@@ -242,7 +248,7 @@ def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> in
     settings = load_or_default(config)
     try:
         summary = sync(command.directories, settings, dry_run)
-    except (RuntimeError, ValueError) as error:
+    except (BotoCoreError, ClientError, OSError, RuntimeError, ValueError) as error:
         print(error, file=sys.stderr)
         return 1
     _print_summary(summary, settings.verbose)
@@ -265,7 +271,12 @@ def _list(command: ListCommand, config: Path, dry_run: bool) -> int:
     if dry_run:
         print('--dry-run is not supported for list', file=sys.stderr)
         return 2
-    print('\n'.join(list_uploaded(load_or_default(config))))
+    try:
+        rows = list_uploaded(load_or_default(config))
+    except (BotoCoreError, ClientError, OSError, subprocess.SubprocessError) as error:
+        print(f'could not list uploads: {error}', file=sys.stderr)
+        return 1
+    print('\n'.join(rows))
     return 0
 
 

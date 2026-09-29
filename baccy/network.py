@@ -27,6 +27,7 @@ _SSH_OPTIONS = [
     '-o',
     'StrictHostKeyChecking=yes',
 ]
+_COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 _LIST_RECS_FILES = (
     'cd "$HOME/recs" || exit\n'
     "find . -type f -exec sh -c '\n"
@@ -387,7 +388,15 @@ def _ssh(
         kwargs['capture_output'] = True
     else:
         kwargs['stderr'] = subprocess.PIPE
-    return run(['ssh', *_SSH_OPTIONS, host, command], check=False, **kwargs)
+    try:
+        return run(
+            ['ssh', *_SSH_OPTIONS, host, command],
+            check=False,
+            timeout=_COMMAND_TIMEOUT_SECONDS,
+            **kwargs,
+        )
+    except subprocess.TimeoutExpired as error:
+        raise OSError(f'SSH command timed out: {host}') from error
 
 
 def _result(candidate: Candidate, status: str, detail: str | None = None) -> FileResult:

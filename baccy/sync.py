@@ -30,10 +30,7 @@ def sync(
                 sync=True,
                 directories=selected or None,
             )
-    summary = BackupSummary()
-    for result in results:
-        summary = summary.with_result(result)
-    return summary
+    return BackupSummary.from_results(results)
 
 
 def _directory(root: Path, value: Path) -> Path:

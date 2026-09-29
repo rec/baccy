@@ -228,6 +228,39 @@ def test_upload_reports_failed_catalog_write_after_remote_success(
     )
 
 
+def test_encoder_timeout_is_reported_per_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / 'audio'
+    session = root / 'project' / 'session'
+    _session(session, 'audio.flac')
+    (session / 'audio.flac').write_bytes(b'audio')
+    settings = Settings.model_validate(
+        {
+            'backup_root': tmp_path / 'backup',
+            'uploads': [
+                {
+                    'name': 'mp3',
+                    'match': 'True',
+                    'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
+                    'destination': 'ssh:host:/srv/audio',
+                }
+            ],
+        }
+    )
+
+    def timeout(command: list[str], **kwargs: object) -> None:
+        assert kwargs['timeout'] == 4 * 60 * 60
+        raise subprocess.TimeoutExpired(command, kwargs['timeout'])
+
+    monkeypatch.setattr('baccy.upload.subprocess.run', timeout)
+
+    results = publish_sessions([_source(root)], settings, dry_run=False)
+
+    assert [result.status for result in results] == ['failed']
+    assert 'timed out' in str(results[0].detail)
+
+
 def test_failed_remote_listing_does_not_block_another_destination(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

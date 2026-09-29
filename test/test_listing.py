@@ -4,10 +4,18 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+from botocore.exceptions import ClientError
 from pytest import MonkeyPatch
 
-from baccy.listing import _ssh_files, list_uploaded
-from baccy.models import Encoding, FileResult, Settings, SshDestination, UploadRule
+from baccy.listing import _s3_files, _ssh_files, list_uploaded
+from baccy.models import (
+    Encoding,
+    FileResult,
+    S3Destination,
+    Settings,
+    SshDestination,
+    UploadRule,
+)
 
 
 def test_list_uploaded_lists_existing_planned_uploads(
@@ -140,3 +148,40 @@ def test_ssh_listing_ignores_a_banner(monkeypatch: MonkeyPatch) -> None:
         [Path('totm/a.flac')],
     ) == {'totm/a.flac': (datetime.fromtimestamp(1790406008).astimezone(), 55574528)}
     assert "stat -f '%m %z'" in commands[0][-1]
+
+
+def test_ssh_listing_batches_large_target_sets(monkeypatch: MonkeyPatch) -> None:
+    commands: list[list[str]] = []
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        return subprocess.CompletedProcess(command, 0, stdout='')
+
+    monkeypatch.setattr('baccy.listing.subprocess.run', run)
+    targets = [Path(f'project/{index}.flac') for index in range(33)]
+
+    assert _ssh_files(SshDestination(kind='ssh', url='host:/srv'), targets) == {}
+    assert len(commands) == 3
+
+
+def test_s3_listing_checks_only_planned_keys(monkeypatch: MonkeyPatch) -> None:
+    requested: list[str] = []
+    modified = datetime(2026, 9, 26, tzinfo=ZoneInfo('Europe/Paris'))
+
+    class Client:
+        def head_object(self, Bucket: str, Key: str) -> dict[str, object]:
+            requested.append(Key)
+            if Key == 'prefix/project/missing.flac':
+                raise ClientError({'Error': {'Code': '404'}}, 'HeadObject')
+            return {'LastModified': modified, 'ContentLength': 5}
+
+    monkeypatch.setattr('baccy.listing.s3_client', lambda destination: Client())
+
+    assert _s3_files(
+        S3Destination(kind='s3', bucket='archive', prefix='prefix'),
+        [Path('project/audio.flac'), Path('project/missing.flac')],
+    ) == {'project/audio.flac': (modified, 5)}
+    assert sorted(requested) == [
+        'prefix/project/audio.flac',
+        'prefix/project/missing.flac',
+    ]
