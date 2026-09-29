@@ -316,6 +316,9 @@ uv run baccy --config /path/to/baccy.toml service install
 uv run baccy service status
 ```
 
+`baccy install` is shorthand for `baccy service install` and accepts the same
+flags, including `--no-sync`.
+
 Installation waits for the daemon to start, then schedules a sync. Pass
 `--no-sync` to install without scheduling that initial sync.
 
