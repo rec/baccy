@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from .backup import BackupLock
 from .models import BackupSummary, PathSource, ResolvedSource, Settings
 from .upload import publish_sessions
 
@@ -12,9 +13,23 @@ def sync(
     source = ResolvedSource(
         source=PathSource(kind='path', name='backup', path=root), root=root
     )
-    results = publish_sessions(
-        [source], settings, dry_run, sync=True, directories=selected or None
-    )
+    if dry_run:
+        results = publish_sessions(
+            [source], settings, dry_run=True, sync=True, directories=selected or None
+        )
+    else:
+        with BackupLock(settings.backup_root):
+            if (settings.backup_root / 'rename-progress.json').exists():
+                raise ValueError(
+                    'a rename is pending; rerun the original rename command'
+                )
+            results = publish_sessions(
+                [source],
+                settings,
+                dry_run=False,
+                sync=True,
+                directories=selected or None,
+            )
     summary = BackupSummary()
     for result in results:
         summary = summary.with_result(result)

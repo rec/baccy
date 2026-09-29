@@ -187,6 +187,11 @@ class Settings(BaseModel, frozen=True):
 
     @model_validator(mode='after')
     def validate_source_names(self) -> Settings:
+        if any(isinstance(source, NetworkSource) for source in self.sources):
+            raise ValueError(
+                'configured network sources are not supported; '
+                'trust SSH hosts in known_hosts for automatic discovery'
+            )
         names = [s.name for s in self.sources]
         if len(names) != len(set(names)):
             raise ValueError('source names must be unique')

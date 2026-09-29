@@ -7,6 +7,18 @@ was run. A scenario marked **risk** follows from the code but has not been
 reproduced against a live service. This is an issue inventory, not a migration
 plan.
 
+## Status after the first repair batch
+
+P0 items 1–7 are addressed. The agreed policies are implemented: renames have
+durable progress and fail-stop recovery; sync compares available size metadata
+and S3 identity where a catalog record exists; automatic SSH source discovery
+requires a trusted host key; and one failed session or destination no longer
+blocks independent uploads. P1 items 9, 11, and 14 are also addressed. P2 item
+27 remains partly open because metadata-only verification cannot detect every
+same-size replacement, particularly on SSH or when no prior catalog record is
+available. The remaining P1 and P2 findings below are not claimed as fixed.
+These statuses reflect code and unit tests, not a live transfer.
+
 ## P0: possible data loss or silent incorrect results
 
 1. **`rename` uses the local path as the S3 key.**

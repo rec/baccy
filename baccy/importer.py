@@ -19,6 +19,8 @@ def import_recs(
         return _preview_import(directories, settings, project)
     imported: list[FileResult] = []
     with BackupLock(settings.backup_root):
+        if (settings.backup_root / 'rename-progress.json').exists():
+            raise ValueError('a rename is pending; rerun the original rename command')
         catalog = Catalog(settings.backup_root)
         for directory in directories:
             for session in _sessions(directory):
