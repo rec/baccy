@@ -109,6 +109,57 @@ def test_install_service_release_builds_isolated_wheels(
     assert '--no-sources' in commands[-1]
 
 
+def test_failed_replacement_restores_previous_service(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    application = Application(home=tmp_path, platform=models.Platform.macos)
+    old_executable = tmp_path / 'old' / 'venv' / 'bin' / 'python'
+    new_executable = tmp_path / 'new' / 'venv' / 'bin' / 'python'
+    previous = application.service_metadata(
+        ['--config', 'old.toml', 'watch'], old_executable
+    )
+    application.paths.metadata.parent.mkdir(parents=True)
+    application.paths.metadata.write_text(previous.model_dump_json())
+    calls: list[str] = []
+
+    class Controller:
+        def status(self) -> models.StatusResult:
+            return models.StatusResult(installed=True, running=True)
+
+        def stop(self) -> None:
+            calls.append('stop')
+
+        def install(self, metadata: models.DaemonMetadata) -> None:
+            calls.append(str(metadata.executable))
+
+    monkeypatch.setattr(
+        'baccy.application._install_service_release', lambda home: new_executable
+    )
+    monkeypatch.setattr(Application, 'service_controller', lambda self: Controller())
+
+    application.install_service(['--config', 'new.toml', 'watch'])
+    application.rollback_service()
+
+    assert calls == ['stop', str(new_executable), 'stop', str(old_executable)]
+
+
+def test_release_pruning_retains_current_and_previous(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    application = Application(home=tmp_path, platform=models.Platform.macos)
+    root = tmp_path / 'Library' / 'Application Support' / 'baccy' / 'releases'
+    for name in ('1', '2', '3', 'manual'):
+        (root / name).mkdir(parents=True)
+    application._installed_executable = root / '3' / 'venv' / 'bin' / 'python'
+    application._previous_service = application.service_metadata(
+        ['watch'], root / '2' / 'venv' / 'bin' / 'python'
+    )
+
+    application.prune_releases()
+
+    assert sorted(path.name for path in root.iterdir()) == ['2', '3', 'manual']
+
+
 def test_application_persists_last_backup_summary(tmp_path: Path) -> None:
     application = Application(home=tmp_path, platform=models.Platform.macos)
     application.start()

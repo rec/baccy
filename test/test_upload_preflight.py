@@ -73,6 +73,26 @@ def test_upload_reports_every_missing_source_before_contacting_destinations(
     assert [result.status for result in results] == ['failed', 'failed']
 
 
+def test_unchanged_publication_reuses_recorded_source_hash(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / 'audio'
+    session = root / 'project' / 'session'
+    _session(session, 'audio.flac')
+    (session / 'audio.flac').write_bytes(b'audio')
+    monkeypatch.setattr('baccy.upload._upload', lambda plan, path: True)
+    settings = _settings(tmp_path)
+    source = _source(root)
+
+    assert publish_sessions([source], settings, dry_run=False)[0].status == 'uploaded'
+    monkeypatch.setattr(
+        'baccy.upload._source_hash',
+        lambda path: pytest.fail('unchanged source should not be rehashed'),
+    )
+
+    assert publish_sessions([source], settings, dry_run=False)[0].status == 'unchanged'
+
+
 def test_missing_source_does_not_block_another_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

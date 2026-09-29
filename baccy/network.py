@@ -75,9 +75,11 @@ class NetworkDiscovery:
         self.new_machines: list[NetworkMachine] = []
         self.sources: dict[str, NetworkRecsSource] = {}
         self.unavailable_sources: list[NetworkRecsSource] = []
+        self.probe_failures: list[tuple[NetworkMachine, str]] = []
 
     def discover(self) -> list[NetworkRecsSource]:
         self.new_machines = []
+        self.probe_failures = []
         active: list[NetworkRecsSource] = []
         pending: list[tuple[str, str]] = []
         nodes = _network_nodes(self.run)
@@ -122,6 +124,9 @@ class NetworkDiscovery:
                         self._log('network host %s (%s) has recs', host, mac)
                     elif _is_authentication_failure(result):
                         detail = result.stderr.decode(errors='replace').strip()
+                        self.probe_failures.append(
+                            (NetworkMachine(mac=mac, host=host), detail)
+                        )
                         self._log(
                             'network SSH authentication rejected for %s (%s): %s',
                             host,
@@ -130,6 +135,9 @@ class NetworkDiscovery:
                         )
                     elif result.returncode == 255:
                         detail = result.stderr.decode(errors='replace').strip()
+                        self.probe_failures.append(
+                            (NetworkMachine(mac=mac, host=host), detail)
+                        )
                         self._log(
                             'network SSH failed for %s (%s): %s', host, mac, detail
                         )
