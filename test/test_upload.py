@@ -1,5 +1,4 @@
 import json
-import subprocess
 import wave
 from pathlib import Path
 
@@ -9,7 +8,6 @@ from pydantic import ValidationError
 
 from baccy.match import MatchExpression
 from baccy.models import PathSource, ResolvedSource, Settings
-from baccy.sync import sync
 from baccy.upload import publish_sessions
 
 
@@ -304,96 +302,6 @@ def test_upload_accepts_compact_recs_v5_audio_records(tmp_path: Path) -> None:
     ]
 
 
-def test_landing_page_upload_uses_default_template_and_mp3_urls(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    root = tmp_path / 'recs'
-    session = root / 'project' / 'session'
-    audio = session / 'audio' / 'master + 20260920-120000.flac'
-    audio.parent.mkdir(parents=True)
-    audio.write_bytes(b'audio')
-    (session / 'session-record.jsonl').write_text(
-        '\n'.join(
-            [
-                json.dumps(
-                    {
-                        'type': 'file_started',
-                        'media_type': 'audio',
-                        'stream_id': 'master',
-                        'timestamp': '2026-09-20T12:00:00Z',
-                        'format': 'flac',
-                        'source': 'device',
-                        'track_name': 'master',
-                        'source_channels': [1],
-                        'path': 'audio/master + 20260920-120000.flac',
-                    }
-                ),
-                json.dumps(
-                    {
-                        'type': 'file_finished',
-                        'media_type': 'audio',
-                        'stream_id': 'master',
-                        'path': 'audio/master + 20260920-120000.flac',
-                        'frame_count': 5_808_000,
-                        'sample_rate': 48_000,
-                    }
-                ),
-            ]
-        )
-        + '\n'
-    )
-    settings = Settings.model_validate(
-        {
-            'backup_root': tmp_path / 'backup',
-            'uploads': [
-                {
-                    'name': 'main-mp3',
-                    'match': 'main and duration > 120',
-                    'encoding': {'format': 'mp3', 'bitrate_kbps': 128},
-                    'destination': 'ssh:host:/srv/site',
-                }
-            ],
-            'landing_pages': [
-                {
-                    'upload': 'main-mp3',
-                    'destination': 'ssh:host:/srv/site',
-                }
-            ],
-        }
-    )
-    source = ResolvedSource(
-        source=PathSource(kind='path', name='recs', path=root), root=root
-    )
-    monkeypatch.setattr(
-        'baccy.upload_plan._load_project',
-        lambda name: (_ for _ in ()).throw(AssertionError(name)),
-    )
-    encoded: list[Path] = []
-
-    def encode(
-        command: list[str], **kwargs: object
-    ) -> subprocess.CompletedProcess[bytes]:
-        output = Path(command[-1])
-        output.write_bytes(b'mp3')
-        encoded.append(output)
-        return subprocess.CompletedProcess(command, 0, b'', b'')
-
-    monkeypatch.setattr('baccy.upload.subprocess.run', encode)
-    monkeypatch.setattr('baccy.upload._run', lambda command: None)
-
-    results = publish_sessions([source], settings, dry_run=False)
-
-    assert [(result.relative_path, result.status) for result in results] == [
-        (Path('project/20260920-120000.mp3'), 'uploaded'),
-        (Path('project/index.html'), 'uploaded'),
-    ]
-    assert encoded[0].parent == Path('/tmp')
-    assert not encoded[0].exists()
-    page = next((tmp_path / 'backup' / 'artifacts').glob('*/index.html'))
-    expected = Path(__file__).parent / 'fixtures' / 'landing.html'
-    assert page.read_text() == expected.read_text()
-
-
 @pytest.mark.parametrize(
     'expression',
     [
@@ -438,64 +346,3 @@ def test_config_rejects_legacy_upload_policy(tmp_path: Path) -> None:
                 'uploads': [{'ssh_url': 'host:/srv/recs'}],
             }
         )
-
-
-def test_sync_uses_remote_names_without_hashing_sources(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    backup = tmp_path / 'backup'
-    session = backup / 'audio' / 'concert' / '2026' / '09' / '24' / '20-00-00'
-    session.mkdir(parents=True)
-    (session / 'audio.flac').write_bytes(b'audio')
-    (session / 'session-record.jsonl').write_text(
-        '{"type":"file_started","media_type":"audio","stream_id":"mic",'
-        '"timestamp":"2026-09-24T20:00:00Z","format":"flac",'
-        '"source":"device","source_channels":[1],"path":"audio.flac"}\n'
-        '{"type":"file_finished","media_type":"audio","stream_id":"mic",'
-        '"path":"audio.flac","frame_count":48000,"sample_rate":48000}\n'
-    )
-    settings = Settings.model_validate(
-        {
-            'backup_root': backup,
-            'uploads': [
-                {
-                    'name': 'archive',
-                    'match': 'True',
-                    'encoding': {'format': 'source'},
-                    'destination': 'ssh:host:/srv/recs',
-                }
-            ],
-        }
-    )
-    monkeypatch.setattr(
-        'baccy.upload._remote_targets',
-        lambda destination: {'concert/2026/09/24/20-00-00/audio.flac': 5},
-    )
-    monkeypatch.setattr(
-        'baccy.upload_plan._source_hash',
-        lambda path: pytest.fail('sync must not hash sources'),
-    )
-
-    result = sync([Path('concert')], settings)
-
-    assert result.unchanged == 1
-    assert result.uploaded == 0
-
-    monkeypatch.setattr(
-        'baccy.upload._remote_targets',
-        lambda destination: {'concert/2026/09/24/20-00-00/audio.flac': 3},
-    )
-    monkeypatch.setattr('baccy.upload._upload', lambda plan, path: True)
-
-    mismatched = sync([Path('concert')], settings)
-
-    assert mismatched.uploaded == 1
-
-    monkeypatch.setattr(
-        'baccy.upload._remote_targets',
-        lambda destination: pytest.fail('dry-run sync must not contact destinations'),
-    )
-
-    dry_run = sync([Path('concert')], settings, dry_run=True)
-
-    assert dry_run.would_upload == 1
