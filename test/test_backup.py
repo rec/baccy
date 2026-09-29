@@ -118,6 +118,26 @@ def test_disk_full_stops_publication(
     assert result.failed == 1
 
 
+@pytest.mark.parametrize('name', ['audio.wav', 'session-record.jsonl'])
+def test_interrupted_copy_removes_temporary_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    source = tmp_path / 'source'
+    source.mkdir()
+    (source / name).write_bytes(b'audio\n')
+
+    def interrupt(*args: object, **kwargs: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr('baccy.copy._write_stream', interrupt)
+    backup = tmp_path / 'backup'
+
+    with pytest.raises(KeyboardInterrupt):
+        run_backup(_settings(source, backup))
+
+    assert not list(backup.rglob('.baccy-*.tmp'))
+
+
 def test_backup_records_one_deferred_event_per_deferral_cycle(tmp_path: Path) -> None:
     source = tmp_path / 'source'
     source.mkdir()
