@@ -11,20 +11,6 @@ Original issue numbers are retained for cross-reference.
 
 ## P2: user-facing semantics, maintainability, and tests
 
-35. **The implementation has a few concentrated and repeated areas.**
-    `baccy/upload.py` is 1,090 lines and handles journal interpretation, rule
-    planning, HTML, transcoding, SSH, S3, and remote inventory. `baccy/cli.py`
-    is 538 lines and handles parsing, service control, reporting, and daemon
-    logging. These are the clearest split candidates when touched next. The
-    identical SSH options and subprocess handling in `upload.py`,
-    `listing.py`, and `server_test.py`, and separate failure-result builders in
-    `copy.py` and `network.py`, are modest duplication. The tiny modules
-    (`s3.py`, `sync.py`, `recs.py`, `notifications.py`) have cohesive ownership
-    and do not merit inlining merely because they are short. `reccy` already
-    owns service lifecycle, status, and RPC; baccy's release building,
-    backup loop, and notifications are application policy, not a second
-    implementation of those services.
-
 36. **Failure-mode tests are sparse relative to the failure surface.**
     `test/test_rename.py` lacks injected delete and local rename failures.
     Watch tests now cover a pending trigger, a transient exception, and prompt

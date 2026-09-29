@@ -13,7 +13,7 @@ from reccy.paths import legal_url_path
 from .backup import BackupLock
 from .models import S3Destination, Settings
 from .s3 import s3_client, s3_endpoint_url, s3_transfer_config
-from .upload import planned_source_uploads
+from .upload_plan import planned_source_uploads
 
 
 class RemoteRename(BaseModel, frozen=True):

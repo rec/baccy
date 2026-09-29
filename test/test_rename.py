@@ -9,7 +9,7 @@ from baccy import rename
 from baccy.models import Encoding, S3Destination, Settings, UploadRule
 from baccy.rename import RemoteRename, RenameFile, _log, rename_files, renamed_files
 from baccy.sync import sync
-from baccy.upload import ArtifactPlan, Segment
+from baccy.upload_plan import ArtifactPlan, Segment
 
 
 def test_rename_lists_only_direct_s3_uploads(monkeypatch: MonkeyPatch) -> None:

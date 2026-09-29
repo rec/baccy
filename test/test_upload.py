@@ -283,7 +283,7 @@ def test_landing_page_upload_uses_default_template_and_mp3_urls(
         source=PathSource(kind='path', name='recs', path=root), root=root
     )
     monkeypatch.setattr(
-        'baccy.upload._load_project',
+        'baccy.upload_plan._load_project',
         lambda name: (_ for _ in ()).throw(AssertionError(name)),
     )
     encoded: list[Path] = []
@@ -390,7 +390,7 @@ def test_sync_uses_remote_names_without_hashing_sources(
         lambda destination: {'concert/2026/09/24/20-00-00/audio.flac': 5},
     )
     monkeypatch.setattr(
-        'baccy.upload._source_hash',
+        'baccy.upload_plan._source_hash',
         lambda path: pytest.fail('sync must not hash sources'),
     )
 

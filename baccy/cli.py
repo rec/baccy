@@ -4,16 +4,13 @@ import os
 import re
 import subprocess
 import sys
-import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Annotated
 
-import tomlkit
 import tyro
 from botocore.exceptions import BotoCoreError, ClientError
 from pydantic import BaseModel, Field
-from reccy.protocol import rpc
 
 from .application import Application, DaemonApplication
 from .backup import run_backup
@@ -24,6 +21,7 @@ from .models import BackupSummary, FileResult, Settings
 from .network import NetworkDiscovery
 from .rename import rename_files, renamed_files
 from .server_test import test_destinations
+from .service_cli import request_daemon_sync, service
 from .sync import sync
 from .watch import watch
 
@@ -65,16 +63,6 @@ class RenameCommand(BaseModel, frozen=True):
     regular_expression: Annotated[bool, tyro.conf.arg(name='re')] = False
     quiet: bool = False
     yes: bool = False
-
-
-class InstallCommand(BaseModel, frozen=True):
-    """Install the per-user baccy LaunchAgent."""
-
-    sync: bool = True
-
-
-class ServiceCommand(BaseModel, frozen=True):
-    """Manage the per-user baccy LaunchAgent."""
 
 
 class SummaryReporter:
@@ -159,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
         value = tyro.cli(RenameCommand, args=rest, prog='baccy rename')
         return _rename(value, config, dry_run)
     if command == 'service':
-        return _service(rest, config, dry_run)
+        return service(rest, config, dry_run)
     print(f'unknown command: {command}', file=sys.stderr)
     print(_usage(), file=sys.stderr)
     return 2
@@ -244,7 +232,7 @@ def _sync(command: SyncCommand, config: Path, dry_run: bool, daemon: bool) -> in
         if command.directories:
             print('--daemon sync does not accept directories', file=sys.stderr)
             return 2
-        if error := _request_daemon_sync(Application().control_endpoint):
+        if error := request_daemon_sync(Application().control_endpoint):
             print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
             return 1
         return 0
@@ -330,88 +318,6 @@ def _rename(command: RenameCommand, config: Path, dry_run: bool) -> int:
     return 0
 
 
-def _service(arguments: list[str], config: Path, dry_run: bool) -> int:
-    if not arguments or arguments[0] in {'-h', '--help'}:
-        print(_service_usage())
-        return 0
-    command, rest = arguments[0], arguments[1:]
-    if command not in {'install', 'uninstall', 'start', 'stop', 'restart', 'status'}:
-        print(f'unknown service command: {command}', file=sys.stderr)
-        print(_service_usage(), file=sys.stderr)
-        return 2
-    if dry_run:
-        print(tomlkit.dumps({'command': command, 'dry_run': True}), end='')
-        return 0
-    application = Application()
-    if command == 'install':
-        install = tyro.cli(InstallCommand, args=rest, prog='baccy service install')
-        try:
-            result = application.install_service(['--config', str(config), 'watch'])
-        except (OSError, ValueError, subprocess.SubprocessError) as error:
-            print(f'baccy service installation failed: {error}', file=sys.stderr)
-            return 1
-        if error := _wait_for_daemon(application):
-            if hasattr(application, 'rollback_service'):
-                try:
-                    application.rollback_service()
-                except (OSError, ValueError, subprocess.SubprocessError) as rollback:
-                    print(
-                        f'baccy daemon failed to start: {error}; '
-                        f'rollback failed: {rollback}',
-                        file=sys.stderr,
-                    )
-                    return 1
-                if getattr(application, 'installed_executable', None) is not None:
-                    if rollback_error := _wait_for_daemon(application):
-                        print(
-                            f'baccy daemon failed to start: {error}; '
-                            f'previous daemon did not restart: {rollback_error}',
-                            file=sys.stderr,
-                        )
-                        return 1
-            print(f'baccy daemon failed to start: {error}', file=sys.stderr)
-            return 1
-        if hasattr(application, 'prune_releases'):
-            try:
-                application.prune_releases()
-            except OSError as error:
-                print(f'baccy release cleanup failed: {error}', file=sys.stderr)
-        if result is None:
-            result = application.service_status()
-        if install.sync and (
-            error := _request_daemon_sync(application.control_endpoint, attempts=1)
-        ):
-            print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
-            return 1
-    elif command == 'uninstall':
-        _parse_service_command(rest, command)
-        result = application.uninstall_service()
-    elif command == 'start':
-        _parse_service_command(rest, command)
-        result = application.start_service()
-    elif command == 'stop':
-        _parse_service_command(rest, command)
-        result = application.stop_service()
-    elif command == 'restart':
-        _parse_service_command(rest, command)
-        result = application.restart_service()
-    elif command == 'status':
-        _parse_service_command(rest, command)
-        result = application.service_status()
-    else:
-        print(f'unknown service command: {command}', file=sys.stderr)
-        print(_service_usage(), file=sys.stderr)
-        return 2
-    if result is None:
-        result = application.service_status()
-    sys.stdout.write(tomlkit.dumps(result.model_dump(mode='json', exclude_none=True)))
-    return 0
-
-
-def _parse_service_command(arguments: list[str], command: str) -> None:
-    tyro.cli(ServiceCommand, args=arguments, prog=f'baccy service {command}')
-
-
 def _dry_run(arguments: list[str]) -> tuple[bool, list[str]]:
     flags = {'-d', '--dry-run'}
     return any(argument in flags for argument in arguments), [
@@ -462,50 +368,6 @@ def _daemon_config() -> Path:
         if value.startswith('--config='):
             return Path(value.removeprefix('--config='))
     raise ValueError(f'baccy daemon configuration is missing: {path}')
-
-
-def _wait_for_daemon(application: Application) -> str | None:
-    error = 'daemon control socket did not appear'
-    for attempt in range(50):
-        try:
-            status = rpc.Client(application.control_endpoint, role='baccy-cli').call(
-                'status'
-            )
-        except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as value:
-            error = str(value)
-            service = application.service_status()
-            if service.running is False:
-                return service.details or error
-            if attempt < 49:
-                time.sleep(0.1)
-            continue
-        if isinstance(status, dict) and status.get('running') is True:
-            expected = getattr(application, 'installed_executable', None)
-            if expected is not None and status.get('executable') != str(expected):
-                error = 'daemon is running an older release'
-                if attempt < 49:
-                    time.sleep(0.1)
-                    continue
-                return error
-            return None
-        return 'daemon reported that it is not running'
-    return error
-
-
-def _request_daemon_sync(endpoint: Path | str, attempts: int = 20) -> str | None:
-    error = 'daemon control socket did not appear'
-    for attempt in range(attempts):
-        try:
-            rpc.Client(endpoint, role='baccy-cli').call('sync')
-            return None
-        except FileNotFoundError as value:
-            error = str(value)
-            if attempt == attempts - 1:
-                return error
-            time.sleep(0.1)
-        except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as value:
-            return str(value)
-    return error
 
 
 def _print_summary(summary: BackupSummary, verbose: bool = False) -> None:
@@ -579,7 +441,3 @@ def _usage() -> str:
         'Usage: baccy [--config PATH|--daemon] [--dry-run|-d] '
         '{backup,watch,import,sync,test,list,rename,service} ...'
     )
-
-
-def _service_usage() -> str:
-    return 'Usage: baccy service {install,uninstall,start,stop,restart,status}'

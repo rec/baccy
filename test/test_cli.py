@@ -118,7 +118,7 @@ def test_daemon_sync_requests_daemon(
             calls.append((endpoint, 'baccy-cli', command))
             return {'scheduled': True}
 
-    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+    monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
     assert main(['--daemon', 'sync']) == 0
     assert capsys.readouterr().out == ''
@@ -169,8 +169,8 @@ def test_daemon_sync_waits_for_newly_installed_daemon(
                 raise FileNotFoundError()
             return {'scheduled': True}
 
-    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
-    monkeypatch.setattr('baccy.cli.time.sleep', sleeps.append)
+    monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
+    monkeypatch.setattr('baccy.service_cli.time.sleep', sleeps.append)
 
     assert main(['--daemon', 'sync']) == 0
     assert attempts == 2
@@ -332,7 +332,7 @@ def test_service_commands_print_toml(
         def service_status(self) -> StatusResult:
             return StatusResult(installed=True, running=True, details='ready')
 
-    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
 
     exit_code = main(['service', 'status'])
 
@@ -370,8 +370,8 @@ def test_service_install_waits_for_daemon_and_schedules_sync(
             calls.append(command)
             return {'running': True} if command == 'status' else {'scheduled': True}
 
-    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
-    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+    monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
     assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 0
     assert installed == [['--config', str(tmp_path / 'baccy.toml'), 'watch']]
@@ -403,8 +403,8 @@ def test_service_install_reports_daemon_start_failure(
         def call(self, command: str) -> dict[str, bool]:
             raise FileNotFoundError('socket missing')
 
-    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
-    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+    monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
     assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 1
     assert capsys.readouterr().err == 'baccy daemon failed to start: exited\n'
@@ -439,9 +439,9 @@ def test_service_install_checks_release_identity_and_rolls_back(
         def call(self, command: str) -> dict[str, object]:
             return {'running': True, 'executable': str(previous)}
 
-    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
-    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
-    monkeypatch.setattr('baccy.cli.time.sleep', lambda duration: None)
+    monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
+    monkeypatch.setattr('baccy.service_cli.time.sleep', lambda duration: None)
 
     assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 1
     assert calls == ['rollback']
@@ -471,8 +471,8 @@ def test_service_install_can_skip_sync(
             calls.append(command)
             return {'running': True}
 
-    monkeypatch.setattr('baccy.cli.Application', ServiceApplication)
-    monkeypatch.setattr('baccy.cli.rpc.Client', Client)
+    monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
     assert (
         main(

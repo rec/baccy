@@ -17,9 +17,9 @@ from .models import (
     parse_destination,
 )
 from .s3 import s3_client
+from .ssh import SSH_OPTIONS
 from .upload import publish_sessions
 
-_SSH_OPTIONS = ['-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
 _COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 
 
@@ -116,7 +116,7 @@ def _ssh_files(
             length += command_length + 2
         command = '; '.join(commands)
         result = subprocess.run(
-            ['ssh', *_SSH_OPTIONS, host, command],
+            ['ssh', *SSH_OPTIONS, host, command],
             capture_output=True,
             check=True,
             text=True,

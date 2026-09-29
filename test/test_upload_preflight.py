@@ -86,7 +86,7 @@ def test_unchanged_publication_reuses_recorded_source_hash(
 
     assert publish_sessions([source], settings, dry_run=False)[0].status == 'uploaded'
     monkeypatch.setattr(
-        'baccy.upload._source_hash',
+        'baccy.upload_plan._source_hash',
         lambda path: pytest.fail('unchanged source should not be rehashed'),
     )
 

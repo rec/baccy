@@ -138,7 +138,7 @@ def test_list_present_uploads_does_not_hash_audio(
         ],
     )
     monkeypatch.setattr(
-        'baccy.upload._source_hash',
+        'baccy.upload_plan._source_hash',
         lambda path: (_ for _ in ()).throw(AssertionError(path)),
     )
     monkeypatch.setattr('baccy.listing._s3_files', lambda destination, targets: {})
