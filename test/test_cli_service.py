@@ -1,4 +1,7 @@
+import os
 import signal
+import subprocess
+import sys
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -35,25 +38,31 @@ def test_service_commands_print_toml(
 
 
 @pytest.mark.parametrize('command', [['service', 'install'], ['install']])
+@pytest.mark.parametrize('verbose_flag', [None, '--verbose', '-v'])
 def test_service_install_waits_for_daemon_and_schedules_sync(
     tmp_path: Path,
     capsys: CaptureFixture[str],
     monkeypatch: MonkeyPatch,
     command: list[str],
+    verbose_flag: str | None,
 ) -> None:
     endpoint = tmp_path / 'gui.sock'
     installed: list[list[str]] = []
     calls: list[str] = []
+    status_requests = 0
 
     class ServiceApplication:
         control_endpoint = endpoint
 
-        def install_service(self, arguments: list[str]) -> StatusResult:
+        def install_service(self, arguments: list[str]) -> None:
             installed.append(arguments)
-            return StatusResult(installed=True)
+            os.write(1, b'wheel build output\n')
+            os.write(2, b'package install output\n')
 
         def service_status(self) -> StatusResult:
-            raise AssertionError('running daemon should not need a status check')
+            nonlocal status_requests
+            status_requests += 1
+            return StatusResult(installed=True)
 
     class Client:
         def __init__(self, value: Path, *, role: str) -> None:
@@ -67,13 +76,20 @@ def test_service_install_waits_for_daemon_and_schedules_sync(
     monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
     monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
-    assert main(['--config', str(tmp_path / 'baccy.toml'), *command]) == 0
+    global_flags = ['--config', str(tmp_path / 'baccy.toml')]
+    if verbose_flag is not None:
+        global_flags.append(verbose_flag)
+    assert main([*global_flags, *command]) == 0
     assert installed == [['--config', str(tmp_path / 'baccy.toml'), 'watch']]
     assert calls == ['status', 'status', 'sync']
-    assert tomllib.loads(capsys.readouterr().out) == {
-        'installed': True,
-        'details': '',
-    }
+    assert status_requests == (0 if verbose_flag is None else 1)
+    captured = capsys.readouterr()
+    assert captured.err == ''
+    output = captured.out
+    if verbose_flag is None:
+        assert output == 'ok\n'
+    else:
+        assert tomllib.loads(output) == {'installed': True, 'details': ''}
 
 
 def test_service_install_reports_daemon_start_failure(
@@ -85,6 +101,8 @@ def test_service_install_reports_daemon_start_failure(
         control_endpoint = endpoint
 
         def install_service(self, arguments: list[str]) -> StatusResult:
+            os.write(1, b'wheel build output\n')
+            os.write(2, b'package install output\n')
             return StatusResult(installed=True)
 
         def service_status(self) -> StatusResult:
@@ -101,10 +119,45 @@ def test_service_install_reports_daemon_start_failure(
     monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
     assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 1
-    assert capsys.readouterr().err == (
-        'warning: no baccy daemon is running; installing one\n'
-        'baccy daemon failed to start: exited\n'
-    )
+    captured = capsys.readouterr()
+    assert captured.out == ''
+    assert 'wheel build output\n' in captured.err
+    assert 'package install output\n' in captured.err
+    assert 'warning: no baccy daemon is running; installing one\n' in captured.err
+    assert 'baccy daemon failed to start: exited\n' in captured.err
+
+
+def test_service_install_replays_build_output_on_failure(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+) -> None:
+    endpoint = tmp_path / 'gui.sock'
+
+    class ServiceApplication:
+        control_endpoint = endpoint
+
+        def install_service(self, arguments: list[str]) -> None:
+            os.write(1, b'building wheel\n')
+            os.write(2, b'build diagnostic\n')
+            subprocess.run([sys.executable, '--version'], check=True)
+            raise subprocess.CalledProcessError(1, ['uv', 'build'])
+
+    class Client:
+        def __init__(self, value: Path, *, role: str) -> None:
+            pass
+
+        def call(self, command: str) -> dict[str, bool]:
+            return {'running': True}
+
+    monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
+    monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
+
+    assert main(['--config', str(tmp_path / 'baccy.toml'), 'install']) == 1
+    captured = capsys.readouterr()
+    assert captured.out == ''
+    assert 'building wheel\n' in captured.err
+    assert 'build diagnostic\n' in captured.err
+    assert 'Python ' in captured.err
+    assert 'baccy service installation failed:' in captured.err
 
 
 def test_service_install_replaces_an_absent_daemon(
@@ -138,9 +191,7 @@ def test_service_install_replaces_an_absent_daemon(
     monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
     assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 0
-    assert capsys.readouterr().err == (
-        'warning: no baccy daemon is running; installing one\n'
-    )
+    assert capsys.readouterr() == ('ok\n', '')
 
 
 def test_service_install_terminates_an_unresponsive_daemon(
@@ -194,11 +245,7 @@ def test_service_install_terminates_an_unresponsive_daemon(
     )
     assert signals == ['SIGINT', 'SIGTERM', 'SIGKILL']
     assert sleeps == [0.5, 0.5, 0.5]
-    assert capsys.readouterr().err == (
-        'baccy daemon is unresponsive; sending SIGINT\n'
-        'baccy daemon is unresponsive; sending SIGTERM\n'
-        'baccy daemon is unresponsive; sending SIGKILL\n'
-    )
+    assert capsys.readouterr() == ('ok\n', '')
 
 
 def test_service_install_reports_a_daemon_that_will_not_stop(

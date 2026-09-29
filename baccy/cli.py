@@ -106,6 +106,8 @@ def main(argv: list[str] | None = None) -> int:
             '--daemon',
             '--dry-run',
             '-d',
+            '--verbose',
+            '-v',
         }:
             prefix += 1
         else:
@@ -121,6 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         print(error, file=sys.stderr)
         return 2
     dry_run, _ = _dry_run(globals)
+    verbose = '--verbose' in globals or '-v' in globals
     if not arguments:
         print(_usage())
         return 0
@@ -147,9 +150,9 @@ def main(argv: list[str] | None = None) -> int:
         value = tyro.cli(RenameCommand, args=rest, prog='baccy rename')
         return _rename(value, config, dry_run)
     if command == 'service':
-        return service(rest, config, dry_run)
+        return service(rest, config, dry_run, verbose)
     if command == 'install':
-        return service(['install', *rest], config, dry_run)
+        return service(['install', *rest], config, dry_run, verbose)
     print(f'unknown command: {command}', file=sys.stderr)
     print(_usage(), file=sys.stderr)
     return 2
@@ -440,6 +443,6 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 
 def _usage() -> str:
     return (
-        'Usage: baccy [--config PATH|--daemon] [--dry-run|-d] '
+        'Usage: baccy [--config PATH|--daemon] [--dry-run|-d] [--verbose|-v] '
         '{backup,watch,import,sync,test,list,rename,install,service} ...'
     )

@@ -1,8 +1,13 @@
+import os
 import signal
 import subprocess
 import sys
+import tempfile
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from pathlib import Path
+from typing import TextIO
 
 import tomlkit
 import tyro
@@ -23,7 +28,7 @@ class ServiceCommand(BaseModel, frozen=True):
     """Manage the per-user baccy LaunchAgent."""
 
 
-def service(arguments: list[str], config: Path, dry_run: bool) -> int:
+def service(arguments: list[str], config: Path, dry_run: bool, verbose: bool) -> int:
     if not arguments or arguments[0] in {'-h', '--help'}:
         print(_service_usage())
         return 0
@@ -38,46 +43,31 @@ def service(arguments: list[str], config: Path, dry_run: bool) -> int:
     application = Application()
     if command == 'install':
         install = tyro.cli(InstallCommand, args=rest, prog='baccy service install')
-        try:
-            _stop_unresponsive_daemon(application, install.shutdown_wait_seconds)
-            result = application.install_service(['--config', str(config), 'watch'])
-        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
-            print(f'baccy service installation failed: {error}', file=sys.stderr)
-            return 1
-        if error := _wait_for_daemon(application):
-            if hasattr(application, 'rollback_service'):
-                try:
-                    application.rollback_service()
-                except (OSError, ValueError, subprocess.SubprocessError) as rollback:
-                    print(
-                        f'baccy daemon failed to start: {error}; '
-                        f'rollback failed: {rollback}',
-                        file=sys.stderr,
-                    )
-                    return 1
-                if getattr(application, 'installed_executable', None) is not None:
-                    if rollback_error := _wait_for_daemon(application):
-                        print(
-                            f'baccy daemon failed to start: {error}; '
-                            f'previous daemon did not restart: {rollback_error}',
-                            file=sys.stderr,
-                        )
-                        return 1
-            print(f'baccy daemon failed to start: {error}', file=sys.stderr)
-            return 1
-        if hasattr(application, 'prune_releases'):
+        completed = False
+        output_text = ''
+        with tempfile.TemporaryFile(mode='w+t') as output:
             try:
-                application.prune_releases()
-            except OSError as error:
-                print(f'baccy release cleanup failed: {error}', file=sys.stderr)
-        if result is None:
-            result = application.service_status()
-        if install.sync and (
-            error := request_daemon_sync(application.control_endpoint, attempts=1)
-        ):
-            print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
-            return 1
-    elif command == 'uninstall':
+                with _capture_install_output(output):
+                    if _install(application, config, install):
+                        output_text = (
+                            tomlkit.dumps(
+                                application.service_status().model_dump(
+                                    mode='json', exclude_none=True
+                                )
+                            )
+                            if verbose
+                            else 'ok\n'
+                        )
+                        completed = True
+            finally:
+                if not completed:
+                    output.seek(0)
+                    sys.stderr.write(output.read())
+        if completed:
+            sys.stdout.write(output_text)
+            return 0
+        return 1
+    if command == 'uninstall':
         _parse_service_command(rest, command)
         result = application.uninstall_service()
     elif command == 'start':
@@ -100,6 +90,65 @@ def service(arguments: list[str], config: Path, dry_run: bool) -> int:
         result = application.service_status()
     sys.stdout.write(tomlkit.dumps(result.model_dump(mode='json', exclude_none=True)))
     return 0
+
+
+def _install(application: Application, config: Path, install: InstallCommand) -> bool:
+    try:
+        _stop_unresponsive_daemon(application, install.shutdown_wait_seconds)
+        application.install_service(['--config', str(config), 'watch'])
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
+        print(f'baccy service installation failed: {error}', file=sys.stderr)
+        return False
+    if error := _wait_for_daemon(application):
+        if hasattr(application, 'rollback_service'):
+            try:
+                application.rollback_service()
+            except (OSError, ValueError, subprocess.SubprocessError) as rollback:
+                print(
+                    f'baccy daemon failed to start: {error}; '
+                    f'rollback failed: {rollback}',
+                    file=sys.stderr,
+                )
+                return False
+            if getattr(application, 'installed_executable', None) is not None:
+                if rollback_error := _wait_for_daemon(application):
+                    print(
+                        f'baccy daemon failed to start: {error}; '
+                        f'previous daemon did not restart: {rollback_error}',
+                        file=sys.stderr,
+                    )
+                    return False
+        print(f'baccy daemon failed to start: {error}', file=sys.stderr)
+        return False
+    if hasattr(application, 'prune_releases'):
+        try:
+            application.prune_releases()
+        except OSError as error:
+            print(f'baccy release cleanup failed: {error}', file=sys.stderr)
+    if install.sync and (
+        error := request_daemon_sync(application.control_endpoint, attempts=1)
+    ):
+        print(f'could not request baccy daemon sync: {error}', file=sys.stderr)
+        return False
+    return True
+
+
+@contextmanager
+def _capture_install_output(output: TextIO) -> Iterator[None]:
+    stdout, stderr = os.dup(1), os.dup(2)
+    try:
+        sys.stdout.flush()
+        sys.stderr.flush()
+        os.dup2(output.fileno(), 1)
+        os.dup2(output.fileno(), 2)
+        with redirect_stdout(output), redirect_stderr(output):
+            yield
+    finally:
+        output.flush()
+        os.dup2(stdout, 1)
+        os.dup2(stderr, 2)
+        os.close(stdout)
+        os.close(stderr)
 
 
 def _parse_service_command(arguments: list[str], command: str) -> None:
