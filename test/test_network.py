@@ -187,6 +187,8 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
                 b'./session/recording.toml\x001\x0016\x00',
                 b'',
             )
+        if 'mtime=$(stat' in remote_command:
+            return subprocess.CompletedProcess(command, 0, b'1 16', b'')
         output = kwargs['stdout']
         cast(BinaryIO, output).write(b'format = "recs"\n')
         return subprocess.CompletedProcess(command, 0, b'', b'')
@@ -203,6 +205,34 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
     assert (
         destination / 'audio' / 'session' / 'recording.toml'
     ).read_text() == 'format = "recs"\n'
+
+
+def test_network_copy_defers_same_size_remote_change(tmp_path: Path) -> None:
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        if command[0] == 'arp':
+            return subprocess.CompletedProcess(
+                command, 0, b'? (pi.local) at aa:bb:cc:dd:ee:ff on en0\n', b''
+            )
+        remote_command = command[-1]
+        if remote_command == 'test -d "$HOME/recs"':
+            return subprocess.CompletedProcess(command, 0, b'', b'')
+        if 'find . -type f' in remote_command:
+            return subprocess.CompletedProcess(
+                command, 0, b'./project/audio.flac\x001\x005\x00', b''
+            )
+        if 'mtime=$(stat' in remote_command:
+            return subprocess.CompletedProcess(command, 0, b'2 5', b'')
+        cast(BinaryIO, kwargs['stdout']).write(b'audio')
+        return subprocess.CompletedProcess(command, 0, b'', b'')
+
+    backup = tmp_path / 'backup'
+    result = run_backup(
+        Settings(backup_root=backup, discover_removable=False),
+        network=NetworkDiscovery(run),
+    )
+
+    assert result.deferred == 1
+    assert not (backup / 'audio' / 'project' / 'audio.flac').exists()
 
 
 def test_network_discovery_ignores_multicast_and_broadcast_nodes() -> None:
