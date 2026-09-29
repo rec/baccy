@@ -2,6 +2,7 @@ import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from pytest import CaptureFixture, MonkeyPatch
 from reccy.services.models import StatusResult
 
@@ -32,8 +33,12 @@ def test_service_commands_print_toml(
     }
 
 
+@pytest.mark.parametrize('command', [['service', 'install'], ['install']])
 def test_service_install_waits_for_daemon_and_schedules_sync(
-    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: MonkeyPatch
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: MonkeyPatch,
+    command: list[str],
 ) -> None:
     endpoint = tmp_path / 'gui.sock'
     installed: list[list[str]] = []
@@ -61,7 +66,7 @@ def test_service_install_waits_for_daemon_and_schedules_sync(
     monkeypatch.setattr('baccy.service_cli.Application', ServiceApplication)
     monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
 
-    assert main(['--config', str(tmp_path / 'baccy.toml'), 'service', 'install']) == 0
+    assert main(['--config', str(tmp_path / 'baccy.toml'), *command]) == 0
     assert installed == [['--config', str(tmp_path / 'baccy.toml'), 'watch']]
     assert calls == ['status', 'sync']
     assert tomllib.loads(capsys.readouterr().out) == {

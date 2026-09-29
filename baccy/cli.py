@@ -148,6 +148,8 @@ def main(argv: list[str] | None = None) -> int:
         return _rename(value, config, dry_run)
     if command == 'service':
         return service(rest, config, dry_run)
+    if command == 'install':
+        return service(['install', *rest], config, dry_run)
     print(f'unknown command: {command}', file=sys.stderr)
     print(_usage(), file=sys.stderr)
     return 2
@@ -439,5 +441,5 @@ def _visible_summary(summary: BackupSummary, verbose: bool) -> BackupSummary:
 def _usage() -> str:
     return (
         'Usage: baccy [--config PATH|--daemon] [--dry-run|-d] '
-        '{backup,watch,import,sync,test,list,rename,service} ...'
+        '{backup,watch,import,sync,test,list,rename,install,service} ...'
     )
