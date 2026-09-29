@@ -269,9 +269,10 @@ it; an unverified `ssh-keyscan` result alone is not proof of identity. The
 machine must also accept the user's existing SSH credentials. Configured
 `kind = "network"` sources are rejected because they were never resolved; use
 trusted-host automatic discovery instead.
-Each newly seen MAC address gets an immediate SSH attempt in parallel with the
-other newly seen hosts and, for connection failures, one retry after two
-seconds and another after four seconds.
+Each newly seen MAC address gets an immediate SSH attempt, with at most eight
+hosts probed concurrently and, for connection failures, one retry after two
+seconds and another after four seconds. A previously discovered recording
+source that disappears from the ARP table is reported as unavailable.
 Authentication rejections and hosts without a `~/recs` directory are not
 retried until baccy restarts. A host that accepts SSH but does not yet have
 `~/recs` is checked again on each later ARP scan. With `verbose = true`, baccy

@@ -37,7 +37,6 @@ _LIST_RECS_FILES = (
     'done\n'
     "' sh {} +"
 )
-NETWORK_SCAN_SECONDS = 10.0
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -74,17 +73,18 @@ class NetworkDiscovery:
         self.machines: dict[str, NetworkMachine] = {}
         self.new_machines: list[NetworkMachine] = []
         self.sources: dict[str, NetworkRecsSource] = {}
-        self.last_scan: float | None = None
+        self.unavailable_sources: list[NetworkRecsSource] = []
 
     def discover(self) -> list[NetworkRecsSource]:
-        now = time.monotonic()
-        if self.last_scan is not None and now - self.last_scan < NETWORK_SCAN_SECONDS:
-            return list(self.sources.values())
-        self.last_scan = now
         self.new_machines = []
         active: list[NetworkRecsSource] = []
         pending: list[tuple[str, str]] = []
-        for mac, host in _network_nodes(self.run):
+        nodes = _network_nodes(self.run)
+        present = {mac for mac, _ in nodes}
+        self.unavailable_sources = [
+            source for mac, source in self.sources.items() if mac not in present
+        ]
+        for mac, host in nodes:
             if (source := self.sources.get(mac)) is not None:
                 active.append(source.model_copy(update={'host': host}))
                 self.sources[mac] = active[-1]
@@ -100,7 +100,7 @@ class NetworkDiscovery:
             self._log('network host %s (%s) discovered', host, mac)
             pending.append((mac, host))
         if pending:
-            with ThreadPoolExecutor(max_workers=len(pending)) as executor:
+            with ThreadPoolExecutor(max_workers=min(len(pending), 8)) as executor:
                 probes = [
                     (mac, host, executor.submit(self._probe_recs, host, mac))
                     for mac, host in pending

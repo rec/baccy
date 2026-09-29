@@ -1,3 +1,5 @@
+import errno
+import logging
 import signal
 import threading
 import time
@@ -5,9 +7,10 @@ from collections.abc import Callable
 from typing import cast
 
 from .backup import run_backup
-from .models import BackupSummary, Settings
+from .models import BackupSummary, FileResult, Settings
 
 NETWORK_POLL_SECONDS = 10.0
+_LOGGER = logging.getLogger(__name__)
 
 
 def watch(
@@ -23,9 +26,20 @@ def watch(
         while not stopping.is_set():
             if trigger is not None:
                 trigger.clear()
-            summary = action(settings)
+            try:
+                summary = action(settings)
+            except OSError as error:
+                if error.errno in {errno.ENOSPC, errno.EROFS}:
+                    raise
+                _LOGGER.exception('backup pass failed')
+                summary = BackupSummary().with_result(
+                    FileResult(source='watch', status='failed', detail=str(error))
+                )
             if report is not None:
-                report(summary)
+                try:
+                    report(summary)
+                except OSError:
+                    _LOGGER.exception('backup report failed')
             timeout = min(settings.poll_seconds, NETWORK_POLL_SECONDS)
             if trigger is None:
                 stopping.wait(timeout)
