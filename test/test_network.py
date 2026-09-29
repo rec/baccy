@@ -184,6 +184,8 @@ def test_network_discovery_reports_disappeared_source() -> None:
 
 
 def test_network_recs_dry_run_does_not_write(tmp_path: Path) -> None:
+    listings: list[str] = []
+
     def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
         if command[0] == 'arp':
             return subprocess.CompletedProcess(
@@ -192,6 +194,7 @@ def test_network_recs_dry_run_does_not_write(tmp_path: Path) -> None:
         remote_command = command[-1]
         if remote_command == 'test -d "$HOME/recs"':
             return subprocess.CompletedProcess(command, 0, b'', b'')
+        listings.append(remote_command)
         return subprocess.CompletedProcess(
             command,
             0,
@@ -210,9 +213,12 @@ def test_network_recs_dry_run_does_not_write(tmp_path: Path) -> None:
     assert result.would_copy == 1
     assert result.results[0].source == 'network-aabbccddeeff'
     assert not destination.exists()
+    assert 'stat -c %Y "$path" 2>/dev/null || stat -f %m "$path"' in listings[0]
 
 
 def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
+    metadata_commands: list[str] = []
+
     def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
         if command[0] == 'arp':
             return subprocess.CompletedProcess(
@@ -229,6 +235,7 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
                 b'',
             )
         if 'mtime=$(stat' in remote_command:
+            metadata_commands.append(remote_command)
             return subprocess.CompletedProcess(command, 0, b'1 16', b'')
         output = kwargs['stdout']
         cast(BinaryIO, output).write(b'format = "recs"\n')
@@ -246,6 +253,11 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
     assert (
         destination / 'audio' / 'session' / 'recording.toml'
     ).read_text() == 'format = "recs"\n'
+    assert metadata_commands
+    assert all(
+        'stat -c %Y "$file" 2>/dev/null || stat -f %m "$file"' in command
+        for command in metadata_commands
+    )
 
 
 def test_network_copy_defers_same_size_remote_change(tmp_path: Path) -> None:

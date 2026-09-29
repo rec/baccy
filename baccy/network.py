@@ -32,7 +32,7 @@ _LIST_RECS_FILES = (
     'cd "$HOME/recs" || exit\n'
     "find . -type f -exec sh -c '\n"
     'for path do\n'
-    '    mtime=$(stat -f %m "$path" 2>/dev/null || stat -c %Y "$path") || exit\n'
+    '    mtime=$(stat -c %Y "$path" 2>/dev/null || stat -f %m "$path") || exit\n'
     '    size=$(wc -c < "$path") || exit\n'
     '    printf "%s\\0%s\\0%s\\0" "$path" "$mtime" "$size"\n'
     'done\n'
@@ -373,7 +373,7 @@ def _remote_metadata(
         host,
         f'path=$(printf %s {value} | (base64 -D 2>/dev/null || base64 -d)); '
         'file="$HOME/recs/$path"; '
-        'mtime=$(stat -f %m "$file" 2>/dev/null || stat -c %Y "$file") || exit; '
+        'mtime=$(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file") || exit; '
         'size=$(wc -c < "$file") || exit; '
         'printf "%s %s" "$mtime" "$size"',
     )
