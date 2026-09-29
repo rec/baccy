@@ -1,3 +1,4 @@
+import signal
 import subprocess
 import sys
 import time
@@ -15,6 +16,7 @@ class InstallCommand(BaseModel, frozen=True):
     """Install the per-user baccy LaunchAgent."""
 
     sync: bool = True
+    shutdown_wait_seconds: float = 2.0
 
 
 class ServiceCommand(BaseModel, frozen=True):
@@ -37,8 +39,9 @@ def service(arguments: list[str], config: Path, dry_run: bool) -> int:
     if command == 'install':
         install = tyro.cli(InstallCommand, args=rest, prog='baccy service install')
         try:
+            _stop_unresponsive_daemon(application, install.shutdown_wait_seconds)
             result = application.install_service(['--config', str(config), 'watch'])
-        except (OSError, ValueError, subprocess.SubprocessError) as error:
+        except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as error:
             print(f'baccy service installation failed: {error}', file=sys.stderr)
             return 1
         if error := _wait_for_daemon(application):
@@ -101,6 +104,25 @@ def service(arguments: list[str], config: Path, dry_run: bool) -> int:
 
 def _parse_service_command(arguments: list[str], command: str) -> None:
     tyro.cli(ServiceCommand, args=arguments, prog=f'baccy service {command}')
+
+
+def _stop_unresponsive_daemon(application: Application, wait_seconds: float) -> None:
+    try:
+        rpc.Client(application.control_endpoint, role='baccy-cli').call('status')
+        return
+    except BrokenPipeError, ConnectionError, OSError, TimeoutError:
+        service = application.service_status()
+    if service.running is not True:
+        print('warning: no baccy daemon is running; installing one', file=sys.stderr)
+        return
+    controller = application.service_controller()
+    for value in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
+        print(f'baccy daemon is unresponsive; sending {value.name}', file=sys.stderr)
+        controller.signal(value)
+        time.sleep(wait_seconds)
+        if application.service_status().running is not True:
+            return
+    raise RuntimeError('baccy daemon did not stop after SIGKILL')
 
 
 def _wait_for_daemon(application: Application) -> str | None:
