@@ -11,17 +11,6 @@ Original issue numbers are retained for cross-reference.
 
 ## P2: user-facing semantics, maintainability, and tests
 
-33. **Some names and configuration surfaces mislead.**
-    `list_uploaded` in [`baccy/listing.py:21`](../baccy/listing.py#L21) means
-    "currently present files that the present rules could produce," not all
-    files baccy ever uploaded. `SshDestination.url` is `HOST:PATH`, not an
-    actual URL, and cannot express an IPv6 host with colons
-    ([`baccy/models.py:60`](../baccy/models.py#L60)). `S3Destination.prefix`
-    and `endpoint_url` exist in the model but cannot be supplied by the
-    string-only TOML destination parser
-    ([`baccy/models.py:105`](../baccy/models.py#L105)). Decide which of
-    those surfaces are supported, then rename or document accordingly.
-
 35. **The implementation has a few concentrated and repeated areas.**
     `baccy/upload.py` is 1,090 lines and handles journal interpretation, rule
     planning, HTML, transcoding, SSH, S3, and remote inventory. `baccy/cli.py`
