@@ -1,7 +1,8 @@
-"""Print a read-only openLoop import proposal using names and file sizes."""
+"""Plan multi-disc show sessions and review unresolved recording dates."""
 
 import re
 import sys
+import wave
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -11,9 +12,10 @@ from pydantic import BaseModel
 
 
 class OpenLoopPlanCommand(BaseModel, frozen=True):
-    """Inventory openLoop without reading audio or changing any files."""
+    """Review unresolved dates without changing collection files."""
 
     directory: Annotated[Path, tyro.conf.Positional]
+    interactive: bool = False
 
 
 class RecordingProposal(BaseModel, frozen=True):
@@ -26,17 +28,90 @@ class RecordingProposal(BaseModel, frozen=True):
     directory_date: date | None
     date_evidence: str
     stage: str
+    disc_number: int | None
+
+
+class SessionProposal(BaseModel, frozen=True):
+    recording_date: date
+    discs: list[RecordingProposal]
 
 
 def main(arguments: list[str] | None = None) -> int:
     command = tyro.cli(OpenLoopPlanCommand, args=arguments)
     try:
-        proposals = plan_collection(command.directory)
+        review_collection(command.directory, command.interactive)
     except (OSError, ValueError) as error:
         sys.exit(str(error))
-    for proposal in proposals:
-        print(proposal.model_dump_json())
+    except EOFError, KeyboardInterrupt:
+        sys.exit('Review cancelled; no collection files were changed.')
     return 0
+
+
+def review_collection(directory: Path, interactive: bool = False) -> None:
+    """Ask only date questions; report technical concerns separately on stderr."""
+    decisions: list[date] = []
+    for proposal in plan_collection(directory):
+        path = directory / proposal.path
+        if path.suffix.lower() == '.wav':
+            try:
+                with wave.open(str(path)) as audio:
+                    frames = audio.getnframes()
+                    duration = frames / audio.getframerate()
+            except (wave.Error, EOFError) as error:
+                print(f'{path.resolve()}: WAV header error: {error}', file=sys.stderr)
+            else:
+                if duration < 10:
+                    continue
+                if frames == 10_000_000:
+                    print(
+                        f'{path.resolve()}: exactly 10,000,000 declared frames; '
+                        'needs technical investigation, not a memory-based decision.',
+                        file=sys.stderr,
+                    )
+        if proposal.recording_date is not None:
+            continue
+        print(path.resolve())
+        if proposal.filename_date and proposal.directory_date:
+            print('  Filename and directory disagree about the date.')
+        else:
+            print('  Recording date is incomplete or unknown.')
+        if not interactive:
+            print('  What was the recording date?\n')
+            continue
+        while True:
+            answer = input('Recording date (YYYY-MM-DD; Enter to defer; q to finish): ')
+            if answer.strip().lower() == 'q':
+                _print_decisions(decisions)
+                return
+            if not answer.strip():
+                break
+            try:
+                decisions.append(date.fromisoformat(answer.strip()))
+            except ValueError:
+                print('Enter a valid recording date in YYYY-MM-DD format.')
+                continue
+            break
+    if interactive:
+        _print_decisions(decisions)
+
+
+def plan_sessions(directory: Path) -> list[SessionProposal]:
+    """Group dated discs into shows, without inventing inter-disc timings."""
+    groups: dict[date, list[RecordingProposal]] = {}
+    for proposal in plan_collection(directory):
+        if proposal.recording_date is not None:
+            groups.setdefault(proposal.recording_date, []).append(proposal)
+    sessions: list[SessionProposal] = []
+    for recording_date, discs in sorted(groups.items()):
+        discs.sort(
+            key=lambda p: (
+                p.disc_number is None,
+                p.disc_number or 0,
+                p.path.as_posix(),
+            )
+        )
+        sessions.append(SessionProposal(recording_date=recording_date, discs=discs))
+    return sessions
 
 
 def plan_collection(directory: Path) -> list[RecordingProposal]:
@@ -69,6 +144,13 @@ def plan_collection(directory: Path) -> list[RecordingProposal]:
         stage = 'unconverted-sd2f' if path.suffix.lower() == '.sd2f' else 'review'
         proposals.append(_proposal(directory, path, None, stage))
     return proposals
+
+
+def _print_decisions(decisions: list[date]) -> None:
+    if decisions:
+        print('\nDates supplied, in answer order (not saved):')
+        for number, value in enumerate(decisions, 1):
+            print(f'{number}. {value}')
 
 
 def _proposal(
@@ -105,6 +187,13 @@ def _proposal(
         directory_date=directory_date,
         date_evidence=evidence,
         stage=stage,
+        disc_number=(
+            int(match.group(1))
+            if (
+                match := re.fullmatch(r'(?:\d{4}-\d{2}-\d{2}|\d{6}|\d{8})-(\d+)', title)
+            )
+            else None
+        ),
     )
 
 
