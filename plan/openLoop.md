@@ -6,12 +6,41 @@ Inspected `openLoop/source/` and `openLoop/target/` on 2026-10-08 using
 directory entries and filesystem metadata only. No file contents, audio headers,
 scripts, project files, hashes, or extended-attribute values were read. Nothing
 in the collection was changed. Repository implementation files were not read
-either, so implementation details below require a later code review.
+either during that inventory. Implementation review and the limited WAV header
+inspection described below were subsequently authorized and performed.
 
 The user subsequently identified the Audacity projects as copies and deleted
 them, with a separate backup retained. The counts below were refreshed using
 filesystem metadata only after that deletion. The Audacity projects are no
 longer part of this import.
+
+### Source WAV header sample
+
+Read headers from three source WAVs, seeking past sample data without decoding
+or copying audio. All three have PCM `fmt ` and `data` chunks only within their
+declared RIFF boundaries, with no descriptive metadata chunks:
+
+| Source path | Channels | Sample rate | Bits/sample | Declared frames |
+| --- | ---: | ---: | ---: | ---: |
+| `2002/03/02/02032-1.wav` | 2 | 44,100 | 16 | 10,000,000 |
+| `2006/02/10/2006-02-10.wav` | 2 | 48,000 | 24 | 147,147,776 |
+| `2007/08/30/2007-07-30 open loop.wav` | 2 | 44,100 | 24 | 183,656,192 |
+
+The 2006 WAV has 44 trailing bytes outside its declared RIFF boundary. They
+are not a declared metadata chunk. Validate that file before import rather than
+assuming the entire physical file consists of declared sample data.
+
+Use filenames and the agreed corrections for descriptive information; do not
+plan to recover titles, dates, participants, or devices from these WAVs.
+Technical header information remains necessary for importing audio. This
+sample does not establish metadata absence or valid decoding for every file.
+
+### Execution constraint
+
+Never directly move, copy, delete, or convert collection files. Write a script
+for the user to review and run for every such operation. The agent must not run
+that script against the collection. Keep originals unchanged and distinguish
+read-only proposal generation from any eventual execution script.
 
 ## Is target a subset of source?
 
@@ -122,6 +151,45 @@ Some other dates need manual decisions:
 
 ## Implementation sequence
 
+### Started: model review and read-only proposal
+
+Reviewed `baccy/importer.py`, `baccy/upload_plan.py`, the shared Project model,
+and recs' session records and `recording/baccy_import.py`.
+
+- baccy's importer discovers `session-record.jsonl`; loose WAVs cannot be
+  imported by simply pointing the existing command at this collection.
+- The shared Project model has descriptive fields, but no session/date policy.
+- recs' session header requires `started_at`, with free-form metadata available
+  to record provenance and uncertainty. Its specialized existing baccy importer
+  recognizes only `totm` and `oderg in duo`; it is not a generic loose-audio
+  importer and also writes staging data. Do not run it on this collection.
+- baccy's audio upload planning expects paired lifecycle records and technical
+  fields such as frame count, channels, sample rate, and timestamp. Inspect
+  compatibility with the current recs record format before producing journals;
+  do not introduce an independently invented session schema.
+- The current MP3 target uses the audio basename (or the portion after its last
+  ` + `), replacing its suffix with `.mp3`, under the project name. Preserving
+  these date-and-take basenames therefore preserves separate listening exports
+  without changing the existing naming rule.
+
+Added `scripts/plan_openloop.py`, a read-only names-and-sizes proposal generator:
+
+```sh
+uv run python scripts/plan_openloop.py openLoop
+```
+
+It prints one JSON proposal per candidate, pairing target WAVs with their source
+originals, retaining unmatched sources for review, preserving variant titles,
+and applying the approved May 3 date correction. Conflicting and incomplete
+dates remain unresolved. It reads no audio contents and writes no files.
+The script has not been run against the collection by the agent.
+
+This starts steps 1 and 2 below; session layout and destination paths remain
+pending the date-only/session-grouping decisions. Do not mistake these proposals
+for executable transfer instructions. Once those decisions are settled, extend
+the proposal with intended paths and collision checks, then provide a separately
+reviewable execution script that uses the existing session/import mechanisms.
+
 1. Review the existing importer, session model, project definitions, and upload
    rules. Reuse their intended mechanisms. Determine whether importing legacy
    recordings needs a model change; obtain approval before an architectural
@@ -130,15 +198,17 @@ Some other dates need manual decisions:
    WAVs. Show original path, proposed project/session, preserved title, and
    intended local and remote paths. Detect collisions before writing anything.
    Keep the collection out of Git.
-3. After permission to read audio, validate the first batch with the existing
+3. After permission to inspect the selected batch, validate it with the existing
    audio tooling. Obtain actual frame counts, sample rates, and channels from
    audio inspection, never from file size or the 44-byte difference. Use existing
    lossless import/conversion facilities if suitable, preserving originals.
    Report invalid files individually rather than silently omitting them.
-4. Import a small representative batch first: several files on one date,
+4. Provide a script for the user to import a small representative batch first:
+   several files on one date,
    `final`/`remix` variants, and an unusual basename. Review the session records,
    dry-run upload destinations, and generated page before enabling transfers.
-5. Import the remaining validated target WAVs. Verify that each selected input
+5. Provide the remaining validated target WAV import as a user-run script.
+   Verify that each selected input
    maps to exactly one intended imported recording and that repeating the import
    does not create duplicates or overwrite a different take.
 6. Separately classify the 21 unmatched `.Sd2f` files and other source exports.
@@ -153,11 +223,11 @@ Some other dates need manual decisions:
 
 ## Uploads and publication
 
-Review configured rules before enabling this project. Existing MP3 naming based
-only on a session timestamp may collide when a legacy date contains several
-independent recordings. Preserve each take in the import proposal and settle
-the intended listening-export grouping/naming before uploading. Do not silently
-choose a master or concatenate recordings.
+Review configured rules before enabling this project. Preserve date-and-take
+basenames so the existing MP3 rule produces distinct exports such as
+`openLoop/2003-05-03-1.mp3`. Check collisions after the rule's ` + ` stripping
+and URL sanitation; do not assign every take the same synthetic-timestamp
+basename. Do not silently choose a master or concatenate recordings.
 
 Apply `reccy.paths.legal_url_path` through the existing destination machinery to
 SSH paths and object paths inside S3 buckets. Check sanitized-path collisions
@@ -186,6 +256,7 @@ strategy and temporary files; do not assume a compression ratio.
   backup first, public exports only after reviewing the inventory.
 - Authorize later audio/header inspection and import explicitly. This plan does
   not authorize executing transfers, decoding files, or editing the collection.
+  The three source WAV header samples above were specifically authorized.
 
 ## Verification for the eventual implementation
 
@@ -195,10 +266,12 @@ sanitized-name collisions, multiple-take export naming, and repeat-import
 behavior. Reuse existing tests rather than adding a parallel import path.
 Audio regression fixtures should be WAV files at 48,000 samples per second,
 at least one second long. Review a dry-run mapping and a small completed batch
-before the full import. No application execution or tests are needed for this
-documentation-only change.
+before the full import. The proposal script has focused names-only inventory
+tests, including the approved date correction and unresolved dates. They do not
+exercise or modify actual collection audio.
 
 ## Additional work beyond the prompt
 
-None. The steps above are proposals for later approval, not actions performed
-as part of this inventory and plan.
+None. Header inspection, model review, and the read-only proposal script are
+within the request to start implementation. No collection files were moved,
+copied, deleted, converted, or otherwise changed.
