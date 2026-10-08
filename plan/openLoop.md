@@ -147,13 +147,19 @@ Apply this mapping in the eventual import proposal, preserving the original
 paths as provenance. These files remain among the 21 unconverted sources.
 This plan update does not rename the originals or create converted files.
 
-Some other dates need manual decisions:
+### Saved review results
 
-- `2007/02/open loop!!!.wav` has no day in its filename or parent path.
+- `2007/02/open loop!!!.wav` is deferred and excluded from session proposals.
+  The user suspects duplication, but that remains unverified; do not delete it.
 - `2007/08/30/2007-07-30 open loop.wav` has conflicting directory and filename
-  dates. Prefer the filename as a proposal, but require confirmation.
+  dates. The user confirmed **2007-07-30**, which overrides the directory date.
 - Compact or unusual names can use their unambiguous date-directory evidence;
   preserve their original names. Their spelling is not itself a user decision.
+
+The first two decisions are persisted in `plan/openLoop-decisions.json`, keyed
+by collection-relative path. A date confirms the session date; `null` explicitly
+defers the file. Planning and review both read this file. Deferral is not deletion
+and does not assert duplication.
 
 The only interactive questions are unresolved or conflicting dates. Do not ask
 whether a recording is original, edited, duplicated, truncated, or valid based
@@ -184,7 +190,7 @@ and recs' session records and `recording/baccy_import.py`.
   these date-and-disc basenames therefore preserves separate listening exports
   without changing the existing naming rule.
 
-Added `scripts/plan_openloop.py`, a read-only names-and-sizes proposal generator:
+Added `scripts/plan_openloop.py`, a proposal generator that never changes media:
 
 ```sh
 uv run python scripts/plan_openloop.py openLoop
@@ -204,21 +210,38 @@ uv run python scripts/plan_openloop.py openLoop --interactive
 
 It asks only for unresolved dates. Enter a date, leave it blank to defer, or
 enter `q` to end the review. Supplied dates are printed in answer order at the
-end, but not saved or applied to collection files. Dated recordings are included
-in the proposal without an inclusion/duplicate/export question.
+end. Each valid answer or deferral is saved immediately to the decisions file
+using an atomic replacement, so completed answers survive cancellation and
+interruption. Saved dates override inferred dates, and deferred files are not
+asked about again or included in sessions. Dated recordings are included in
+the proposal without an inclusion/duplicate/export question. To revisit a
+decision, edit or remove its entry in the decisions file.
+
+Use `--decisions PATH` to select the review state file; its default is the
+repository's `plan/openLoop-decisions.json`. Noninteractive review never writes
+it. Audio is unchanged in every mode.
+
+To see grouped show sessions using the saved decisions:
+
+```sh
+uv run python scripts/plan_openloop.py openLoop --sessions
+```
+
+This lists session dates and their ordered disc/file paths, with the deferred
+file omitted. It does not execute an import or inspect audio samples.
 
 For review WAVs it reads headers, not samples, to derive duration and skips
 files shorter than ten seconds. Exactly ten seconds remains eligible. WAV header
 errors and the suspicious 10,000,000-frame count are reported separately on
 stderr as technical concerns, never as memory-based questions. File size alone
 cannot reliably establish duration for unknown and compressed formats; that
-uncertainty does not trigger a user question. No files are moved, copied,
-deleted, converted, or written.
+uncertainty does not trigger a user question. No media files are moved, copied,
+deleted, converted, or written; only interactive review state is saved.
 The script has not been run against the collection by the agent.
 
 `plan_sessions` groups known-date proposals into show sessions and orders their
-numbered discs, including the approved corrected discs. Unresolved-date files
-remain outside these groups until their dates are settled.
+numbered discs, including the approved corrected discs and the saved July 30
+date. Unresolved and deferred files remain outside these groups.
 
 This starts steps 1 and 2 below; grouping and the date-only convention are now
 settled, but execution paths and journals are not implemented. Do not mistake
@@ -304,7 +327,8 @@ Audio regression fixtures should be WAV files at 48,000 samples per second,
 at least one second long. Review a dry-run mapping and a small completed batch
 before the full import. The proposal script has focused inventory and interactive
 review tests, including the approved date correction, unresolved dates, short
-WAV filtering, round frame counts, and cancellation. Generated WAV fixtures use
+WAV filtering, round frame counts, saved date/deferral reuse, and cancellation
+after an answer has been saved. Generated WAV fixtures use
 48,000 samples per second. Tests do not modify actual collection audio.
 
 ## Additional work beyond the prompt
