@@ -113,23 +113,29 @@ Retain source as the original archive and record the source/target relationship
 without claiming verified equivalence.
 
 Use filenames as the primary evidence. Group recordings by an unambiguous
-calendar date where present, with multiple takes/files retained in that group.
+calendar date where present. These are recordings of shows made directly to
+CD, often lasting four hours or more. Numeric suffixes identify successive
+discs from the same session, not takes or independent shows. Import one session
+per show date, retaining each disc as a separate audio file in numeric order
+(1, 2, 10, not lexical order 1, 10, 2). Preserve disc boundaries; do not infer
+continuous coverage, gap lengths, or exact disc start times.
 Keep the complete original basename and relative path as provenance. Preserve
 labels such as `XX`, `last`, `final`, `remix`, `2b`, and `3-s`; do not infer their
-meaning, collapse variants, or deduplicate by name or size.
+meaning, collapse variants, or deduplicate by name or size. Non-numeric labels
+are not evidence of edits or alternate mixes. Preserve them without asking the
+user to reconstruct their meaning from twenty-year-old memories. Leave their
+disc order unspecified unless it can be established from evidence.
 
 Do not derive recording time from filesystem timestamps. Do not invent
 participants, locations, source devices, or an exact recording time. Missing
-information stays unknown. Before implementation, inspect the current recs
-project/session model and baccy importer to determine how date-only recordings
-can be represented. If a storage timestamp is unavoidable, agree on an explicit
-convention that distinguishes it from a known recording time before writing
-session records.
+information stays unknown. The approved convention is one session per known
+date, with midnight explicitly recorded as a synthetic unknown-time placeholder
+in metadata. It is not the factual show or disc start time.
 
 ### Agreed date correction
 
-Treat the two formerly unknown recordings as the missing takes 1 and 2 from
-Saturday, May 3, 2003, alongside the existing take 3. This is a user-approved
+Treat the two formerly unknown recordings as the missing discs 1 and 2 from
+Saturday, May 3, 2003, alongside the existing disc 3. This is a user-approved
 assumption, not a conclusion established by inspecting audio:
 
 | Original source path | Import date | Corrected recording basename |
@@ -146,8 +152,14 @@ Some other dates need manual decisions:
 - `2007/02/open loop!!!.wav` has no day in its filename or parent path.
 - `2007/08/30/2007-07-30 open loop.wav` has conflicting directory and filename
   dates. Prefer the filename as a proposal, but require confirmation.
-- Compact or unusual names such as `02032-1.wav`, `030222-4`, and
-  `2003-09-20-1.Sd2f.not.Sd2f` require classification, not silent normalization.
+- Compact or unusual names can use their unambiguous date-directory evidence;
+  preserve their original names. Their spelling is not itself a user decision.
+
+The only interactive questions are unresolved or conflicting dates. Do not ask
+whether a recording is original, edited, duplicated, truncated, or valid based
+only on a suffix or header. Determine technical questions through investigation
+and report evidence separately. In particular, the 10,000,000-frame WAV is a
+technical anomaly, not a request for the user to remember how it was made.
 
 ## Implementation sequence
 
@@ -169,7 +181,7 @@ and recs' session records and `recording/baccy_import.py`.
   do not introduce an independently invented session schema.
 - The current MP3 target uses the audio basename (or the portion after its last
   ` + `), replacing its suffix with `.mp3`, under the project name. Preserving
-  these date-and-take basenames therefore preserves separate listening exports
+  these date-and-disc basenames therefore preserves separate listening exports
   without changing the existing naming rule.
 
 Added `scripts/plan_openloop.py`, a read-only names-and-sizes proposal generator:
@@ -178,15 +190,39 @@ Added `scripts/plan_openloop.py`, a read-only names-and-sizes proposal generator
 uv run python scripts/plan_openloop.py openLoop
 ```
 
-It prints one JSON proposal per candidate, pairing target WAVs with their source
-originals, retaining unmatched sources for review, preserving variant titles,
-and applying the approved May 3 date correction. Conflicting and incomplete
-dates remain unresolved. It reads no audio contents and writes no files.
+It now displays only review/decision items as concise plain text. Each item
+starts with its full path, followed by useful information that is not already
+in that path. Automatic source/target pairings and the approved May 3 correction
+do not require review and are omitted. Sizes, provenance paths, redundant dates,
+and empty fields are not displayed.
+
+For a step-by-step review:
+
+```sh
+uv run python scripts/plan_openloop.py openLoop --interactive
+```
+
+It asks only for unresolved dates. Enter a date, leave it blank to defer, or
+enter `q` to end the review. Supplied dates are printed in answer order at the
+end, but not saved or applied to collection files. Dated recordings are included
+in the proposal without an inclusion/duplicate/export question.
+
+For review WAVs it reads headers, not samples, to derive duration and skips
+files shorter than ten seconds. Exactly ten seconds remains eligible. WAV header
+errors and the suspicious 10,000,000-frame count are reported separately on
+stderr as technical concerns, never as memory-based questions. File size alone
+cannot reliably establish duration for unknown and compressed formats; that
+uncertainty does not trigger a user question. No files are moved, copied,
+deleted, converted, or written.
 The script has not been run against the collection by the agent.
 
-This starts steps 1 and 2 below; session layout and destination paths remain
-pending the date-only/session-grouping decisions. Do not mistake these proposals
-for executable transfer instructions. Once those decisions are settled, extend
+`plan_sessions` groups known-date proposals into show sessions and orders their
+numbered discs, including the approved corrected discs. Unresolved-date files
+remain outside these groups until their dates are settled.
+
+This starts steps 1 and 2 below; grouping and the date-only convention are now
+settled, but execution paths and journals are not implemented. Do not mistake
+these proposals for executable transfer instructions. Next, extend
 the proposal with intended paths and collision checks, then provide a separately
 reviewable execution script that uses the existing session/import mechanisms.
 
@@ -210,12 +246,12 @@ reviewable execution script that uses the existing session/import mechanisms.
 5. Provide the remaining validated target WAV import as a user-run script.
    Verify that each selected input
    maps to exactly one intended imported recording and that repeating the import
-   does not create duplicates or overwrite a different take.
+   does not create duplicates or overwrite a different disc.
 6. Separately classify the 21 unmatched `.Sd2f` files and other source exports.
    With permission, establish which can be decoded, which are distinct works,
-   and which are alternate exports. Preserve available macOS metadata when
-   archiving originals; establish any decoding requirements before choosing
-   an archive/copy method. Apply the agreed May 3, 2003 mapping to takes 1 and 2;
+   and how they relate to the show/disc inventory. Preserve available macOS
+   metadata when archiving originals; establish decoding requirements before choosing
+   an archive/copy method. Apply the agreed May 3, 2003 mapping to discs 1 and 2;
    resolve remaining ambiguous dates with the user.
 7. Keep unknown-format assets intact as archive material.
    Decide separately whether baccy's current rules can back up these assets;
@@ -223,11 +259,12 @@ reviewable execution script that uses the existing session/import mechanisms.
 
 ## Uploads and publication
 
-Review configured rules before enabling this project. Preserve date-and-take
+Review configured rules before enabling this project. Preserve date-and-disc
 basenames so the existing MP3 rule produces distinct exports such as
 `openLoop/2003-05-03-1.mp3`. Check collisions after the rule's ` + ` stripping
-and URL sanitation; do not assign every take the same synthetic-timestamp
-basename. Do not silently choose a master or concatenate recordings.
+and URL sanitation; do not assign every disc the same synthetic-timestamp
+basename. Retain one listening file per disc, in session order, rather than
+silently concatenating a four-hour show or selecting a single disc as a master.
 
 Apply `reccy.paths.legal_url_path` through the existing destination machinery to
 SSH paths and object paths inside S3 buckets. Check sanitized-path collisions
@@ -247,11 +284,10 @@ strategy and temporary files; do not assume a compression ratio.
 
 - Confirm the project name `openLoop` and whether filenames should remain the
   recording titles. Recommendation: yes to both initially.
-- Agree on date-only/unknown-date representation after reviewing the current
-  model. Recommendation: preserve uncertainty, never present midnight as fact.
-- Decide whether multiple takes belong to one date-based session or independent
-  sessions, and how MP3 names distinguish them. Recommendation: preserve date
-  grouping and individual take identity if the existing model supports it.
+- Approved: one session per known date, with midnight explicitly identified in
+  metadata as an unknown-time placeholder, not a factual recording time.
+- Settled: numbered files are successive discs of the same show session.
+  Preserve disc identity and numeric order in local records and listening pages.
 - Confirm backup destinations and public availability. Recommendation: private
   backup first, public exports only after reviewing the inventory.
 - Authorize later audio/header inspection and import explicitly. This plan does
@@ -262,13 +298,14 @@ strategy and temporary files; do not assume a compression ratio.
 
 Test date extraction, the agreed May 3 correction with original-path provenance,
 unknown dates, conflicting dates, variant retention,
-sanitized-name collisions, multiple-take export naming, and repeat-import
-behavior. Reuse existing tests rather than adding a parallel import path.
+sanitized-name collisions, multi-disc export naming, numeric disc ordering, and
+repeat-import behavior. Reuse existing tests rather than adding a parallel import path.
 Audio regression fixtures should be WAV files at 48,000 samples per second,
 at least one second long. Review a dry-run mapping and a small completed batch
-before the full import. The proposal script has focused names-only inventory
-tests, including the approved date correction and unresolved dates. They do not
-exercise or modify actual collection audio.
+before the full import. The proposal script has focused inventory and interactive
+review tests, including the approved date correction, unresolved dates, short
+WAV filtering, round frame counts, and cancellation. Generated WAV fixtures use
+48,000 samples per second. Tests do not modify actual collection audio.
 
 ## Additional work beyond the prompt
 
