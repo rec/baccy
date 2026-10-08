@@ -243,11 +243,70 @@ The script has not been run against the collection by the agent.
 numbered discs, including the approved corrected discs and the saved July 30
 date. Unresolved and deferred files remain outside these groups.
 
-This starts steps 1 and 2 below; grouping and the date-only convention are now
-settled, but execution paths and journals are not implemented. Do not mistake
-these proposals for executable transfer instructions. Next, extend
-the proposal with intended paths and collision checks, then provide a separately
-reviewable execution script that uses the existing session/import mechanisms.
+### First-batch preparation script
+
+Implemented `scripts/prepare_openloop.py` for the converted target WAV batch.
+Review this script before running it. Invoke it as a module from the repository
+root so it can reuse the proposal module:
+
+```sh
+uv run python -m scripts.prepare_openloop openLoop openLoop-prepared
+```
+
+This is a read-only preview. It shows each selected WAV and its offline session
+destination, using the saved review decisions. Sessions are laid out as
+`openLoop-prepared/openLoop/YYYY/MM/DD/00-00-00/audio/<original basename>.wav`.
+After reviewing the destinations, the user may perform preparation with:
+
+```sh
+uv run python -m scripts.prepare_openloop openLoop openLoop-prepared --apply
+```
+
+Preparation copies WAVs unchanged. It does not convert them, import them into
+the live backup, request synchronization, contact a server, or modify originals.
+The destination must be separate from the collection and outside the standard
+live baccy backup directory. Choose an unwatched offline destination, especially
+if the daemon uses a custom backup/source directory. Prepared data needs roughly
+74.34 GB of additional space for this collection; importing with another copy
+later needs additional space again.
+
+Preflight reads WAV headers, validates RIFF/data lengths and frame alignment,
+checks intended local/listening-file name collisions, and refuses existing
+session destinations. It does not decode the audio or prove that historical CD
+capture was complete. Truncation, undeclared trailing bytes, and exactly
+10,000,000 frames block the selected batch for technical investigation. WAVs
+shorter than ten seconds are skipped. All preflight validation occurs before
+any copying; applying also checks free space and source size/mtime stability.
+
+Only proposals marked `converted-wav` are selected. The 21 unmatched `.Sd2f`
+files, source-only WAVs (including the round-frame anomaly), other formats,
+and the deferred February recording are left for later batches. Saved dates
+still govern grouping whenever a selected file has a saved decision.
+
+Each session is copied into private staging. A completed import journal is made
+discoverable only after every selected disc has been copied. The script uses
+the existing version-4 imported-session lifecycle format that baccy consumes,
+not the current recs live-capture format or a new schema. Compatibility with
+baccy's existing import preview and source-upload planner is tested. This does
+not create a current recs `recording.toml` editing document.
+
+Metadata retains original and converted paths, disc order, and unknown start/end
+times and inter-disc gaps. All journal timestamps are synthetic midnight storage
+placeholders; UTC notation is a storage convention, not evidence of a recording
+timezone. The footer duration is the sum of selected disc audio, not wall-clock
+show duration. No disc concatenation or timing reconstruction is performed.
+
+Applying emits timestamp-first structured progress on stderr immediately before
+each copy. On errors or interruption, originals remain unchanged and staging is
+retained for inspection. No cleanup, overwrite, rollback, or automatic retry is
+performed. Completed sessions remain complete; an unfinished session never has
+a discoverable `session-record.jsonl`. Repeating preparation refuses existing
+session destinations rather than creating duplicates. Resolve retained partial
+output through a separately reviewed script before attempting to resume it.
+
+The agent has not run this script against the collection. After preparation,
+review the resulting journals and preview import with the existing baccy
+importer. Actual import and daemon uploads remain separate, deliberate steps.
 
 1. Review the existing importer, session model, project definitions, and upload
    rules. Reuse their intended mechanisms. Determine whether importing legacy
@@ -334,5 +393,6 @@ after an answer has been saved. Generated WAV fixtures use
 ## Additional work beyond the prompt
 
 None. Header inspection, model review, and the read-only proposal script are
-within the request to start implementation. No collection files were moved,
+within the request to start implementation. The user-run preparation script is
+the requested next step. No collection files were moved,
 copied, deleted, converted, or otherwise changed.
