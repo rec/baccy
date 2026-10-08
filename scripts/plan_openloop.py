@@ -2,6 +2,7 @@
 
 import re
 import sys
+import tempfile
 import wave
 from datetime import date
 from pathlib import Path
@@ -10,12 +11,20 @@ from typing import Annotated
 import tyro
 from pydantic import BaseModel
 
+_DECISIONS_PATH = Path(__file__).resolve().parents[1] / 'plan/openLoop-decisions.json'
+
 
 class OpenLoopPlanCommand(BaseModel, frozen=True):
     """Review unresolved dates without changing collection files."""
 
     directory: Annotated[Path, tyro.conf.Positional]
     interactive: bool = False
+    decisions: Path = _DECISIONS_PATH
+    sessions: bool = False
+
+
+class ReviewDecisions(BaseModel, frozen=True):
+    dates: dict[str, date | None]
 
 
 class RecordingProposal(BaseModel, frozen=True):
@@ -39,18 +48,29 @@ class SessionProposal(BaseModel, frozen=True):
 def main(arguments: list[str] | None = None) -> int:
     command = tyro.cli(OpenLoopPlanCommand, args=arguments)
     try:
-        review_collection(command.directory, command.interactive)
+        if command.interactive or not command.sessions:
+            review_collection(command.directory, command.interactive, command.decisions)
+        if command.sessions:
+            for session in plan_sessions(command.directory, command.decisions):
+                print(f'{session.recording_date} ({len(session.discs)} discs/files)')
+                for disc in session.discs:
+                    print(f'  {(command.directory / disc.path).resolve()}')
     except (OSError, ValueError) as error:
         sys.exit(str(error))
     except EOFError, KeyboardInterrupt:
-        sys.exit('Review cancelled; no collection files were changed.')
+        sys.exit('Review cancelled; completed answers were saved; audio was unchanged.')
     return 0
 
 
-def review_collection(directory: Path, interactive: bool = False) -> None:
+def review_collection(
+    directory: Path, interactive: bool = False, decisions_path: Path = _DECISIONS_PATH
+) -> None:
     """Ask only date questions; report technical concerns separately on stderr."""
-    decisions: list[date] = []
-    for proposal in plan_collection(directory):
+    saved = _read_decisions(decisions_path)
+    decisions: list[str] = []
+    for proposal in plan_collection(directory, decisions_path):
+        if proposal.stage == 'deferred':
+            continue
         path = directory / proposal.path
         if path.suffix.lower() == '.wav':
             try:
@@ -83,22 +103,27 @@ def review_collection(directory: Path, interactive: bool = False) -> None:
             if answer.strip().lower() == 'q':
                 _print_decisions(decisions)
                 return
-            if not answer.strip():
-                break
             try:
-                decisions.append(date.fromisoformat(answer.strip()))
+                value = date.fromisoformat(answer.strip()) if answer.strip() else None
             except ValueError:
                 print('Enter a valid recording date in YYYY-MM-DD format.')
                 continue
+            saved = ReviewDecisions(
+                dates={**saved.dates, proposal.path.as_posix(): value}
+            )
+            _save_decisions(decisions_path, saved)
+            decisions.append(str(value) if value else 'Deferred')
             break
     if interactive:
         _print_decisions(decisions)
 
 
-def plan_sessions(directory: Path) -> list[SessionProposal]:
+def plan_sessions(
+    directory: Path, decisions_path: Path = _DECISIONS_PATH
+) -> list[SessionProposal]:
     """Group dated discs into shows, without inventing inter-disc timings."""
     groups: dict[date, list[RecordingProposal]] = {}
-    for proposal in plan_collection(directory):
+    for proposal in plan_collection(directory, decisions_path):
         if proposal.recording_date is not None:
             groups.setdefault(proposal.recording_date, []).append(proposal)
     sessions: list[SessionProposal] = []
@@ -114,7 +139,9 @@ def plan_sessions(directory: Path) -> list[SessionProposal]:
     return sessions
 
 
-def plan_collection(directory: Path) -> list[RecordingProposal]:
+def plan_collection(
+    directory: Path, decisions_path: Path = _DECISIONS_PATH
+) -> list[RecordingProposal]:
     """Associate converted WAVs with originals and propose dates, not timestamps."""
     source = directory / 'source'
     target = directory / 'target'
@@ -127,6 +154,7 @@ def plan_collection(directory: Path) -> list[RecordingProposal]:
     }
     converted: set[Path] = set()
     proposals: list[RecordingProposal] = []
+    decisions = _read_decisions(decisions_path)
     for path in sorted(target.rglob('*.wav')):
         if path.is_symlink() or not path.is_file():
             continue
@@ -136,25 +164,43 @@ def plan_collection(directory: Path) -> list[RecordingProposal]:
             raise ValueError(f'target WAV has no matching source: {relative}')
         converted.add(original)
         proposals.append(
-            _proposal(directory, path, originals[original], 'converted-wav')
+            _proposal(directory, path, originals[original], 'converted-wav', decisions)
         )
     for relative, path in sorted(originals.items()):
         if relative in converted or path.suffix.lower() == '.sh':
             continue
         stage = 'unconverted-sd2f' if path.suffix.lower() == '.sd2f' else 'review'
-        proposals.append(_proposal(directory, path, None, stage))
+        proposals.append(_proposal(directory, path, None, stage, decisions))
     return proposals
 
 
-def _print_decisions(decisions: list[date]) -> None:
+def _print_decisions(decisions: list[str]) -> None:
     if decisions:
-        print('\nDates supplied, in answer order (not saved):')
+        print('\nDecisions saved, in answer order:')
         for number, value in enumerate(decisions, 1):
             print(f'{number}. {value}')
 
 
+def _read_decisions(path: Path) -> ReviewDecisions:
+    if not path.exists():
+        return ReviewDecisions(dates={})
+    return ReviewDecisions.model_validate_json(path.read_text())
+
+
+def _save_decisions(path: Path, decisions: ReviewDecisions) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode='w', dir=path.parent, delete=False) as file:
+        file.write(decisions.model_dump_json(indent=2) + '\n')
+        temporary = Path(file.name)
+    temporary.replace(path)
+
+
 def _proposal(
-    directory: Path, path: Path, original: Path | None, stage: str
+    directory: Path,
+    path: Path,
+    original: Path | None,
+    stage: str,
+    decisions: ReviewDecisions,
 ) -> RecordingProposal:
     relative = path.relative_to(directory)
     filename_date = _date_from_name(path.name)
@@ -177,6 +223,11 @@ def _proposal(
         recording_date = date(2003, 5, 3)
         evidence = 'user-approved correction; original path retained'
         title = path.stem.replace('xx-05-02-', '2003-05-03-')
+    if relative.as_posix() in decisions.dates:
+        recording_date = decisions.dates[relative.as_posix()]
+        evidence = 'saved user decision'
+        if recording_date is None:
+            stage = 'deferred'
     return RecordingProposal(
         path=relative,
         original_path=original.relative_to(directory) if original else None,
