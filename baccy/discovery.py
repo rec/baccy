@@ -154,7 +154,7 @@ def _camera_directories(root: Path) -> list[Path]:
             for p in root.iterdir()
             if p.name.casefold() == 'dcim' and not p.is_symlink() and p.is_dir()
         ]
-    except FileNotFoundError, PermissionError:
+    except (FileNotFoundError, PermissionError):
         return []
 
 
@@ -165,7 +165,7 @@ def _recs_session_directories(root: Path) -> list[Path]:
         directory = pending.pop()
         try:
             children = sorted(directory.iterdir(), key=lambda p: p.name)
-        except FileNotFoundError, PermissionError:
+        except (FileNotFoundError, PermissionError):
             continue
         if any(
             not path.is_symlink()
@@ -189,13 +189,13 @@ def _is_recs_marker(path: Path) -> bool:
         try:
             with path.open('rb') as file:
                 value = tomllib.load(file)
-        except OSError, tomllib.TOMLDecodeError:
+        except (OSError, tomllib.TOMLDecodeError):
             return False
         return value.get('format') == 'recs' and value.get('kind') == 'recording'
     try:
         with path.open() as file:
             value = json.loads(file.readline())
-    except OSError, UnicodeDecodeError, json.JSONDecodeError:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return False
     return isinstance(value, dict) and value.get('type') == 'header'
 

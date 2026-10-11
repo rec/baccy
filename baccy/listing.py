@@ -124,7 +124,7 @@ def _ssh_files(
                         datetime.fromtimestamp(int(modified)).astimezone(),
                         int(size),
                     )
-                except IndexError, ValueError:
+                except (IndexError, ValueError):
                     continue
         start += len(commands)
         print(f'Checked {start}/{len(paths)} SSH paths', file=sys.stderr, flush=True)

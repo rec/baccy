@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections import Counter
 from ipaddress import IPv6Address
 from pathlib import Path, PurePosixPath

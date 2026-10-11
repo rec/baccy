@@ -159,7 +159,7 @@ def _stop_unresponsive_daemon(application: Application, wait_seconds: float) -> 
     try:
         rpc.Client(application.control_endpoint, role='baccy-cli').call('status')
         return
-    except BrokenPipeError, ConnectionError, OSError, TimeoutError:
+    except (BrokenPipeError, ConnectionError, OSError, TimeoutError):
         service = application.service_status()
     if service.running is not True:
         print('warning: no baccy daemon is running; installing one', file=sys.stderr)

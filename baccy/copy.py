@@ -196,7 +196,7 @@ def _snapshot(
         if snapshot[0] is None:
             temporary.unlink(missing_ok=True)
         return snapshot
-    except OSError, KeyboardInterrupt:
+    except (OSError, KeyboardInterrupt):
         temporary.unlink(missing_ok=True)
         raise
 

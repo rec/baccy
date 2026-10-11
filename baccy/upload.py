@@ -486,7 +486,7 @@ def _materialize(
         )
         if extension != 'mp3':
             temporary.replace(output)
-    except OSError, subprocess.SubprocessError, KeyboardInterrupt:
+    except (OSError, subprocess.SubprocessError, KeyboardInterrupt):
         temporary.unlink(missing_ok=True)
         raise
     return output

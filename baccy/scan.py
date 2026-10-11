@@ -36,7 +36,7 @@ def scan(source: ResolvedSource) -> list[Candidate]:
 def _files(directory: Path) -> Iterable[Path]:
     try:
         children = sorted(directory.iterdir(), key=lambda p: p.name)
-    except FileNotFoundError, PermissionError:
+    except (FileNotFoundError, PermissionError):
         return
     for path in children:
         if path.is_symlink():
@@ -72,7 +72,7 @@ def _active_recs_audio(candidates: Collection[Candidate]) -> set[Path]:
             continue
         try:
             active.update(files_being_written(candidate.path.parent))
-        except OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError:
+        except (OSError, UnicodeDecodeError, ValueError, json.JSONDecodeError):
             active.update(
                 value.path.resolve()
                 for value in values

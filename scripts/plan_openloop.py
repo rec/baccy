@@ -57,7 +57,7 @@ def main(arguments: list[str] | None = None) -> int:
                     print(f'  {(command.directory / disc.path).resolve()}')
     except (OSError, ValueError) as error:
         sys.exit(str(error))
-    except EOFError, KeyboardInterrupt:
+    except (EOFError, KeyboardInterrupt):
         sys.exit('Review cancelled; completed answers were saved; audio was unchanged.')
     return 0
 
