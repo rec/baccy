@@ -1,7 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, Event
 from typing import BinaryIO, cast
 
 import pytest
@@ -204,7 +204,9 @@ def test_network_recs_dry_run_does_not_write(tmp_path: Path) -> None:
 
     destination = tmp_path / 'backup'
     result = run_backup(
-        Settings(backup_root=destination, discover_removable=False),
+        Settings(
+            backup_root=destination, discover_removable=False, backup_running_recs=True
+        ),
         dry_run=True,
         network=NetworkDiscovery(run),
     )
@@ -242,7 +244,9 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
         return subprocess.CompletedProcess(command, 0, b'', b'')
 
     destination = tmp_path / 'backup'
-    settings = Settings(backup_root=destination, discover_removable=False)
+    settings = Settings(
+        backup_root=destination, discover_removable=False, backup_running_recs=True
+    )
     network = NetworkDiscovery(run)
 
     first = run_backup(settings, network=network)
@@ -280,7 +284,9 @@ def test_network_copy_defers_same_size_remote_change(tmp_path: Path) -> None:
 
     backup = tmp_path / 'backup'
     result = run_backup(
-        Settings(backup_root=backup, discover_removable=False),
+        Settings(
+            backup_root=backup, discover_removable=False, backup_running_recs=True
+        ),
         network=NetworkDiscovery(run),
     )
 
@@ -379,6 +385,7 @@ def test_network_recs_backup_is_available_for_project_upload(
         def __init__(self) -> None:
             self.run = subprocess.run
             self.verbose = False
+            self.stopping = Event()
             self.new_machines: list[object] = []
 
         def discover(self) -> list[NetworkRecsSource]:

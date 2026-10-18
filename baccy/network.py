@@ -4,6 +4,7 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -14,6 +15,7 @@ from pydantic import BaseModel
 from .catalog import Catalog
 from .copy import commit_snapshot, ensure_destination_parent, sha256
 from .models import Candidate, FileResult, NetworkSource, ResolvedSource
+from .recs_monitor import BackupPaused, RecsMonitor
 
 _ARP_NODE = re.compile(
     r'\((?P<host>[^)]+)\) at (?P<mac>(?:[0-9a-f]{1,2}:){5}[0-9a-f]{1,2}) ',
@@ -70,6 +72,7 @@ class NetworkDiscovery:
         self.run = run
         self.verbose = verbose
         self.sleep = sleep
+        self.stopping = threading.Event()
         self.seen: set[str] = set()
         self.machines: dict[str, NetworkMachine] = {}
         self.new_machines: list[NetworkMachine] = []
@@ -173,6 +176,38 @@ def backup_network_source(
     catalog: Catalog,
     dry_run: bool,
     run: Callable[..., subprocess.CompletedProcess[bytes]] = subprocess.run,
+    backup_running_recs: bool = False,
+    stop: threading.Event | None = None,
+) -> list[FileResult]:
+    if backup_running_recs:
+        return _backup_network_source(source, backup_root, catalog, dry_run, run)
+    try:
+        with RecsMonitor(
+            [
+                'ssh',
+                *_SSH_OPTIONS,
+                '-o',
+                'ServerAliveInterval=5',
+                '-o',
+                'ServerAliveCountMax=2',
+                source.host,
+                'exec recs watch --listening',
+            ],
+            threading.Event() if stop is None else stop,
+        ) as monitor:
+            return _backup_network_source(
+                source, backup_root, catalog, dry_run, monitor.run
+            )
+    except (BackupPaused, OSError) as error:
+        return [FileResult(source=source.name, status='deferred', detail=str(error))]
+
+
+def _backup_network_source(
+    source: NetworkRecsSource,
+    backup_root: Path,
+    catalog: Catalog,
+    dry_run: bool,
+    run: Callable[..., subprocess.CompletedProcess[bytes]],
 ) -> list[FileResult]:
     try:
         files = _recs_files(run, source.host)
@@ -193,6 +228,16 @@ def backup_network_source(
             result = _backup_remote_file(
                 source, file, backup_root, catalog, dry_run, run
             )
+        except BackupPaused as error:
+            results.append(
+                FileResult(
+                    source=source.name,
+                    relative_path=file.relative_path,
+                    status='deferred',
+                    detail=str(error),
+                )
+            )
+            break
         except OSError as error:
             result = FileResult(
                 source=source.name,
@@ -360,7 +405,7 @@ def _read_command(relative_path: Path) -> str:
     value = base64.b64encode(relative_path.as_posix().encode()).decode()
     return (
         f'path=$(printf %s {value} | (base64 -D 2>/dev/null || base64 -d)); '
-        'cat "$HOME/recs/$path"'
+        'exec cat "$HOME/recs/$path"'
     )
 
 

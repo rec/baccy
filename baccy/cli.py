@@ -196,6 +196,7 @@ def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
         try:
             watch(
                 settings,
+                stop=network.stopping,
                 trigger=application.sync_requested,
                 action=action,
                 report=lambda summary: _report(application, summary),
@@ -209,6 +210,7 @@ def _watch(command: WatchCommand, config: Path, dry_run: bool) -> int:
 
         watch(
             settings,
+            stop=network.stopping,
             action=action,
             report=reporter.print,
         )

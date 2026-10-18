@@ -220,6 +220,7 @@ class Settings(BaseModel, frozen=True):
     backup_root: Path = Field(default_factory=lambda: Path.home() / 'baccy')
     sources: list[Source] = Field(default_factory=list)
     discover_removable: bool = True
+    backup_running_recs: bool = False
     poll_seconds: float = Field(default=60.0, gt=0)
     stability_seconds: float = Field(default=60.0, ge=0)
     s3_max_bandwidth: int = Field(default=1_000_000, gt=0)

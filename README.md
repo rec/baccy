@@ -283,6 +283,18 @@ it; an unverified `ssh-keyscan` result alone is not proof of identity. The
 machine must also accept the user's existing SSH credentials. Configured
 `kind = "network"` sources are rejected because they were never resolved; use
 trusted-host automatic discovery instead.
+
+By default, `backup_running_recs = false` blocks network backup while any recs
+instance on the target is listening to hardware inputs, including silent input
+that is not currently writing a file. Each target must have the updated `recs`
+command available over SSH. Baccy subscribes with `recs watch --listening`; an
+unknown state, broken connection or missing command also blocks backup.
+Starting capture cancels the current transfer and discards its temporary file.
+Completed backups are retained. A later scan reconnects, refreshes the inventory
+and retries unfinished files from the beginning once all instances are idle.
+New instances are detected within approximately one second. Setting
+`backup_running_recs = true` restores network copying without this subscription.
+Local/removable backups and uploads from baccy's own backup area are unaffected.
 Each newly seen MAC address gets an immediate SSH attempt, with at most eight
 hosts probed concurrently and, for connection failures, one retry after two
 seconds and another after four seconds. A previously discovered recording

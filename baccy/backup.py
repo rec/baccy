@@ -180,6 +180,8 @@ def _run_candidates(
         return models.BackupSummary.from_results(results, discovered=len(candidates))
     network_results: list[models.FileResult] = []
     for source in network_sources:
+        if network.stopping.is_set():
+            break
         network_results.extend(
             backup_network_source(
                 source,
@@ -187,6 +189,8 @@ def _run_candidates(
                 catalog,
                 dry_run,
                 network.run,
+                settings.backup_running_recs,
+                network.stopping,
             )
         )
     for result in network_results:
@@ -197,6 +201,8 @@ def _run_candidates(
             and not dry_run
         ):
             catalog.append_deferred(result.source, result.relative_path, result.detail)
+    if network_sources and network.stopping.is_set():
+        return models.BackupSummary.from_results(results, discovered=len(candidates))
     for result in publish_sessions(
         _upload_sources(settings.backup_root),
         settings,
