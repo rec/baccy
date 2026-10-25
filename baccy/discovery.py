@@ -1,13 +1,10 @@
 import json
 import plistlib
 import subprocess
-import tomllib
 from collections.abc import Callable
 from pathlib import Path
 
 from . import models
-
-_RECS_MARKERS = {'recording.toml', 'session-record.jsonl'}
 
 
 def resolve_sources(
@@ -169,7 +166,7 @@ def _recs_session_directories(root: Path) -> list[Path]:
             continue
         if any(
             not path.is_symlink()
-            and path.name in _RECS_MARKERS
+            and path.name == 'session-record.jsonl'
             and path.is_file()
             and _is_recs_marker(path)
             for path in children
@@ -185,13 +182,6 @@ def _recs_session_directories(root: Path) -> list[Path]:
 
 
 def _is_recs_marker(path: Path) -> bool:
-    if path.name == 'recording.toml':
-        try:
-            with path.open('rb') as file:
-                value = tomllib.load(file)
-        except (OSError, tomllib.TOMLDecodeError):
-            return False
-        return value.get('format') == 'recs' and value.get('kind') == 'recording'
     try:
         with path.open() as file:
             value = json.loads(file.readline())

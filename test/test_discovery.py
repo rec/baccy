@@ -72,7 +72,9 @@ def test_discover_removable_sources_finds_nested_recs_session(tmp_path: Path) ->
     recordings = volumes / 'RECORDINGS'
     session = recordings / 'recs' / '2026-09-20 12-00-00'
     session.mkdir(parents=True)
-    (session / 'session-record.jsonl').write_text('{"type":"header"}\n')
+    (session / 'session-record.jsonl').write_text(
+        '{"type":"header","version":5,"project_name":"concert"}\n'
+    )
     (session / 'audio.wav').write_bytes(b'audio')
     (recordings / 'unrelated.txt').write_text('private')
 
@@ -100,13 +102,13 @@ def test_discover_removable_sources_ignores_unrecognized_volume(tmp_path: Path) 
     assert sources == []
 
 
-def test_discover_removable_sources_ignores_unrelated_recording_file(
+def test_discover_removable_sources_ignores_recording_without_session_record(
     tmp_path: Path,
 ) -> None:
     volumes = tmp_path / 'Volumes'
     ordinary = volumes / 'ORDINARY'
     ordinary.mkdir(parents=True)
-    (ordinary / 'recording.toml').write_text('format = "other"\n')
+    (ordinary / 'recording.toml').write_text('format = "recs"\nkind = "recording"\n')
 
     sources = discover_removable_sources(
         tmp_path / 'backup', [], volumes, _diskutil(ordinary='ordinary-uuid')

@@ -89,8 +89,8 @@ mounted removable or ejectable volumes that are not already configured. It
 selects content only when either:
 
 - the volume root contains a `DCIM` directory, identifying a camera card; or
-- any directory contains a valid recs `recording.toml` or
-  `session-record.jsonl`, identifying recs sessions.
+- any directory contains a `session-record.jsonl` with a recs header,
+  identifying a recs session. A `recording.toml` alone does not qualify.
 
 For a camera volume, only recognized photo files below `DCIM` are backed up;
 videos, sidecars, manuals, and unrelated files are ignored. Supported photo
