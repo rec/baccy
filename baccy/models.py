@@ -219,6 +219,7 @@ class LandingPageUpload(BaseModel, frozen=True):
 class Settings(BaseModel, frozen=True):
     backup_root: Path = Field(default_factory=lambda: Path.home() / 'baccy')
     sources: list[Source] = Field(default_factory=list)
+    network_paths: dict[str, list[Path]] = Field(default_factory=dict)
     discover_removable: bool = True
     backup_running_recs: bool = False
     poll_seconds: float = Field(default=60.0, gt=0)
@@ -227,6 +228,17 @@ class Settings(BaseModel, frozen=True):
     verbose: bool = True
     uploads: list[UploadRule] = Field(default_factory=list)
     landing_pages: list[LandingPageUpload] = Field(default_factory=list)
+
+    @field_validator('network_paths')
+    @classmethod
+    def validate_network_paths(
+        cls, value: dict[str, list[Path]]
+    ) -> dict[str, list[Path]]:
+        if any(
+            not p.is_absolute() or '..' in p.parts for v in value.values() for p in v
+        ):
+            raise ValueError('network paths must be absolute without .. components')
+        return value
 
     @model_validator(mode='after')
     def validate_source_names(self) -> Settings:

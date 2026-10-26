@@ -307,6 +307,20 @@ Multicast and broadcast ARP entries are ignored.
 Qualifying `~/recs` directories are copied as network sources, with the catalog
 skipping files whose remote size and modification time have not changed.
 
+To also back up another recording directory on a discovered machine, add its
+absolute path under the machine's normalized MAC address:
+
+```toml
+[network_paths]
+"80:3f:5d:16:d2:49" = ["/mnt/recordings/recs"]
+```
+
+Baccy continues backing up `~/recs` and reads the additional directories through
+the same SSH connection and recording-state monitor. Paths beneath each root
+retain the existing `audio/PROJECT/SESSION/...` backup layout. Files with the same
+relative path in multiple roots are deferred rather than overwritten. An
+unavailable extra root is reported as a failure without blocking the other roots.
+
 With `verbose = true`, the service log records each newly observed network
 host, whether SSH failed or `~/recs` was absent, and recognized-source backup
 start and completion. Watch it with:

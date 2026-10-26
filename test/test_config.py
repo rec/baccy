@@ -25,6 +25,21 @@ def test_load_reads_sources(tmp_path: Path) -> None:
     assert settings.stability_seconds == 30
 
 
+def test_load_reads_extra_network_paths(tmp_path: Path) -> None:
+    path = tmp_path / 'baccy.toml'
+    path.write_text('[network_paths]\n"aa:bb:cc:dd:ee:ff" = ["/mnt/recordings/recs"]\n')
+
+    assert config.load(path).network_paths == {
+        'aa:bb:cc:dd:ee:ff': [Path('/mnt/recordings/recs')]
+    }
+
+
+@pytest.mark.parametrize('path', ['relative/recs', '/mnt/../etc'])
+def test_network_paths_require_absolute_roots(path: str) -> None:
+    with pytest.raises(ValidationError, match='network paths must be absolute'):
+        Settings(network_paths={'aa:bb:cc:dd:ee:ff': [Path(path)]})
+
+
 def test_load_reads_upload_rules(tmp_path: Path) -> None:
     path = tmp_path / 'baccy.toml'
     path.write_text(

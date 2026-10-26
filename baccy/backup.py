@@ -34,6 +34,10 @@ def run_backup(
     discovery = NetworkDiscovery() if network is None else network
     discovery.verbose = settings.verbose
     network_sources = discovery.discover()
+    network_sources = [
+        s.model_copy(update={'extra_roots': settings.network_paths.get(s.mac, [])})
+        for s in network_sources
+    ]
     if recognize_machines is not None:
         recognize_machines(
             [

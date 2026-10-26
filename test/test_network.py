@@ -1,3 +1,4 @@
+import base64
 import logging
 import subprocess
 from pathlib import Path
@@ -262,6 +263,53 @@ def test_network_recs_backup_skips_unchanged_files(tmp_path: Path) -> None:
         'stat -c %Y "$file" 2>/dev/null || stat -f %m "$file"' in command
         for command in metadata_commands
     )
+
+
+@pytest.mark.parametrize('collision', [False, True])
+def test_network_backup_reads_extra_roots_without_overwriting_collisions(
+    tmp_path: Path, collision: bool
+) -> None:
+    reads: list[str] = []
+    root = Path('/mnt/recordings with spaces/recs')
+    old = 'project/old/session-record.jsonl'
+    new = old if collision else 'project/new/session-record.jsonl'
+
+    def run(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+        remote = command[-1]
+        if command[0] == 'arp':
+            output = b'? (pi.local) at aa:bb:cc:dd:ee:ff on en0\n'
+        elif remote == 'test -d "$HOME/recs"':
+            output = b''
+        elif 'find . -type f' in remote:
+            path = new if "cd '/mnt/recordings with spaces/recs'" in remote else old
+            output = path.encode() + b'\x001\x005\x00'
+        elif 'mtime=$(stat' in remote:
+            output = b'1 5'
+        else:
+            reads.append(remote)
+            cast(BinaryIO, kwargs['stdout']).write(b'bytes')
+            output = b''
+        return subprocess.CompletedProcess(command, 0, output, b'')
+
+    settings = Settings(
+        backup_root=tmp_path / 'backup',
+        discover_removable=False,
+        backup_running_recs=True,
+        network_paths={'aa:bb:cc:dd:ee:ff': [root]},
+    )
+    network = NetworkDiscovery(run)
+    first = run_backup(settings, network=network)
+
+    if collision:
+        assert first.deferred == 2
+        assert first.copied == 0
+        assert reads == []
+    else:
+        assert first.copied == 2
+        assert (settings.backup_root / 'audio' / new).read_bytes() == b'bytes'
+        encoded = base64.b64encode((root / new).as_posix().encode()).decode()
+        assert encoded in reads[1]
+        assert run_backup(settings, network=network).unchanged == 2
 
 
 def test_network_copy_defers_same_size_remote_change(tmp_path: Path) -> None:

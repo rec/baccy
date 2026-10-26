@@ -2,15 +2,17 @@ import base64
 import logging
 import os
 import re
+import shlex
 import subprocess
 import tempfile
 import threading
 import time
+from collections import Counter
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .catalog import Catalog
 from .copy import commit_snapshot, ensure_destination_parent, sha256
@@ -31,7 +33,6 @@ _SSH_OPTIONS = [
 ]
 _COMMAND_TIMEOUT_SECONDS = 4 * 60 * 60
 _LIST_RECS_FILES = (
-    'cd "$HOME/recs" || exit\n'
     "find . -type f -exec sh -c '\n"
     'for path do\n'
     '    mtime=$(stat -c %Y "$path" 2>/dev/null || stat -f %m "$path") || exit\n'
@@ -53,13 +54,14 @@ class NetworkMachine(BaseModel, frozen=True):
 
 
 class NetworkRecsSource(NetworkMachine):
-    pass
+    extra_roots: list[Path] = Field(default_factory=list)
 
 
 class RemoteFile(BaseModel, frozen=True):
     relative_path: Path
     size: int
     mtime_ns: int
+    root: Path = Path('recs')
 
 
 class NetworkDiscovery:
@@ -209,21 +211,37 @@ def _backup_network_source(
     dry_run: bool,
     run: Callable[..., subprocess.CompletedProcess[bytes]],
 ) -> list[FileResult]:
-    try:
-        files = _recs_files(run, source.host)
-    except OSError as error:
-        if not dry_run:
-            catalog.append(
-                {
-                    'source': source.name,
-                    'relative_path': '.',
-                    'result': 'failed',
-                    'detail': str(error),
-                }
-            )
-        return [FileResult(source=source.name, status='failed', detail=str(error))]
+    files: list[RemoteFile] = []
     results: list[FileResult] = []
+    for root in dict.fromkeys([Path('recs'), *source.extra_roots]):
+        try:
+            files.extend(_recs_files(run, source.host, root))
+        except OSError as error:
+            detail = f'{root}: {error}'
+            if not dry_run:
+                catalog.append(
+                    {
+                        'source': source.name,
+                        'relative_path': '.',
+                        'result': 'failed',
+                        'detail': detail,
+                    }
+                )
+            results.append(
+                FileResult(source=source.name, status='failed', detail=detail)
+            )
+    counts = Counter(f.relative_path for f in files)
     for file in files:
+        if counts[file.relative_path] > 1:
+            results.append(
+                FileResult(
+                    source=source.name,
+                    relative_path=file.relative_path,
+                    status='deferred',
+                    detail='relative path occurs in multiple remote roots',
+                )
+            )
+            continue
         try:
             result = _backup_remote_file(
                 source, file, backup_root, catalog, dry_run, run
@@ -293,9 +311,13 @@ def _is_connection_failure(result: subprocess.CompletedProcess[bytes]) -> bool:
 
 
 def _recs_files(
-    run: Callable[..., subprocess.CompletedProcess[bytes]], host: str
+    run: Callable[..., subprocess.CompletedProcess[bytes]], host: str, root: Path
 ) -> list[RemoteFile]:
-    result = _ssh(run, host, _LIST_RECS_FILES)
+    result = _ssh(
+        run,
+        host,
+        f'cd "$HOME" && cd {shlex.quote(root.as_posix())} || exit\n' + _LIST_RECS_FILES,
+    )
     if result.returncode != 0:
         raise OSError(result.stderr.decode(errors='replace').strip())
     values = result.stdout.split(b'\0')
@@ -313,6 +335,7 @@ def _recs_files(
                 relative_path=relative_path,
                 mtime_ns=int(mtime) * 1_000_000_000,
                 size=int(size),
+                root=root,
             )
         )
     return files
@@ -343,14 +366,14 @@ def _backup_remote_file(
             result = _ssh(
                 run,
                 source.host,
-                _read_command(file.relative_path),
+                _read_command(file.root / file.relative_path),
                 stdout=output,
             )
         if result.returncode != 0:
             raise OSError(result.stderr.decode(errors='replace').strip())
         if temporary.stat().st_size != file.size:
             return _result(candidate, 'deferred', 'remote source changed while copying')
-        if _remote_metadata(run, source.host, file.relative_path) != (
+        if _remote_metadata(run, source.host, file.root / file.relative_path) != (
             file.mtime_ns,
             file.size,
         ):
@@ -405,7 +428,7 @@ def _read_command(relative_path: Path) -> str:
     value = base64.b64encode(relative_path.as_posix().encode()).decode()
     return (
         f'path=$(printf %s {value} | (base64 -D 2>/dev/null || base64 -d)); '
-        'exec cat "$HOME/recs/$path"'
+        'cd "$HOME" || exit; exec cat "$path"'
     )
 
 
@@ -417,7 +440,7 @@ def _remote_metadata(
         run,
         host,
         f'path=$(printf %s {value} | (base64 -D 2>/dev/null || base64 -d)); '
-        'file="$HOME/recs/$path"; '
+        'cd "$HOME" || exit; file="$path"; '
         'mtime=$(stat -c %Y "$file" 2>/dev/null || stat -f %m "$file") || exit; '
         'size=$(wc -c < "$file") || exit; '
         'printf "%s %s" "$mtime" "$size"',

@@ -13,3 +13,6 @@ destination = "s3:axto-private"
 [[landing_pages]]
 upload = "main-mp3"
 destination = "ssh:root@ax.to:/home/ax/public_html"
+
+[network_paths]
+"80:3f:5d:16:d2:49" = ["/mnt/recordings/recs"]
