@@ -213,7 +213,7 @@ def _backup_network_source(
 ) -> list[FileResult]:
     files: list[RemoteFile] = []
     results: list[FileResult] = []
-    for root in dict.fromkeys([Path('recs'), *source.extra_roots]):
+    for root in dict.fromkeys([*source.extra_roots, Path('recs')]):
         try:
             files.extend(_recs_files(run, source.host, root))
         except OSError as error:

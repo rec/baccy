@@ -308,7 +308,7 @@ def test_network_backup_reads_extra_roots_without_overwriting_collisions(
         assert first.copied == 2
         assert (settings.backup_root / 'audio' / new).read_bytes() == b'bytes'
         encoded = base64.b64encode((root / new).as_posix().encode()).decode()
-        assert encoded in reads[1]
+        assert encoded in reads[0]
         assert run_backup(settings, network=network).unchanged == 2
 
 
