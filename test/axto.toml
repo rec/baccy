@@ -16,3 +16,4 @@ destination = "ssh:root@ax.to:/home/ax/public_html"
 
 [network_paths]
 "80:3f:5d:16:d2:49" = ["/mnt/recordings/recs"]
+"98:fe:54:0b:9d:21" = ["/mnt/recordings/recs"]
