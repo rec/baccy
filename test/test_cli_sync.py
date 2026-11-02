@@ -2,6 +2,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from pytest import CaptureFixture, MonkeyPatch
+from reccy.protocol import ipc, rpc
 
 from baccy.cli import main
 from baccy.models import BackupSummary
@@ -78,7 +79,9 @@ def test_daemon_sync_waits_for_newly_installed_daemon(
             nonlocal attempts
             attempts += 1
             if attempts == 1:
-                raise FileNotFoundError()
+                raise rpc.TransportError(
+                    'not connected', ipc.Outcome.not_started
+                ) from FileNotFoundError()
             return {'scheduled': True}
 
     monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
@@ -124,3 +127,24 @@ def test_verified_sync_runs_foreground_with_daemon_configuration(
 
     assert main(['sync', '--verify']) == 0
     assert received == [True]
+
+
+def test_daemon_sync_never_retries_an_unknown_outcome(monkeypatch: MonkeyPatch) -> None:
+    from baccy.service_cli import request_daemon_sync
+
+    attempts = 0
+
+    class Client:
+        def __init__(self, endpoint: Path, *, role: str) -> None:
+            pass
+
+        def call(self, command: str) -> str:
+            nonlocal attempts
+            attempts += 1
+            raise rpc.TransportError(
+                'outcome unknown', ipc.Outcome.unknown
+            ) from FileNotFoundError()
+
+    monkeypatch.setattr('baccy.service_cli.rpc.Client', Client)
+    assert request_daemon_sync(Path('/unused.sock')) == 'outcome unknown'
+    assert attempts == 1

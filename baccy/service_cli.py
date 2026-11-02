@@ -12,7 +12,7 @@ from typing import TextIO
 import tomlkit
 import tyro
 from pydantic import BaseModel
-from reccy.protocol import rpc
+from reccy.protocol import ipc, rpc
 
 from .application import Application
 
@@ -159,7 +159,7 @@ def _stop_unresponsive_daemon(application: Application, wait_seconds: float) -> 
     try:
         rpc.Client(application.control_endpoint, role='baccy-cli').call('status')
         return
-    except (BrokenPipeError, ConnectionError, OSError, TimeoutError):
+    except (rpc.RemoteError, BrokenPipeError, ConnectionError, OSError, TimeoutError):
         service = application.service_status()
     if service.running is not True:
         print('warning: no baccy daemon is running; installing one', file=sys.stderr)
@@ -181,7 +181,13 @@ def _wait_for_daemon(application: Application) -> str | None:
             status = rpc.Client(application.control_endpoint, role='baccy-cli').call(
                 'status'
             )
-        except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as value:
+        except (
+            rpc.RemoteError,
+            BrokenPipeError,
+            ConnectionError,
+            OSError,
+            TimeoutError,
+        ) as value:
             error = str(value)
             service = application.service_status()
             if service.running is False:
@@ -208,12 +214,22 @@ def request_daemon_sync(endpoint: Path | str, attempts: int = 20) -> str | None:
         try:
             rpc.Client(endpoint, role='baccy-cli').call('sync')
             return None
-        except FileNotFoundError as value:
+        except rpc.TransportError as value:
+            if value.outcome != ipc.Outcome.not_started or not isinstance(
+                value.__cause__, FileNotFoundError
+            ):
+                return str(value)
             error = str(value)
             if attempt == attempts - 1:
                 return error
             time.sleep(0.1)
-        except (BrokenPipeError, ConnectionError, OSError, TimeoutError) as value:
+        except (
+            rpc.RemoteError,
+            BrokenPipeError,
+            ConnectionError,
+            OSError,
+            TimeoutError,
+        ) as value:
             return str(value)
     return error
 
