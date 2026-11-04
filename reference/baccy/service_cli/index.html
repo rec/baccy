@@ -1,0 +1,1760 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Permanent backup daemon for media and other assets">
+      
+      
+      
+        <link rel="canonical" href="https://rec.github.io/baccy/reference/baccy/service_cli/">
+      
+      
+      
+        <link rel="prev" href="../server_test/">
+      
+      
+        <link rel="next" href="../ssh/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.73">
+    
+    
+      
+        <title>service_cli - baccy</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../../assets/stylesheets/modern/main.4ab2de0c.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&amp;display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_scope.pathname.endsWith("/")||(__md_scope=new URL(__md_scope.pathname+"/",location)),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,_=__md_scope)=>JSON.parse(t.getItem(_.pathname+"."+e)),__md_set=(e,t,_=localStorage,a=__md_scope)=>{try{_.setItem(a.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-hidden="true"></label>
+    <div data-md-component="skip">
+      <a href="#__skip" class="md-skip">
+        Skip to content
+      </a>
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="baccy" class="md-header__button md-logo" aria-label="baccy" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+      <span class="md-visually-hidden">Navigation</span>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            baccy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              service_cli
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+          <span class="md-visually-hidden">Search</span>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+    </div>
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="baccy" class="md-nav__button md-logo" aria-label="baccy" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 5v16M20.001 19A2 2 0 0 0 22 17V5a2 2 0 0 0-1.999-2L16 3.002A5 5 0 0 0 12 5a5 5 0 0 0-4-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 1.999 2H8a5 5 0 0 1 4 2 5 5 0 0 1 4-2z"/></svg>
+
+    </a>
+    baccy
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  baccy
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  API Reference
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        
+          <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_2">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  API Reference
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>baccy
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_2_1" id="__nav_2_1_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        
+          <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="true">
+            <label class="md-nav__title" for="__nav_2_1">
+              <span class="md-nav__icon md-icon"></span>
+              
+  
+  <code class="doc-symbol doc-symbol-nav doc-symbol-module"></code>baccy
+
+            </label>
+            <ul class="md-nav__list" data-md-scrollfix>
+              
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../application/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  application
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../backup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  backup
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  catalog
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  cli
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  config
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../copy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  copy
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../discovery/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  discovery
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../importer/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  importer
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../listing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  listing
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../match/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  match
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../models/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  models
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../network/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  network
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../notifications/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  notifications
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  recs
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recs_monitor/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  recs_monitor
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../rename/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  rename
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../s3/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  s3
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  scan
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../server_test/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  server_test
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  service_cli
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="././" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  service_cli
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#baccy.service_cli.InstallCommand" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        InstallCommand
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="InstallCommand">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#baccy.service_cli.InstallCommand.sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        sync
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#baccy.service_cli.InstallCommand.shutdown_wait_seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        shutdown_wait_seconds
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baccy.service_cli.ServiceCommand" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ServiceCommand
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baccy.service_cli.service" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        service
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baccy.service_cli.request_daemon_sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        request_daemon_sync
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ssh/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  ssh
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../sync/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  sync
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upload/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  upload
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../upload_plan/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  upload_plan
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+                
+                  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../watch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+  watch
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+                
+              
+            </ul>
+          </nav>
+        
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  
+                    
+                    
+                    
+                      
+                    
+                    
+                      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+                      <div class="md-sidebar-button__wrapper">
+                        <label class="md-sidebar-button" for="__toc"></label>
+                      </div>
+                    
+                  
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#baccy.service_cli.InstallCommand" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        InstallCommand
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="InstallCommand">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#baccy.service_cli.InstallCommand.sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        sync
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#baccy.service_cli.InstallCommand.shutdown_wait_seconds" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        shutdown_wait_seconds
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baccy.service_cli.ServiceCommand" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ServiceCommand
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baccy.service_cli.service" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        service
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baccy.service_cli.request_daemon_sync" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        request_daemon_sync
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                <a id="__skip" tabindex="-1"></a>
+                
+                  
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<h1 id="baccy.service_cli" class="doc doc-heading">
+            <code>baccy.service_cli</code>
+
+
+<a href="#baccy.service_cli" class="headerlink" title="Permanent link">&para;</a></h1>
+
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="baccy.service_cli.InstallCommand" class="doc doc-heading">
+            <code>InstallCommand</code>
+
+
+<a href="#baccy.service_cli.InstallCommand" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Install the per-user baccy LaunchAgent.</p>
+
+
+
+
+
+
+
+
+              <details class="mkdocstrings-source">
+                <summary>Source code in <code>baccy/service_cli.py</code></summary>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#baccy.service_cli.InstallCommand--source--__codelineno-0-20">20</a></span>
+<span class="normal"><a href="#baccy.service_cli.InstallCommand--source--__codelineno-0-21">21</a></span>
+<span class="normal"><a href="#baccy.service_cli.InstallCommand--source--__codelineno-0-22">22</a></span>
+<span class="normal"><a href="#baccy.service_cli.InstallCommand--source--__codelineno-0-23">23</a></span>
+<span class="normal"><a href="#baccy.service_cli.InstallCommand--source--__codelineno-0-24">24</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="baccy.service_cli.InstallCommand--source--__span-0-20"><a id="baccy.service_cli.InstallCommand--source--__codelineno-0-20" name="baccy.service_cli.InstallCommand--source--__codelineno-0-20"></a><span class="k">class</span><span class="w"> </span><span class="nc">InstallCommand</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+</span><span id="baccy.service_cli.InstallCommand--source--__span-0-21"><a id="baccy.service_cli.InstallCommand--source--__codelineno-0-21" name="baccy.service_cli.InstallCommand--source--__codelineno-0-21"></a><span class="w">    </span><span class="sd">"""Install the per-user baccy LaunchAgent."""</span>
+</span><span id="baccy.service_cli.InstallCommand--source--__span-0-22"><a id="baccy.service_cli.InstallCommand--source--__codelineno-0-22" name="baccy.service_cli.InstallCommand--source--__codelineno-0-22"></a>
+</span><span id="baccy.service_cli.InstallCommand--source--__span-0-23"><a id="baccy.service_cli.InstallCommand--source--__codelineno-0-23" name="baccy.service_cli.InstallCommand--source--__codelineno-0-23"></a>    <span class="n">sync</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+</span><span id="baccy.service_cli.InstallCommand--source--__span-0-24"><a id="baccy.service_cli.InstallCommand--source--__codelineno-0-24" name="baccy.service_cli.InstallCommand--source--__codelineno-0-24"></a>    <span class="n">shutdown_wait_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span>
+</span></code></pre></div></td></tr></table></div>
+              </details>
+
+
+
+<div class="doc doc-children">
+
+
+
+
+
+
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="baccy.service_cli.InstallCommand.sync" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">sync</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#baccy.service_cli.InstallCommand.sync" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-attribute">
+
+
+
+<h3 id="baccy.service_cli.InstallCommand.shutdown_wait_seconds" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">shutdown_wait_seconds</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">2.0</span></code>
+
+  <span class="doc doc-labels">
+      <small class="doc doc-label doc-label-class-attribute"><code>class-attribute</code></small>
+      <small class="doc doc-label doc-label-instance-attribute"><code>instance-attribute</code></small>
+  </span>
+
+<a href="#baccy.service_cli.InstallCommand.shutdown_wait_seconds" class="headerlink" title="Permanent link">&para;</a></h3>
+
+
+    <div class="doc doc-contents ">
+
+    </div>
+
+</div>
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="baccy.service_cli.ServiceCommand" class="doc doc-heading">
+            <code>ServiceCommand</code>
+
+
+<a href="#baccy.service_cli.ServiceCommand" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><span title="pydantic.BaseModel">BaseModel</span></code></p>
+
+
+
+        <p>Manage the per-user baccy LaunchAgent.</p>
+
+
+
+
+
+
+
+
+              <details class="mkdocstrings-source">
+                <summary>Source code in <code>baccy/service_cli.py</code></summary>
+                <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#baccy.service_cli.ServiceCommand--source--__codelineno-0-27">27</a></span>
+<span class="normal"><a href="#baccy.service_cli.ServiceCommand--source--__codelineno-0-28">28</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="baccy.service_cli.ServiceCommand--source--__span-0-27"><a id="baccy.service_cli.ServiceCommand--source--__codelineno-0-27" name="baccy.service_cli.ServiceCommand--source--__codelineno-0-27"></a><span class="k">class</span><span class="w"> </span><span class="nc">ServiceCommand</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">,</span> <span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+</span><span id="baccy.service_cli.ServiceCommand--source--__span-0-28"><a id="baccy.service_cli.ServiceCommand--source--__codelineno-0-28" name="baccy.service_cli.ServiceCommand--source--__codelineno-0-28"></a><span class="w">    </span><span class="sd">"""Manage the per-user baccy LaunchAgent."""</span>
+</span></code></pre></div></td></tr></table></div>
+              </details>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="baccy.service_cli.service" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">service</span><span class="p">(</span><span class="n">arguments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">config</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span></code>
+
+<a href="#baccy.service_cli.service" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>baccy/service_cli.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-31">31</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-32">32</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-33">33</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-34">34</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-35">35</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-36">36</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-37">37</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-38">38</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-39">39</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-40">40</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-41">41</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-42">42</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-43">43</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-44">44</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-45">45</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-46">46</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-47">47</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-48">48</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-49">49</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-50">50</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-51">51</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-52">52</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-53">53</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-54">54</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-55">55</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-56">56</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-57">57</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-58">58</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-59">59</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-60">60</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-61">61</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-62">62</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-63">63</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-64">64</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-65">65</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-66">66</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-67">67</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-68">68</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-69">69</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-70">70</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-71">71</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-72">72</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-73">73</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-74">74</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-75">75</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-76">76</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-77">77</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-78">78</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-79">79</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-80">80</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-81">81</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-82">82</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-83">83</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-84">84</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-85">85</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-86">86</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-87">87</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-88">88</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-89">89</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-90">90</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-91">91</a></span>
+<span class="normal"><a href="#baccy.service_cli.service--source--__codelineno-0-92">92</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="baccy.service_cli.service--source--__span-0-31"><a id="baccy.service_cli.service--source--__codelineno-0-31" name="baccy.service_cli.service--source--__codelineno-0-31"></a><span class="k">def</span><span class="w"> </span><span class="nf">service</span><span class="p">(</span><span class="n">arguments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">config</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span> <span class="n">dry_run</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">verbose</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-32"><a id="baccy.service_cli.service--source--__codelineno-0-32" name="baccy.service_cli.service--source--__codelineno-0-32"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">arguments</span> <span class="ow">or</span> <span class="n">arguments</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="p">{</span><span class="s1">'-h'</span><span class="p">,</span> <span class="s1">'--help'</span><span class="p">}:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-33"><a id="baccy.service_cli.service--source--__codelineno-0-33" name="baccy.service_cli.service--source--__codelineno-0-33"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">_service_usage</span><span class="p">())</span>
+</span><span id="baccy.service_cli.service--source--__span-0-34"><a id="baccy.service_cli.service--source--__codelineno-0-34" name="baccy.service_cli.service--source--__codelineno-0-34"></a>        <span class="k">return</span> <span class="mi">0</span>
+</span><span id="baccy.service_cli.service--source--__span-0-35"><a id="baccy.service_cli.service--source--__codelineno-0-35" name="baccy.service_cli.service--source--__codelineno-0-35"></a>    <span class="n">command</span><span class="p">,</span> <span class="n">rest</span> <span class="o">=</span> <span class="n">arguments</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">arguments</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+</span><span id="baccy.service_cli.service--source--__span-0-36"><a id="baccy.service_cli.service--source--__codelineno-0-36" name="baccy.service_cli.service--source--__codelineno-0-36"></a>    <span class="k">if</span> <span class="n">command</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s1">'install'</span><span class="p">,</span> <span class="s1">'uninstall'</span><span class="p">,</span> <span class="s1">'start'</span><span class="p">,</span> <span class="s1">'stop'</span><span class="p">,</span> <span class="s1">'restart'</span><span class="p">,</span> <span class="s1">'status'</span><span class="p">}:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-37"><a id="baccy.service_cli.service--source--__codelineno-0-37" name="baccy.service_cli.service--source--__codelineno-0-37"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'unknown service command: </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-38"><a id="baccy.service_cli.service--source--__codelineno-0-38" name="baccy.service_cli.service--source--__codelineno-0-38"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">_service_usage</span><span class="p">(),</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-39"><a id="baccy.service_cli.service--source--__codelineno-0-39" name="baccy.service_cli.service--source--__codelineno-0-39"></a>        <span class="k">return</span> <span class="mi">2</span>
+</span><span id="baccy.service_cli.service--source--__span-0-40"><a id="baccy.service_cli.service--source--__codelineno-0-40" name="baccy.service_cli.service--source--__codelineno-0-40"></a>    <span class="k">if</span> <span class="n">dry_run</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-41"><a id="baccy.service_cli.service--source--__codelineno-0-41" name="baccy.service_cli.service--source--__codelineno-0-41"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">({</span><span class="s1">'command'</span><span class="p">:</span> <span class="n">command</span><span class="p">,</span> <span class="s1">'dry_run'</span><span class="p">:</span> <span class="kc">True</span><span class="p">}),</span> <span class="n">end</span><span class="o">=</span><span class="s1">''</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-42"><a id="baccy.service_cli.service--source--__codelineno-0-42" name="baccy.service_cli.service--source--__codelineno-0-42"></a>        <span class="k">return</span> <span class="mi">0</span>
+</span><span id="baccy.service_cli.service--source--__span-0-43"><a id="baccy.service_cli.service--source--__codelineno-0-43" name="baccy.service_cli.service--source--__codelineno-0-43"></a>    <span class="n">application</span> <span class="o">=</span> <span class="n">Application</span><span class="p">()</span>
+</span><span id="baccy.service_cli.service--source--__span-0-44"><a id="baccy.service_cli.service--source--__codelineno-0-44" name="baccy.service_cli.service--source--__codelineno-0-44"></a>    <span class="k">if</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">'install'</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-45"><a id="baccy.service_cli.service--source--__codelineno-0-45" name="baccy.service_cli.service--source--__codelineno-0-45"></a>        <span class="n">install</span> <span class="o">=</span> <span class="n">tyro</span><span class="o">.</span><span class="n">cli</span><span class="p">(</span><span class="n">InstallCommand</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="n">rest</span><span class="p">,</span> <span class="n">prog</span><span class="o">=</span><span class="s1">'baccy service install'</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-46"><a id="baccy.service_cli.service--source--__codelineno-0-46" name="baccy.service_cli.service--source--__codelineno-0-46"></a>        <span class="n">completed</span> <span class="o">=</span> <span class="kc">False</span>
+</span><span id="baccy.service_cli.service--source--__span-0-47"><a id="baccy.service_cli.service--source--__codelineno-0-47" name="baccy.service_cli.service--source--__codelineno-0-47"></a>        <span class="n">output_text</span> <span class="o">=</span> <span class="s1">''</span>
+</span><span id="baccy.service_cli.service--source--__span-0-48"><a id="baccy.service_cli.service--source--__codelineno-0-48" name="baccy.service_cli.service--source--__codelineno-0-48"></a>        <span class="k">with</span> <span class="n">tempfile</span><span class="o">.</span><span class="n">TemporaryFile</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">'w+t'</span><span class="p">)</span> <span class="k">as</span> <span class="n">output</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-49"><a id="baccy.service_cli.service--source--__codelineno-0-49" name="baccy.service_cli.service--source--__codelineno-0-49"></a>            <span class="k">try</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-50"><a id="baccy.service_cli.service--source--__codelineno-0-50" name="baccy.service_cli.service--source--__codelineno-0-50"></a>                <span class="k">with</span> <span class="n">_capture_install_output</span><span class="p">(</span><span class="n">output</span><span class="p">):</span>
+</span><span id="baccy.service_cli.service--source--__span-0-51"><a id="baccy.service_cli.service--source--__codelineno-0-51" name="baccy.service_cli.service--source--__codelineno-0-51"></a>                    <span class="k">if</span> <span class="n">_install</span><span class="p">(</span><span class="n">application</span><span class="p">,</span> <span class="n">config</span><span class="p">,</span> <span class="n">install</span><span class="p">):</span>
+</span><span id="baccy.service_cli.service--source--__span-0-52"><a id="baccy.service_cli.service--source--__codelineno-0-52" name="baccy.service_cli.service--source--__codelineno-0-52"></a>                        <span class="n">output_text</span> <span class="o">=</span> <span class="p">(</span>
+</span><span id="baccy.service_cli.service--source--__span-0-53"><a id="baccy.service_cli.service--source--__codelineno-0-53" name="baccy.service_cli.service--source--__codelineno-0-53"></a>                            <span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span>
+</span><span id="baccy.service_cli.service--source--__span-0-54"><a id="baccy.service_cli.service--source--__codelineno-0-54" name="baccy.service_cli.service--source--__codelineno-0-54"></a>                                <span class="n">application</span><span class="o">.</span><span class="n">service_status</span><span class="p">()</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(</span>
+</span><span id="baccy.service_cli.service--source--__span-0-55"><a id="baccy.service_cli.service--source--__codelineno-0-55" name="baccy.service_cli.service--source--__codelineno-0-55"></a>                                    <span class="n">mode</span><span class="o">=</span><span class="s1">'json'</span><span class="p">,</span> <span class="n">exclude_none</span><span class="o">=</span><span class="kc">True</span>
+</span><span id="baccy.service_cli.service--source--__span-0-56"><a id="baccy.service_cli.service--source--__codelineno-0-56" name="baccy.service_cli.service--source--__codelineno-0-56"></a>                                <span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-57"><a id="baccy.service_cli.service--source--__codelineno-0-57" name="baccy.service_cli.service--source--__codelineno-0-57"></a>                            <span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-58"><a id="baccy.service_cli.service--source--__codelineno-0-58" name="baccy.service_cli.service--source--__codelineno-0-58"></a>                            <span class="k">if</span> <span class="n">verbose</span>
+</span><span id="baccy.service_cli.service--source--__span-0-59"><a id="baccy.service_cli.service--source--__codelineno-0-59" name="baccy.service_cli.service--source--__codelineno-0-59"></a>                            <span class="k">else</span> <span class="s1">'ok</span><span class="se">\n</span><span class="s1">'</span>
+</span><span id="baccy.service_cli.service--source--__span-0-60"><a id="baccy.service_cli.service--source--__codelineno-0-60" name="baccy.service_cli.service--source--__codelineno-0-60"></a>                        <span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-61"><a id="baccy.service_cli.service--source--__codelineno-0-61" name="baccy.service_cli.service--source--__codelineno-0-61"></a>                        <span class="n">completed</span> <span class="o">=</span> <span class="kc">True</span>
+</span><span id="baccy.service_cli.service--source--__span-0-62"><a id="baccy.service_cli.service--source--__codelineno-0-62" name="baccy.service_cli.service--source--__codelineno-0-62"></a>            <span class="k">finally</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-63"><a id="baccy.service_cli.service--source--__codelineno-0-63" name="baccy.service_cli.service--source--__codelineno-0-63"></a>                <span class="k">if</span> <span class="ow">not</span> <span class="n">completed</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-64"><a id="baccy.service_cli.service--source--__codelineno-0-64" name="baccy.service_cli.service--source--__codelineno-0-64"></a>                    <span class="n">output</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-65"><a id="baccy.service_cli.service--source--__codelineno-0-65" name="baccy.service_cli.service--source--__codelineno-0-65"></a>                    <span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">read</span><span class="p">())</span>
+</span><span id="baccy.service_cli.service--source--__span-0-66"><a id="baccy.service_cli.service--source--__codelineno-0-66" name="baccy.service_cli.service--source--__codelineno-0-66"></a>        <span class="k">if</span> <span class="n">completed</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-67"><a id="baccy.service_cli.service--source--__codelineno-0-67" name="baccy.service_cli.service--source--__codelineno-0-67"></a>            <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">output_text</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-68"><a id="baccy.service_cli.service--source--__codelineno-0-68" name="baccy.service_cli.service--source--__codelineno-0-68"></a>            <span class="k">return</span> <span class="mi">0</span>
+</span><span id="baccy.service_cli.service--source--__span-0-69"><a id="baccy.service_cli.service--source--__codelineno-0-69" name="baccy.service_cli.service--source--__codelineno-0-69"></a>        <span class="k">return</span> <span class="mi">1</span>
+</span><span id="baccy.service_cli.service--source--__span-0-70"><a id="baccy.service_cli.service--source--__codelineno-0-70" name="baccy.service_cli.service--source--__codelineno-0-70"></a>    <span class="k">if</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">'uninstall'</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-71"><a id="baccy.service_cli.service--source--__codelineno-0-71" name="baccy.service_cli.service--source--__codelineno-0-71"></a>        <span class="n">_parse_service_command</span><span class="p">(</span><span class="n">rest</span><span class="p">,</span> <span class="n">command</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-72"><a id="baccy.service_cli.service--source--__codelineno-0-72" name="baccy.service_cli.service--source--__codelineno-0-72"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">application</span><span class="o">.</span><span class="n">uninstall_service</span><span class="p">()</span>
+</span><span id="baccy.service_cli.service--source--__span-0-73"><a id="baccy.service_cli.service--source--__codelineno-0-73" name="baccy.service_cli.service--source--__codelineno-0-73"></a>    <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">'start'</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-74"><a id="baccy.service_cli.service--source--__codelineno-0-74" name="baccy.service_cli.service--source--__codelineno-0-74"></a>        <span class="n">_parse_service_command</span><span class="p">(</span><span class="n">rest</span><span class="p">,</span> <span class="n">command</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-75"><a id="baccy.service_cli.service--source--__codelineno-0-75" name="baccy.service_cli.service--source--__codelineno-0-75"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">application</span><span class="o">.</span><span class="n">start_service</span><span class="p">()</span>
+</span><span id="baccy.service_cli.service--source--__span-0-76"><a id="baccy.service_cli.service--source--__codelineno-0-76" name="baccy.service_cli.service--source--__codelineno-0-76"></a>    <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">'stop'</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-77"><a id="baccy.service_cli.service--source--__codelineno-0-77" name="baccy.service_cli.service--source--__codelineno-0-77"></a>        <span class="n">_parse_service_command</span><span class="p">(</span><span class="n">rest</span><span class="p">,</span> <span class="n">command</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-78"><a id="baccy.service_cli.service--source--__codelineno-0-78" name="baccy.service_cli.service--source--__codelineno-0-78"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">application</span><span class="o">.</span><span class="n">stop_service</span><span class="p">()</span>
+</span><span id="baccy.service_cli.service--source--__span-0-79"><a id="baccy.service_cli.service--source--__codelineno-0-79" name="baccy.service_cli.service--source--__codelineno-0-79"></a>    <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">'restart'</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-80"><a id="baccy.service_cli.service--source--__codelineno-0-80" name="baccy.service_cli.service--source--__codelineno-0-80"></a>        <span class="n">_parse_service_command</span><span class="p">(</span><span class="n">rest</span><span class="p">,</span> <span class="n">command</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-81"><a id="baccy.service_cli.service--source--__codelineno-0-81" name="baccy.service_cli.service--source--__codelineno-0-81"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">application</span><span class="o">.</span><span class="n">restart_service</span><span class="p">()</span>
+</span><span id="baccy.service_cli.service--source--__span-0-82"><a id="baccy.service_cli.service--source--__codelineno-0-82" name="baccy.service_cli.service--source--__codelineno-0-82"></a>    <span class="k">elif</span> <span class="n">command</span> <span class="o">==</span> <span class="s1">'status'</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-83"><a id="baccy.service_cli.service--source--__codelineno-0-83" name="baccy.service_cli.service--source--__codelineno-0-83"></a>        <span class="n">_parse_service_command</span><span class="p">(</span><span class="n">rest</span><span class="p">,</span> <span class="n">command</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-84"><a id="baccy.service_cli.service--source--__codelineno-0-84" name="baccy.service_cli.service--source--__codelineno-0-84"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">application</span><span class="o">.</span><span class="n">service_status</span><span class="p">()</span>
+</span><span id="baccy.service_cli.service--source--__span-0-85"><a id="baccy.service_cli.service--source--__codelineno-0-85" name="baccy.service_cli.service--source--__codelineno-0-85"></a>    <span class="k">else</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-86"><a id="baccy.service_cli.service--source--__codelineno-0-86" name="baccy.service_cli.service--source--__codelineno-0-86"></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s1">'unknown service command: </span><span class="si">{</span><span class="n">command</span><span class="si">}</span><span class="s1">'</span><span class="p">,</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-87"><a id="baccy.service_cli.service--source--__codelineno-0-87" name="baccy.service_cli.service--source--__codelineno-0-87"></a>        <span class="nb">print</span><span class="p">(</span><span class="n">_service_usage</span><span class="p">(),</span> <span class="n">file</span><span class="o">=</span><span class="n">sys</span><span class="o">.</span><span class="n">stderr</span><span class="p">)</span>
+</span><span id="baccy.service_cli.service--source--__span-0-88"><a id="baccy.service_cli.service--source--__codelineno-0-88" name="baccy.service_cli.service--source--__codelineno-0-88"></a>        <span class="k">return</span> <span class="mi">2</span>
+</span><span id="baccy.service_cli.service--source--__span-0-89"><a id="baccy.service_cli.service--source--__codelineno-0-89" name="baccy.service_cli.service--source--__codelineno-0-89"></a>    <span class="k">if</span> <span class="n">result</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="baccy.service_cli.service--source--__span-0-90"><a id="baccy.service_cli.service--source--__codelineno-0-90" name="baccy.service_cli.service--source--__codelineno-0-90"></a>        <span class="n">result</span> <span class="o">=</span> <span class="n">application</span><span class="o">.</span><span class="n">service_status</span><span class="p">()</span>
+</span><span id="baccy.service_cli.service--source--__span-0-91"><a id="baccy.service_cli.service--source--__codelineno-0-91" name="baccy.service_cli.service--source--__codelineno-0-91"></a>    <span class="n">sys</span><span class="o">.</span><span class="n">stdout</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">tomlkit</span><span class="o">.</span><span class="n">dumps</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(</span><span class="n">mode</span><span class="o">=</span><span class="s1">'json'</span><span class="p">,</span> <span class="n">exclude_none</span><span class="o">=</span><span class="kc">True</span><span class="p">)))</span>
+</span><span id="baccy.service_cli.service--source--__span-0-92"><a id="baccy.service_cli.service--source--__codelineno-0-92" name="baccy.service_cli.service--source--__codelineno-0-92"></a>    <span class="k">return</span> <span class="mi">0</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="baccy.service_cli.request_daemon_sync" class="doc doc-heading">
+            <code class="highlight language-python"><span class="n">request_daemon_sync</span><span class="p">(</span><span class="n">endpoint</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></code>
+
+<a href="#baccy.service_cli.request_daemon_sync" class="headerlink" title="Permanent link">&para;</a></h2>
+
+
+    <div class="doc doc-contents ">
+
+
+            <details class="mkdocstrings-source">
+              <summary>Source code in <code>baccy/service_cli.py</code></summary>
+              <div class="language-python highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-211">211</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-212">212</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-213">213</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-214">214</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-215">215</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-216">216</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-217">217</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-218">218</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-219">219</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-220">220</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-221">221</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-222">222</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-223">223</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-224">224</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-225">225</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-226">226</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-227">227</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-228">228</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-229">229</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-230">230</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-231">231</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-232">232</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-233">233</a></span>
+<span class="normal"><a href="#baccy.service_cli.request_daemon_sync--source--__codelineno-0-234">234</a></span></pre></div></td><td class="code"><div><pre><span></span><code><span id="baccy.service_cli.request_daemon_sync--source--__span-0-211"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-211" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-211"></a><span class="k">def</span><span class="w"> </span><span class="nf">request_daemon_sync</span><span class="p">(</span><span class="n">endpoint</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="n">attempts</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">20</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-212"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-212" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-212"></a>    <span class="n">error</span> <span class="o">=</span> <span class="s1">'daemon control socket did not appear'</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-213"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-213" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-213"></a>    <span class="k">for</span> <span class="n">attempt</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">attempts</span><span class="p">):</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-214"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-214" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-214"></a>        <span class="k">try</span><span class="p">:</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-215"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-215" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-215"></a>            <span class="n">rpc</span><span class="o">.</span><span class="n">Client</span><span class="p">(</span><span class="n">endpoint</span><span class="p">,</span> <span class="n">role</span><span class="o">=</span><span class="s1">'baccy-cli'</span><span class="p">)</span><span class="o">.</span><span class="n">call</span><span class="p">(</span><span class="s1">'sync'</span><span class="p">)</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-216"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-216" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-216"></a>            <span class="k">return</span> <span class="kc">None</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-217"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-217" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-217"></a>        <span class="k">except</span> <span class="n">rpc</span><span class="o">.</span><span class="n">TransportError</span> <span class="k">as</span> <span class="n">value</span><span class="p">:</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-218"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-218" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-218"></a>            <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">outcome</span> <span class="o">!=</span> <span class="n">ipc</span><span class="o">.</span><span class="n">Outcome</span><span class="o">.</span><span class="n">not_started</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-219"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-219" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-219"></a>                <span class="n">value</span><span class="o">.</span><span class="n">__cause__</span><span class="p">,</span> <span class="ne">FileNotFoundError</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-220"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-220" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-220"></a>            <span class="p">):</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-221"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-221" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-221"></a>                <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-222"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-222" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-222"></a>            <span class="n">error</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-223"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-223" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-223"></a>            <span class="k">if</span> <span class="n">attempt</span> <span class="o">==</span> <span class="n">attempts</span> <span class="o">-</span> <span class="mi">1</span><span class="p">:</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-224"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-224" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-224"></a>                <span class="k">return</span> <span class="n">error</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-225"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-225" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-225"></a>            <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mf">0.1</span><span class="p">)</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-226"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-226" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-226"></a>        <span class="k">except</span> <span class="p">(</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-227"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-227" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-227"></a>            <span class="n">rpc</span><span class="o">.</span><span class="n">RemoteError</span><span class="p">,</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-228"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-228" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-228"></a>            <span class="ne">BrokenPipeError</span><span class="p">,</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-229"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-229" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-229"></a>            <span class="ne">ConnectionError</span><span class="p">,</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-230"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-230" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-230"></a>            <span class="ne">OSError</span><span class="p">,</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-231"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-231" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-231"></a>            <span class="ne">TimeoutError</span><span class="p">,</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-232"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-232" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-232"></a>        <span class="p">)</span> <span class="k">as</span> <span class="n">value</span><span class="p">:</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-233"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-233" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-233"></a>            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+</span><span id="baccy.service_cli.request_daemon_sync--source--__span-0-234"><a id="baccy.service_cli.request_daemon_sync--source--__codelineno-0-234" name="baccy.service_cli.request_daemon_sync--source--__codelineno-0-234"></a>    <span class="k">return</span> <span class="n">error</span>
+</span></code></pre></div></td></tr></table></div>
+            </details>
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog" role="status" aria-atomic="true">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      
+        
+        
+      <script id="__config" type="application/json">{"annotate":null,"base":"../../..","features":["navigation.indexes","content.code.copy"],"redirect":null,"search":"../../../assets/javascripts/workers/search.c47bb847.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","clipboard.error":"Could not copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.77dd0ce9.min.js"></script>
+      
+    
+  </body>
+</html>
