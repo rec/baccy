@@ -43,6 +43,7 @@ reccy = { path = "../reccy", editable = true }
 [dependency-groups]
 dev = [
     "pytest>=9.1.1",
+    "pytest-regressions>=2.11.0",
     "pyupgrade>=3.21.2",
     "ruff>=0.16.7",
     "ty>=0.0.80",
